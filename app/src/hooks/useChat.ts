@@ -1,0 +1,235 @@
+import { useState, useCallback } from 'react';
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  doc,
+  updateDoc,
+  serverTimestamp,
+  Timestamp,
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
+export interface PhoneSharing {
+  requestedBy: string | null;
+  requestedAt: Timestamp | null;
+  acceptedBy: string | null;
+  acceptedAt: Timestamp | null;
+  ownerPhone: string | null;
+  seekerPhone: string | null;
+}
+
+export interface ChatRoom {
+  id: string;
+  participants: string[];
+  matchId: string;
+  lastMessage: string;
+  lastMessageAt: Timestamp | null;
+  createdAt: Timestamp;
+  typingStatus?: Record<string, boolean>;
+  phoneSharing?: PhoneSharing;
+}
+
+export interface Message {
+  id: string;
+  senderId: string;
+  content: string;
+  read: boolean;
+  createdAt: Timestamp;
+  imageUrl?: string;
+  isSystem?: boolean;
+}
+
+export function useChat() {
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const subscribeToChatRooms = useCallback(
+    (userId: string, onChange: (rooms: ChatRoom[]) => void) => {
+      const q = query(
+        collection(db, 'chatRooms'),
+        where('participants', 'array-contains', userId),
+        orderBy('lastMessageAt', 'desc')
+      );
+      return onSnapshot(q, (snap) => {
+        const rooms = snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatRoom));
+        onChange(rooms);
+      });
+    },
+    []
+  );
+
+  const subscribeToMessages = useCallback(
+    (roomId: string, onNewMessages: (msgs: Message[]) => void) => {
+      const q = query(
+        collection(db, 'chatRooms', roomId, 'messages'),
+        orderBy('createdAt', 'asc')
+      );
+      return onSnapshot(q, (snap) => {
+        const msgs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message));
+        onNewMessages(msgs);
+      });
+    },
+    []
+  );
+
+  const getChatRooms = useCallback(async (userId: string): Promise<ChatRoom[]> => {
+    const q = query(
+      collection(db, 'chatRooms'),
+      where('participants', 'array-contains', userId),
+      orderBy('lastMessageAt', 'desc')
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatRoom));
+  }, []);
+
+  const getOrCreateChatRoom = useCallback(
+    async (userIdA: string, userIdB: string, matchId?: string): Promise<string> => {
+      const q = query(
+        collection(db, 'chatRooms'),
+        where('participants', 'array-contains', userIdA)
+      );
+      const snap = await getDocs(q);
+      const existing = snap.docs.find((d) => {
+        const data = d.data() as ChatRoom;
+        return data.participants.includes(userIdB);
+      });
+      if (existing) return existing.id;
+
+      const ref = await addDoc(collection(db, 'chatRooms'), {
+        participants: [userIdA, userIdB],
+        matchId: matchId || '',
+        lastMessage: '',
+        lastMessageAt: null,
+        createdAt: serverTimestamp(),
+        typingStatus: {},
+        phoneSharing: {
+          requestedBy: null, requestedAt: null,
+          acceptedBy: null, acceptedAt: null,
+          ownerPhone: null, seekerPhone: null,
+        },
+      });
+      return ref.id;
+    },
+    []
+  );
+
+  const sendMessage = useCallback(
+    async (roomId: string, senderId: string, content: string, imageUrl?: string): Promise<void> => {
+      const msgData: Record<string, unknown> = {
+        senderId,
+        content,
+        read: false,
+        createdAt: serverTimestamp(),
+      };
+      if (imageUrl) msgData.imageUrl = imageUrl;
+
+      await addDoc(collection(db, 'chatRooms', roomId, 'messages'), msgData);
+      await updateDoc(doc(db, 'chatRooms', roomId), {
+        lastMessage: imageUrl ? '📷 Photo' : content,
+        lastMessageAt: serverTimestamp(),
+        [`typingStatus.${senderId}`]: false,
+      });
+    },
+    []
+  );
+
+  const sendSystemMessage = useCallback(
+    async (roomId: string, content: string): Promise<void> => {
+      await addDoc(collection(db, 'chatRooms', roomId, 'messages'), {
+        senderId: 'system',
+        content,
+        read: true,
+        isSystem: true,
+        createdAt: serverTimestamp(),
+      });
+    },
+    []
+  );
+
+  const markMessagesRead = useCallback(
+    async (roomId: string, userId: string) => {
+      const q = query(
+        collection(db, 'chatRooms', roomId, 'messages'),
+        where('read', '==', false)
+      );
+      const snap = await getDocs(q);
+      const batch = snap.docs
+        .filter((d) => d.data().senderId !== userId)
+        .map((d) => updateDoc(d.ref, { read: true }));
+      await Promise.all(batch);
+    },
+    []
+  );
+
+  // --- Typing Indicator ---
+  const setTyping = useCallback(
+    async (roomId: string, userId: string, isTyping: boolean) => {
+      try {
+        await updateDoc(doc(db, 'chatRooms', roomId), {
+          [`typingStatus.${userId}`]: isTyping,
+        });
+      } catch (e) {
+        // silently fail — typing is non-critical
+      }
+    },
+    []
+  );
+
+  // --- Phone Sharing ---
+  const requestPhoneShare = useCallback(
+    async (roomId: string, requesterId: string, requesterName: string) => {
+      await updateDoc(doc(db, 'chatRooms', roomId), {
+        'phoneSharing.requestedBy': requesterId,
+        'phoneSharing.requestedAt': serverTimestamp(),
+      });
+      await sendSystemMessage(roomId, `📱 ${requesterName} wants to share phone numbers`);
+    },
+    []
+  );
+
+  const acceptPhoneShare = useCallback(
+    async (
+      roomId: string,
+      accepterId: string,
+      accepterName: string,
+      accepterPhone: string,
+      requesterPhone: string,
+      requesterRole: 'owner' | 'seeker' | null,
+      accepterRole: 'owner' | 'seeker' | null
+    ) => {
+      const ownerPhone = requesterRole === 'owner' ? requesterPhone : accepterPhone;
+      const seekerPhone = requesterRole === 'seeker' ? requesterPhone : accepterPhone;
+
+      await updateDoc(doc(db, 'chatRooms', roomId), {
+        'phoneSharing.acceptedBy': accepterId,
+        'phoneSharing.acceptedAt': serverTimestamp(),
+        'phoneSharing.ownerPhone': ownerPhone,
+        'phoneSharing.seekerPhone': seekerPhone,
+      });
+      await sendSystemMessage(roomId, `✅ Phone numbers are now shared between both parties`);
+    },
+    []
+  );
+
+  return {
+    chatRooms,
+    messages,
+    isLoading,
+    subscribeToChatRooms,
+    subscribeToMessages,
+    getChatRooms,
+    getOrCreateChatRoom,
+    sendMessage,
+    sendSystemMessage,
+    markMessagesRead,
+    setTyping,
+    requestPhoneShare,
+    acceptPhoneShare,
+  };
+}

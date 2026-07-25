@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-ssr
+*.log
+.env
+.env.local
+.env.*
+.DS_Store
+.vscode
+.idea
+*.tsbuildinfo
+coverage

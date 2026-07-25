@@ -1,0 +1,204 @@
+import { useCallback } from 'react';
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
+  addDoc,
+  collection,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { UserProfile } from './useAuth';
+
+export function useUserProfile() {
+  const getProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
+    const snap = await getDoc(doc(db, 'users', userId));
+    return snap.exists() ? (snap.data() as UserProfile) : null;
+  }, []);
+
+  const updateProfile = useCallback(async (userId: string, data: Partial<UserProfile>) => {
+    const userRef = doc(db, 'users', userId);
+    await setDoc(userRef, {
+      ...data,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  }, []);
+
+  const setRole = useCallback(async (userId: string, role: 'seeker' | 'owner') => {
+    await setDoc(doc(db, 'users', userId), {
+      role,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  }, []);
+
+  const completeOnboarding = useCallback(
+    async (userId: string, quizAnswers: Record<string, string>) => {
+      await setDoc(doc(db, 'users', userId), {
+        quizAnswers,
+        onboardingComplete: true,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    },
+    []
+  );
+
+  const saveBasicProfile = useCallback(
+    async (
+      userId: string,
+      data: {
+        name: string;
+        age: number;
+        gender: string;
+        profession: string;
+        company: string;
+        phone?: string;
+        avatar?: string;
+      }
+    ) => {
+      await updateDoc(doc(db, 'users', userId), {
+        ...data,
+        updatedAt: serverTimestamp(),
+      });
+    },
+    []
+  );
+
+  const saveLocationPreferences = useCallback(
+    async (
+      userId: string,
+      data: {
+        city: string;
+        localities: string[];
+        budget: number;
+        moveInDate: string;
+      }
+    ) => {
+      await updateDoc(doc(db, 'users', userId), {
+        ...data,
+        updatedAt: serverTimestamp(),
+      });
+    },
+    []
+  );
+
+  /**
+   * Toggle a profile UID in the user's savedProfileIds array.
+   * Uses Firestore arrayUnion/arrayRemove — safe for concurrent updates.
+   * Returns the new saved state (true = now saved).
+   */
+  const toggleSavedProfile = useCallback(
+    async (userId: string, targetUid: string, currentlySaved: boolean): Promise<boolean> => {
+      const userRef = doc(db, 'users', userId);
+      if (currentlySaved) {
+        await updateDoc(userRef, { savedProfileIds: arrayRemove(targetUid), updatedAt: serverTimestamp() });
+        return false;
+      } else {
+        await updateDoc(userRef, { savedProfileIds: arrayUnion(targetUid), updatedAt: serverTimestamp() });
+        return true;
+      }
+    },
+    []
+  );
+
+  /**
+   * Toggle a listing ID in the user's savedRoomIds array.
+   * Returns the new saved state (true = now saved).
+   */
+  const toggleSavedRoom = useCallback(
+    async (userId: string, roomId: string, currentlySaved: boolean): Promise<boolean> => {
+      const userRef = doc(db, 'users', userId);
+      if (currentlySaved) {
+        await updateDoc(userRef, { savedRoomIds: arrayRemove(roomId), updatedAt: serverTimestamp() });
+        return false;
+      } else {
+        await updateDoc(userRef, { savedRoomIds: arrayUnion(roomId), updatedAt: serverTimestamp() });
+        return true;
+      }
+    },
+    []
+  );
+
+  /**
+   * Add a user UID to the skippedUserIds array (one-way — never un-skip).
+   */
+  const addSkippedUser = useCallback(
+    async (userId: string, skippedUid: string): Promise<void> => {
+      await updateDoc(doc(db, 'users', userId), {
+        skippedUserIds: arrayUnion(skippedUid),
+        updatedAt: serverTimestamp(),
+      });
+    },
+    []
+  );
+
+  /**
+   * Add a user UID to the blockedUserIds array.
+   */
+  const blockUser = useCallback(
+    async (userId: string, targetUid: string): Promise<void> => {
+      await updateDoc(doc(db, 'users', userId), {
+        blockedUserIds: arrayUnion(targetUid),
+        updatedAt: serverTimestamp(),
+      });
+    },
+    []
+  );
+
+  /**
+   * Create a report document in the 'reports' collection.
+   */
+  const reportUser = useCallback(
+    async (data: {
+      reporterId: string;
+      targetId: string;
+      reason: string;
+      description?: string;
+    }): Promise<void> => {
+      await addDoc(collection(db, 'reports'), {
+        ...data,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+      });
+    },
+    []
+  );
+
+  const saveSearch = useCallback(
+    async (userId: string, searchData: any): Promise<void> => {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        savedSearches: arrayUnion(searchData),
+      });
+    },
+    []
+  );
+
+  const deleteSearch = useCallback(
+    async (userId: string, searchData: any): Promise<void> => {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        savedSearches: arrayRemove(searchData),
+      });
+    },
+    []
+  );
+
+  return {
+    getProfile,
+    updateProfile,
+    setRole,
+    completeOnboarding,
+    saveBasicProfile,
+    saveLocationPreferences,
+    toggleSavedProfile,
+    toggleSavedRoom,
+    addSkippedUser,
+    blockUser,
+    reportUser,
+    saveSearch,
+    deleteSearch,
+  };
+}

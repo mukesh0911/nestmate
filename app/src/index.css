@@ -1,0 +1,176 @@
+/* Fonts loaded via <link> in index.html for preloading */
+@import 'leaflet/dist/leaflet.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@layer base {
+  :root {
+    --background: 37 33% 95%;
+    --foreground: 240 29% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 29% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 29% 14%;
+    --primary: 17 80% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 52% 24%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 37 25% 90%;
+    --muted-foreground: 240 5% 45%;
+    --accent: 37 25% 90%;
+    --accent-foreground: 240 29% 14%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 37 20% 85%;
+    --input: 37 20% 85%;
+    --ring: 17 80% 50%;
+    --radius: 0.625rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-parchment text-ink font-body antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+
+  /* Accessibility: visible focus ring for keyboard users */
+  *:focus-visible {
+    outline: 2px solid hsl(17 80% 50%);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Fix iOS auto-zoom: inputs must be ≥16px */
+  input, select, textarea {
+    font-size: 16px;
+  }
+}
+
+@layer components {
+  .frosted-glass {
+    @apply backdrop-blur-xl bg-white/70 border-b border-white/20;
+  }
+  
+  .card-nestmate {
+    @apply bg-white rounded-2xl shadow-card border-0;
+  }
+  
+  .card-nestmate-hover {
+    @apply bg-white rounded-2xl shadow-card border-0 transition-all duration-300 hover:shadow-lift hover:-translate-y-1;
+  }
+
+  .btn-fire {
+    @apply bg-fire text-white font-medium px-6 py-3 rounded-xl transition-all duration-200 
+           hover:bg-fire-dark hover:shadow-lg active:scale-[0.98];
+  }
+
+  .btn-navy {
+    @apply bg-navy text-white font-medium px-6 py-3 rounded-xl transition-all duration-200 
+           hover:bg-navy-dark hover:shadow-lg active:scale-[0.98];
+  }
+
+  .btn-outline {
+    @apply border-2 border-fire text-fire font-medium px-6 py-3 rounded-xl 
+           transition-all duration-200 hover:bg-fire-light active:scale-[0.98];
+  }
+
+  .btn-ghost {
+    @apply text-ink/70 font-medium px-4 py-2 rounded-lg transition-all duration-200 
+           hover:bg-ink/5 hover:text-ink;
+  }
+
+  .gradient-fire {
+    background: linear-gradient(135deg, #E5501A 0%, #FF7A4D 100%);
+  }
+
+  .gradient-navy {
+    background: linear-gradient(135deg, #1E3A5F 0%, #2D5A8E 100%);
+  }
+
+  .gradient-dark {
+    background: linear-gradient(180deg, #1A1A2E 0%, #16213E 100%);
+  }
+
+  .gradient-mesh-fire {
+    background: 
+      radial-gradient(ellipse 80% 60% at 80% 20%, rgba(229, 80, 26, 0.15) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 80% at 20% 80%, rgba(30, 58, 95, 0.12) 0%, transparent 60%);
+  }
+
+  .text-gradient-fire {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-fire to-orange-400;
+  }
+
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, #f0ece4 25%, #e8e3da 50%, #f0ece4 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  .input-nestmate {
+    @apply w-full px-4 py-3 bg-cream/50 border-2 border-border rounded-xl 
+           transition-all duration-200 focus:border-fire focus:ring-2 focus:ring-fire/20 
+           focus:outline-none placeholder:text-muted-foreground/50;
+  }
+
+  .label-floating {
+    @apply text-sm font-medium text-ink/70 mb-1.5 block;
+  }
+
+  .badge-fire {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-fire-light text-fire;
+  }
+
+  .badge-navy {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-navy-light text-navy;
+  }
+
+  .badge-teal {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-teal-light text-teal;
+  }
+
+  .badge-gold {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gold-light text-gold;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer utilities {
+  .page-transition {
+    animation: fade-up 0.28s ease-out forwards;
+  }
+}
+
+/* Typing indicator dots animation */
+.typing-dots {
+  display: inline-block;
+  animation: typingPulse 1.4s infinite;
+}
+
+@keyframes typingPulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}

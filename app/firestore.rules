@@ -1,0 +1,145 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.email.matches('.*@nestmate\\.com$');
+    }
+
+    // Admin override for maintenance and system tasks
+    match /{document=**} {
+      allow read, write, delete: if isAdmin();
+    }
+
+    // Users: public read access so visitors can browse seekers & owners
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isOwner(userId) || isAdmin();
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // Listings: public read access so visitors can browse room listings
+    match /listings/{listingId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.ownerId ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'updatedAt']) ||
+        isAdmin()
+      );
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.ownerId || isAdmin());
+    }
+
+    // Connections: only the participants or admin can read/write
+    match /connections/{connectionId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.fromUserId ||
+        request.auth.uid == resource.data.toUserId ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && (request.resource.data.fromUserId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.fromUserId ||
+        request.auth.uid == resource.data.toUserId ||
+        isAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.fromUserId ||
+        request.auth.uid == resource.data.toUserId ||
+        isAdmin()
+      );
+    }
+
+    // Chat rooms: only participants or admin can read/write
+    match /chatRooms/{roomId} {
+      allow read: if isAuthenticated() && (request.auth.uid in resource.data.participants || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (request.auth.uid in resource.data.participants || isAdmin());
+      allow delete: if isAuthenticated() && (request.auth.uid in resource.data.participants || isAdmin());
+
+      // Messages subcollection
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants || isAdmin());
+        allow create: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants || isAdmin());
+        allow update: if isAuthenticated() || isAdmin();
+        allow delete: if isAdmin();
+      }
+    }
+
+    // Notifications: only the recipient or admin can read/update/delete; anyone authenticated can create
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+    }
+
+    // Listing views analytics: anyone authenticated can read/write
+    match /listingViews/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Ratings: authenticated users can read all; only create (no update/delete to prevent tampering)
+    match /ratings/{ratingId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+    }
+
+    // Reviews (Vouches)
+    match /reviews/{reviewId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (request.auth.uid == resource.data.reviewerId || isAdmin());
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.reviewerId || isAdmin());
+    }
+
+    // Skipped users (legacy)
+    match /skippedUsers/{docId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Agreement OTPs
+    match /agreementOTPs/{agreementId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Rent Agreements
+    match /agreements/{agreementId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.landlordId ||
+        request.auth.uid == resource.data.tenantId ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.landlordId ||
+        request.auth.uid == resource.data.tenantId ||
+        isAdmin()
+      );
+    }
+
+    // Verifications (User ID Verification uploads)
+    match /verifications/{verificationId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Email Verifications (OTPs)
+    match /emailOTPs/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+  }
+}
