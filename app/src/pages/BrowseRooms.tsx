@@ -9,7 +9,7 @@ import type { Listing } from '@/hooks/useListings';
 import { 
   Search, MapPin, Heart, ShieldCheck, Bed, Loader2, 
   SlidersHorizontal, X, ChevronLeft, ChevronRight, Map,
-  Wifi, Wind, Key, GraduationCap, Leaf, Moon, ShieldAlert
+  Wind, ShieldAlert
 } from 'lucide-react';
 import { cities, localitiesByCity, amenitiesList as allAmenities } from '@/lib/staticData';
 
@@ -22,23 +22,12 @@ export default function BrowseRooms() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [activeCategory, setActiveCategory] = useState('All');
   const [savingRoomId, setSavingRoomId] = useState<string | null>(null);
   const [localFilters, setLocalFilters] = useState(filters);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [imageIndexes, setImageIndexes] = useState<Record<string, number>>({});
 
   const savedRoomIds: string[] = profile?.savedRoomIds || [];
-
-  const categories = [
-    { id: 'All', label: 'All Rooms', icon: <Bed className="w-5 h-5" /> },
-    { id: 'Private', label: 'Private Room', icon: <Key className="w-5 h-5" /> },
-    { id: 'Verified', label: 'Verified', icon: <ShieldCheck className="w-5 h-5" /> },
-    { id: 'Veg', label: 'Veg Kitchen', icon: <Leaf className="w-5 h-5 text-emerald-600" /> },
-    { id: 'WiFi', label: 'AC & WiFi', icon: <Wifi className="w-5 h-5" /> },
-    { id: 'Night', label: 'Night Owls', icon: <Moon className="w-5 h-5" /> },
-    { id: 'Student', label: 'Student Budget', icon: <GraduationCap className="w-5 h-5" /> },
-  ];
 
   useEffect(() => {
     getListings(filters);
@@ -106,16 +95,9 @@ export default function BrowseRooms() {
     });
   };
 
-  // Apply filters client-side based on Category selection
+  // Apply filters client-side
   const filtered = listings.filter(l => {
     if (profile?.blockedUserIds?.includes(l.ownerId)) return false;
-    
-    // Category filter logic
-    if (activeCategory === 'Private' && l.flatType !== '1BHK' && l.flatType !== 'Private Room') return false;
-    if (activeCategory === 'Verified' && !l.isOwnerVerified && !l.ownerAvatar) return false;
-    if (activeCategory === 'Veg' && !l.houseRules?.some(r => r.toLowerCase().includes('veg'))) return false;
-    if (activeCategory === 'WiFi' && !l.amenities?.some(a => a === 'WiFi' || a === 'AC')) return false;
-    if (activeCategory === 'Student' && (l.partnerShare || l.totalRent || 0) > 12000) return false;
     
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -127,69 +109,34 @@ export default function BrowseRooms() {
   return (
     <div className="min-h-screen bg-white pb-24 font-sans text-ink">
       
-      {/* Consolidated Airbnb Sticky Top Container (Sticks below the main layout 60px header) */}
-      <div className="sticky top-[60px] z-40 bg-white border-b border-border shadow-sm">
-        
-        {/* Search Bar Header */}
-        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="hidden md:block">
-            <h1 className="text-xl font-bold tracking-tight text-fire flex items-center gap-1.5 cursor-pointer" onClick={() => navigate('/dashboard')}>
-              <MapPin className="w-5 h-5 fill-current" /> NestMate <span className="text-xs text-ink/40 font-medium px-2 py-0.5 bg-cream rounded-full">Rooms</span>
-            </h1>
-          </div>
-
-          {/* Airbnb Floating Pill Bar */}
-          <div className="flex items-center bg-white border border-border rounded-full py-1.5 pl-6 pr-2 shadow-sm hover:shadow-md transition-shadow cursor-pointer w-full md:w-auto max-w-xl flex-1 justify-between animate-fade-in" onClick={() => setShowFilters(true)}>
-            <div className="flex items-center divide-x divide-border flex-1">
-              <div className="pr-4 text-left">
+      {/* Sticky Top Filter Header */}
+      <div className="sticky top-[60px] z-40 bg-white border-b border-border/80 shadow-sm py-3">
+        <div className="max-w-7xl mx-auto px-4 flex items-center justify-center">
+          {/* Centered Floating Filter Pill */}
+          <div 
+            onClick={() => setShowFilters(true)} 
+            className="flex items-center bg-white border border-border/80 rounded-full py-1.5 pl-6 pr-2 shadow-sm hover:shadow-md transition-all cursor-pointer w-full max-w-xl justify-between hover:border-fire/40 border-ink/15"
+          >
+            <div className="flex items-center divide-x divide-border flex-1 min-w-0">
+              <div className="pr-4 sm:pr-6 text-left">
                 <p className="text-[10px] font-bold text-ink uppercase tracking-wider">Where</p>
-                <p className="text-xs text-ink/60 font-semibold truncate max-w-[120px]">{filters.city || 'Anywhere'}</p>
+                <p className="text-xs text-ink/70 font-semibold truncate max-w-[100px] sm:max-w-[150px]">{filters.city || 'Anywhere'}</p>
               </div>
-              <div className="px-4 text-left">
+              <div className="px-4 sm:px-6 text-left">
                 <p className="text-[10px] font-bold text-ink uppercase tracking-wider">Budget</p>
-                <p className="text-xs text-ink/60 font-semibold">₹{filters.budgetMax?.toLocaleString() || 'Any'}</p>
+                <p className="text-xs text-ink/70 font-semibold truncate">₹{filters.budgetMax?.toLocaleString() || 'Any'}</p>
               </div>
-              <div className="pl-4 text-left hidden sm:block">
+              <div className="pl-4 sm:pl-6 text-left hidden sm:block">
                 <p className="text-[10px] font-bold text-ink uppercase tracking-wider">Type</p>
-                <p className="text-xs text-ink/60 font-semibold">Any Room</p>
+                <p className="text-xs text-ink/70 font-semibold">Any Room</p>
               </div>
             </div>
-            <div className="bg-fire text-white p-2.5 rounded-full hover:bg-fire-dark transition-colors flex items-center gap-2">
-              <Search className="w-4 h-4" />
-              <span className="text-xs font-bold pr-2 hidden md:inline">Search</span>
+            <div className="bg-fire text-white px-3.5 py-2.5 rounded-full hover:bg-fire-dark transition-colors flex items-center justify-center flex-shrink-0 ml-2 shadow-sm">
+              <SlidersHorizontal className="w-4 h-4" />
+              <span className="text-xs font-bold pl-2 hidden sm:inline">Filters</span>
             </div>
           </div>
-
-          <div className="flex items-center gap-3">
-            <button onClick={() => setShowFilters(true)} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-border rounded-full hover:bg-cream/20 text-xs font-bold transition-all shadow-sm">
-              <SlidersHorizontal className="w-3.5 h-3.5" /> Filters
-            </button>
-          </div>
         </div>
-
-        {/* Categories Bar */}
-        <div className="border-t border-border bg-white py-3 overflow-x-auto scrollbar-none">
-          <div className="max-w-7xl mx-auto px-4 flex items-center justify-start md:justify-center gap-8 md:gap-12">
-            {categories.map(cat => {
-              const isActive = activeCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={`flex flex-col items-center gap-1.5 pb-1 border-b-2 transition-all whitespace-nowrap outline-none ${
-                    isActive ? 'border-ink text-ink font-semibold' : 'border-transparent text-ink/50 hover:text-ink hover:border-border'
-                  }`}
-                >
-                  <div className={`p-1 transition-transform ${isActive ? 'scale-110' : 'opacity-80'}`}>
-                    {cat.icon}
-                  </div>
-                  <span className="text-xs">{cat.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
       </div>
 
       {/* Main Content Grid */}
@@ -198,16 +145,24 @@ export default function BrowseRooms() {
         {/* Results Bar */}
         <div className="flex items-center justify-between mb-6">
           <p className="text-sm font-semibold text-ink/60">{filtered.length} elegant listings found</p>
-          {activeCategory !== 'All' && (
-            <button onClick={() => setActiveCategory('All')} className="text-xs text-fire font-bold hover:underline">Clear category filter</button>
-          )}
         </div>
 
-        {/* Loading Spinner */}
+        {/* Skeleton Grid Loading State */}
         {isLoading && (
-          <div className="flex flex-col items-center justify-center py-24 gap-3">
-            <Loader2 className="w-8 h-8 text-fire animate-spin" />
-            <p className="text-sm text-ink/40 font-medium">Curating verified room listings...</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex flex-col">
+                <div className="aspect-square w-full rounded-2xl skeleton-shimmer mb-3" />
+                <div className="px-1 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div className="h-4 w-2/3 skeleton-shimmer rounded-md" />
+                    <div className="h-4 w-1/4 skeleton-shimmer rounded-md" />
+                  </div>
+                  <div className="h-3 w-1/2 skeleton-shimmer rounded-md" />
+                  <div className="h-4 w-1/3 skeleton-shimmer rounded-md mt-2" />
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -358,7 +313,7 @@ export default function BrowseRooms() {
           <div className="text-center py-20 bg-cream/20 rounded-3xl max-w-xl mx-auto border border-border/40">
             <Bed className="w-12 h-12 text-ink/30 mx-auto mb-4" />
             <h3 className="text-lg font-bold mb-1">No rooms match your search</h3>
-            <p className="text-xs text-ink/50 mb-6">Try refining your filter settings or selected category.</p>
+            <p className="text-xs text-ink/50 mb-6">Try refining your filter settings.</p>
             <button onClick={clearFilters} className="px-5 py-2.5 bg-fire text-white rounded-full text-xs font-bold hover:bg-fire-dark transition-colors shadow-md">
               Clear All Filters
             </button>
