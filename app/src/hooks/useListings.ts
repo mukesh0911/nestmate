@@ -204,7 +204,22 @@ export function useListings() {
     try {
       const snap = await getDoc(doc(db, 'listings', id));
       if (snap.exists()) {
-        return { id: snap.id, ...snap.data() } as Listing;
+        const data = snap.data() as Omit<Listing, 'id'>;
+        let isOwnerVerified = false;
+        let isOwnerPremium = false;
+        if (data.ownerId) {
+          try {
+            const ownerSnap = await getDoc(doc(db, 'users', data.ownerId));
+            if (ownerSnap.exists()) {
+              const owner = ownerSnap.data();
+              isOwnerVerified = !!owner.isVerified;
+              isOwnerPremium = !!owner.isPremium;
+            }
+          } catch {
+            // ignore owner enrichment failures
+          }
+        }
+        return { id: snap.id, ...data, isOwnerVerified, isOwnerPremium };
       }
     } catch {
       // ignore

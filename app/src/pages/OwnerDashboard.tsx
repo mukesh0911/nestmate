@@ -15,8 +15,11 @@ import {
 } from 'recharts';
 import {
   TrendingUp, MessageCircle, Edit3, Zap, Eye, Users, Settings, MapPin,
-  Shield, Check, X, Crown, Loader2, Pause, Play, Trash2, AlertTriangle, CheckCircle2, Plus
+  Shield, Check, X, Crown, Pause, Play, Trash2, AlertTriangle, CheckCircle2, Plus
 } from 'lucide-react';
+import StateLoading from '@/components/StateLoading';
+import StateEmpty from '@/components/StateEmpty';
+import PageShell from '@/components/PageShell';
 
 interface PendingApplicant {
   connection: Connection;
@@ -135,17 +138,12 @@ export default function OwnerDashboard() {
     setShowDeleteConfirm(false);
   };
 
-  if (isLoading) return (
-    <div className="min-h-screen bg-parchment flex items-center justify-center">
-      <Loader2 className="w-8 h-8 text-fire animate-spin" />
-    </div>
-  );
+  if (isLoading) return <StateLoading label="Loading dashboard..." fullScreen />;
 
   const totalWeeklyViews = weeklyViews.reduce((s, d) => s + d.views, 0);
 
   return (
-    <div className="min-h-screen bg-parchment">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+    <PageShell maxWidth="max-w-6xl">
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Main Content */}
           <div className="flex-1">
@@ -208,13 +206,13 @@ export default function OwnerDashboard() {
                       <span className={`w-2 h-2 rounded-full animate-pulse ${myListing.status === 'active' ? 'bg-green-400' : 'bg-yellow-400'}`} />
                       {myListing.status === 'active' ? 'LIVE' : 'PAUSED'}
                     </span>
-                    <button onClick={handleToggleStatus} className="p-2 bg-black/40 backdrop-blur-md rounded-full hover:bg-black/60 transition-all border border-white/10 text-white" title={myListing.status === 'active' ? 'Pause Listing' : 'Resume Listing'}>
+                    <button onClick={handleToggleStatus} className="p-2 bg-black/40 backdrop-blur-md rounded-full hover:bg-black/60 transition-all border border-white/10 text-white" title={myListing.status === 'active' ? 'Pause Listing' : 'Resume Listing'} aria-label={myListing.status === 'active' ? 'Pause listing' : 'Resume listing'}>
                       {myListing.status === 'active' ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                     </button>
-                    <button onClick={() => navigate(`/edit-listing/${myListing.id}`)} className="p-2 bg-black/40 backdrop-blur-md rounded-full hover:bg-black/60 transition-all border border-white/10 text-white" title="Edit Listing">
+                    <button onClick={() => navigate(`/edit-listing/${myListing.id}`)} className="p-2 bg-black/40 backdrop-blur-md rounded-full hover:bg-black/60 transition-all border border-white/10 text-white" title="Edit Listing" aria-label="Edit listing">
                       <Edit3 className="w-4 h-4" />
                     </button>
-                    <button onClick={() => setShowDeleteConfirm(true)} className="p-2 bg-red-500/40 backdrop-blur-md rounded-full hover:bg-red-500/60 transition-all border border-red-500/50 text-white" title="Delete Listing">
+                    <button onClick={() => setShowDeleteConfirm(true)} className="p-2 bg-red-500/40 backdrop-blur-md rounded-full hover:bg-red-500/60 transition-all border border-red-500/50 text-white" title="Delete Listing" aria-label="Delete listing">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -294,10 +292,10 @@ export default function OwnerDashboard() {
                         <span className="text-[10px] text-ink/40">Move-in: {p.moveInDate || 'Flexible'}</span>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => handleReject(applicant)} className="p-2 border border-red-200 rounded-lg text-red-400 hover:bg-red-50 transition-all" title="Reject">
+                        <button onClick={() => handleReject(applicant)} className="p-2 border border-red-200 rounded-lg text-red-400 hover:bg-red-50 transition-all" title="Reject" aria-label={`Reject ${p.name}`}>
                           <X className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleAccept(applicant)} className="p-2 bg-fire rounded-lg text-white hover:bg-fire-dark transition-all" title="Accept & Chat">
+                        <button onClick={() => handleAccept(applicant)} className="p-2 bg-fire rounded-lg text-white hover:bg-fire-dark transition-all" title="Accept & Chat" aria-label={`Accept ${p.name} and open chat`}>
                           <Check className="w-4 h-4" />
                         </button>
                       </div>
@@ -306,11 +304,16 @@ export default function OwnerDashboard() {
                 })}
               </div>
               {pendingApplicants.length === 0 && (
-                <div className="text-center py-10">
-                  <Users className="w-12 h-12 text-ink/20 mx-auto mb-3" />
-                  <h4 className="font-display italic mb-1">No pending requests</h4>
-                  <p className="text-sm text-ink/50 mb-3">Your listing is live. Applicants will appear here.</p>
-                </div>
+                <StateEmpty
+                  compact
+                  icon={Users}
+                  title="No pending requests"
+                  description={
+                    myListing
+                      ? 'Your listing is live. Applicants will appear here.'
+                      : 'Create a listing to start receiving roommate requests.'
+                  }
+                />
               )}
             </div>
           </div>
@@ -391,7 +394,6 @@ export default function OwnerDashboard() {
             </div>
           </aside>
         </div>
-      </div>
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
@@ -411,6 +413,6 @@ export default function OwnerDashboard() {
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

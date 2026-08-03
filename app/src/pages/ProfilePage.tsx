@@ -10,6 +10,8 @@ import { useChat } from '@/hooks/useChat';
 import { Crown, Shield, Star, Settings, Bell, Lock, HelpCircle, LogOut, SwitchCamera, ChevronRight, TrendingUp, MessageSquare, Heart, Eye, CheckCircle2, Linkedin, Instagram, FileText, ShieldCheck } from 'lucide-react';
 import TrustBadge from '@/components/TrustBadge';
 import ProfileCompleteness from '@/components/ProfileCompleteness';
+import StateEmpty from '@/components/StateEmpty';
+import PageShell from '@/components/PageShell';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -63,15 +65,14 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-parchment">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+    <PageShell maxWidth="max-w-4xl">
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Left Column */}
           <div className="w-full lg:w-[355px] space-y-5">
             {/* Profile Card */}
             <div className="card-nestmate overflow-hidden">
               <div className="h-24 gradient-fire relative">
-                <button onClick={() => navigate('/settings')} className="absolute top-3 right-3 p-2 bg-white/20 backdrop-blur rounded-lg text-white hover:bg-white/30 transition-all">
+                <button onClick={() => navigate('/settings')} className="absolute top-3 right-3 p-2 bg-white/20 backdrop-blur rounded-lg text-white hover:bg-white/30 transition-all" aria-label="Open settings">
                   <Settings className="w-4 h-4" />
                 </button>
               </div>
@@ -217,10 +218,12 @@ export default function ProfilePage() {
             {/* Activity Feed */}
             <div className="card-nestmate p-5">
               <h4 className="font-semibold mb-4">Recent Activity</h4>
-              <div className="text-center py-10">
-                <TrendingUp className="w-12 h-12 text-ink/20 mx-auto mb-3" />
-                <p className="text-sm text-ink/50">Your activity will appear here as you use NestMate</p>
-              </div>
+              <StateEmpty
+                compact
+                icon={TrendingUp}
+                title="No activity yet"
+                description="Your activity will appear here as you use NestMate"
+              />
             </div>
 
             {/* Reviews Section */}
@@ -266,15 +269,16 @@ export default function ProfilePage() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-6">
-                  <Star className="w-8 h-8 text-ink/20 mx-auto mb-2" />
-                  <p className="text-sm text-ink/50">No reviews yet</p>
-                </div>
+                <StateEmpty
+                  compact
+                  icon={Star}
+                  title="No reviews yet"
+                  description="Reviews from roommates will show up here"
+                />
               )}
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </PageShell>
   );
 }

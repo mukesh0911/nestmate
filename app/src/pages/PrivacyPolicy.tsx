@@ -8,7 +8,7 @@ export default function PrivacyPolicy() {
   );
 
   return (
-    <div className="min-h-screen bg-parchment">
+    <div className="min-h-screen bg-parchment page-transition">
       {/* Header */}
       <div className="gradient-dark py-20 px-4 text-center">
         <h1 className="text-4xl sm:text-5xl font-display italic text-white mb-4">Legal & Privacy</h1>

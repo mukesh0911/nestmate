@@ -14,6 +14,8 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { calculateCompatibility } from '@/hooks/useMatches';
 import type { Listing } from '@/hooks/useListings';
 import { useStore } from '@/store/useStore';
+import StateLoading from '@/components/StateLoading';
+import StateEmpty from '@/components/StateEmpty';
 
 const amenityIcons: Record<string, React.ReactNode> = {
   WiFi: <Wifi className="w-5 h-5 text-ink/70" />, 
@@ -125,20 +127,18 @@ export default function RoomDetail() {
     }
   };
 
-  if (isLoading) return (
-    <div className="min-h-screen bg-white flex items-center justify-center">
-      <Loader2 className="w-8 h-8 text-fire animate-spin" />
-    </div>
-  );
+  if (isLoading) return <StateLoading label="Loading room..." fullScreen />;
 
   if (!room) return (
-    <div className="min-h-screen bg-white flex items-center justify-center">
-      <div className="text-center max-w-sm px-4">
-        <Bed className="w-16 h-16 text-ink/20 mx-auto mb-4" />
-        <h2 className="text-xl font-bold">Room not found</h2>
-        <p className="text-xs text-ink/50 mt-2">This listing is inactive or may have been deleted by the owner.</p>
-        <button onClick={() => navigate(-1)} className="btn-fire mt-4 text-xs font-bold px-5 py-2.5 rounded-xl">Go Back</button>
-      </div>
+    <div className="min-h-screen bg-parchment flex items-center justify-center px-4">
+      <StateEmpty
+        icon={Bed}
+        title="Room not found"
+        description="This listing is inactive or may have been deleted by the owner."
+        action={
+          <button onClick={() => navigate(-1)} className="btn-fire text-sm">Go Back</button>
+        }
+      />
     </div>
   );
 
@@ -166,7 +166,7 @@ export default function RoomDetail() {
   const compatibility = rawCompatibility > 0 ? rawCompatibility : 82;
 
   return (
-    <div className="min-h-screen bg-white pb-24 font-sans text-ink">
+    <div className="min-h-screen bg-parchment pb-24 font-sans text-ink page-transition overflow-x-hidden">
       
       {/* Copy Toast */}
       {copyToast && (
@@ -293,8 +293,12 @@ export default function RoomDetail() {
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold">DigiLocker Aadhaar Verified Listing</h4>
-                  <p className="text-xs text-ink/50 mt-0.5">Owner identity profile verified. Highly reliable and secure communication channel.</p>
+                  <h4 className="text-sm font-bold">{room.isOwnerVerified ? 'ID-Verified Owner' : 'Direct Owner Listing'}</h4>
+                  <p className="text-xs text-ink/50 mt-0.5">
+                    {room.isOwnerVerified
+                      ? 'Owner identity reviewed by NestMate. Prefer chat before sharing personal details.'
+                      : 'Chat in-app first. Phone numbers stay private until both of you agree to share.'}
+                  </p>
                 </div>
               </div>
               <div className="flex items-start gap-4">
@@ -303,7 +307,7 @@ export default function RoomDetail() {
                 </div>
                 <div>
                   <h4 className="text-sm font-bold">Free Connect Request</h4>
-                  <p className="text-xs text-ink/50 mt-0.5">Zero agent commission. Direct roommate agreements available upon mutual approval.</p>
+                  <p className="text-xs text-ink/50 mt-0.5">Zero agent commission. Connect directly and arrange a visit after chatting.</p>
                 </div>
               </div>
             </div>

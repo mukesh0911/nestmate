@@ -16,6 +16,29 @@ import {
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useStore } from '@/store/useStore';
+import { hydrateOwnProfile, savePrivateUserData } from '@/lib/privateUserData';
+
+async function persistPublicUser(
+  uid: string,
+  data: Record<string, unknown>,
+  privateFields?: { phone?: string; email?: string; workEmail?: string }
+) {
+  if (privateFields && (privateFields.phone || privateFields.email || privateFields.workEmail)) {
+    await savePrivateUserData(uid, privateFields);
+  }
+  const { phone: _p, email: _e, workEmail: _w, ...rest } = data;
+  await setDoc(
+    doc(db, 'users', uid),
+    {
+      ...rest,
+      phone: '',
+      email: '',
+      workEmail: '',
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
 
 // Declare global recaptchaVerifier to persist across renders
 declare global {
@@ -98,20 +121,24 @@ export function useAuth() {
                 onboardingComplete: true,
                 role: data.role || 'seeker',
                 city: data.city || 'Chennai',
-                quizAnswers: hasQuiz ? data.quizAnswers : defaultAnswers
+                quizAnswers: hasQuiz ? data.quizAnswers : defaultAnswers,
+                isVerified: false,
+                isPremium: false,
               };
-              await setDoc(userRef, updated, { merge: true });
-              setProfile(updated);
+              await persistPublicUser(firebaseUser.uid, updated as unknown as Record<string, unknown>);
+              setProfile(await hydrateOwnProfile({ ...updated, uid: firebaseUser.uid } as UserProfile));
             } else {
-              setProfile(data);
+              setProfile(await hydrateOwnProfile({ ...data, uid: firebaseUser.uid }));
             }
           } else {
             const defaultName = firebaseUser.displayName || (firebaseUser.email ? firebaseUser.email.split('@')[0] : 'User');
+            const phone = firebaseUser.phoneNumber || '';
+            const email = firebaseUser.email || '';
             const fallbackProfile: UserProfile = {
               uid: firebaseUser.uid,
-              phone: firebaseUser.phoneNumber || '+919876543210',
+              phone: '',
               name: defaultName,
-              email: firebaseUser.email || `${defaultName.toLowerCase()}@nestmate.com`,
+              email: '',
               role: 'seeker',
               city: 'Chennai',
               localities: ['Velachery'],
@@ -129,7 +156,7 @@ export function useAuth() {
               connectsUsed: 0,
               connectsLimit: 5,
               verificationLevel: 1,
-              isVerified: true,
+              isVerified: false,
               savedProfileIds: [],
               savedRoomIds: [],
               skippedUserIds: [],
@@ -138,11 +165,15 @@ export function useAuth() {
               updatedAt: serverTimestamp(),
             };
             try {
-              await setDoc(userRef, fallbackProfile, { merge: true });
+              await persistPublicUser(
+                firebaseUser.uid,
+                fallbackProfile as unknown as Record<string, unknown>,
+                { phone, email }
+              );
             } catch (e) {
               console.warn('Failed to save default fallback profile:', e);
             }
-            setProfile(fallbackProfile as UserProfile);
+            setProfile(await hydrateOwnProfile({ ...fallbackProfile, phone, email }));
           }
         } catch (err: any) {
           console.error('Unable to read user profile during auth load:', err);
@@ -197,7 +228,7 @@ export function useAuth() {
     try {
       const profileSnap = await getDoc(doc(db, 'users', profileUid));
       if (profileSnap.exists()) {
-        const data = profileSnap.data() as UserProfile;
+        const data = await hydrateOwnProfile({ ...(profileSnap.data() as UserProfile), uid: profileUid });
         setProfile(data);
         return data;
       }
@@ -265,11 +296,13 @@ export function useAuth() {
 
         if (isNew) {
           const defaultName = firebaseUser.displayName || email.split('@')[0];
+          const phone = firebaseUser.phoneNumber || '';
+          const userEmail = firebaseUser.email || email;
           const newProfile: UserProfile = {
             uid: firebaseUser.uid,
-            phone: firebaseUser.phoneNumber || '+919876543210',
+            phone: '',
             name: defaultName,
-            email: firebaseUser.email || email,
+            email: '',
             role: 'seeker',
             city: 'Chennai',
             localities: ['Velachery'],
@@ -287,7 +320,7 @@ export function useAuth() {
             connectsUsed: 0,
             connectsLimit: 5,
             verificationLevel: 1,
-            isVerified: true,
+            isVerified: false,
             savedProfileIds: [],
             savedRoomIds: [],
             skippedUserIds: [],
@@ -295,8 +328,12 @@ export function useAuth() {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           };
-          await setDoc(userRef, newProfile, { merge: true });
-          setProfile(newProfile);
+          await persistPublicUser(
+            firebaseUser.uid,
+            newProfile as unknown as Record<string, unknown>,
+            { phone, email: userEmail }
+          );
+          setProfile(await hydrateOwnProfile({ ...newProfile, phone, email: userEmail }));
           setUser(firebaseUser);
           return { isNew: true, role: 'seeker', onboardingComplete: true };
         } else {
@@ -307,8 +344,8 @@ export function useAuth() {
             role: data.role || 'seeker',
             city: data.city || 'Chennai',
           };
-          await setDoc(userRef, updated, { merge: true });
-          setProfile(updated);
+          await persistPublicUser(firebaseUser.uid, updated as unknown as Record<string, unknown>);
+          setProfile(await hydrateOwnProfile({ ...updated, uid: firebaseUser.uid }));
           setUser(firebaseUser);
           return { isNew: false, role: updated.role, onboardingComplete: true };
         }
@@ -341,7 +378,7 @@ export function useAuth() {
           uid: firebaseUser.uid,
           phone: '',
           name: '',
-          email: firebaseUser.email || '',
+          email: '',
           role: null,
           city: '',
           localities: [],
@@ -362,8 +399,12 @@ export function useAuth() {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
-        await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
-        setProfile(newProfile as UserProfile);
+        await persistPublicUser(
+          firebaseUser.uid,
+          newProfile as Record<string, unknown>,
+          { email: firebaseUser.email || email, phone: '' }
+        );
+        setProfile(await hydrateOwnProfile({ ...newProfile, uid: firebaseUser.uid, email: firebaseUser.email || email } as UserProfile));
         setUser(firebaseUser);
       } catch (err: any) {
         let msg = err.message || 'Account creation failed';
@@ -418,9 +459,10 @@ export function useAuth() {
 
         if (isNew) {
           // Create minimal profile in Firestore — rest filled during onboarding
+          const phone = firebaseUser.phoneNumber || '';
           const newProfile: Partial<UserProfile> = {
             uid: firebaseUser.uid,
-            phone: firebaseUser.phoneNumber || '',
+            phone: '',
             name: '',
             email: '',
             role: null,
@@ -439,13 +481,18 @@ export function useAuth() {
             connectsUsed: 0,
             connectsLimit: 5,
             verificationLevel: 0,
+            isVerified: false,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           };
-          await setDoc(userRef, newProfile);
-          setProfile(newProfile as UserProfile);
+          await persistPublicUser(
+            firebaseUser.uid,
+            newProfile as Record<string, unknown>,
+            { phone }
+          );
+          setProfile(await hydrateOwnProfile({ ...newProfile, uid: firebaseUser.uid, phone } as UserProfile));
         } else {
-          setProfile(userSnap.data() as UserProfile);
+          setProfile(await hydrateOwnProfile({ ...(userSnap.data() as UserProfile), uid: firebaseUser.uid }));
         }
 
         setUser(firebaseUser);
@@ -478,11 +525,13 @@ export function useAuth() {
 
       if (isNew) {
         const defaultName = firebaseUser.displayName || (firebaseUser.email ? firebaseUser.email.split('@')[0] : 'User');
+        const phone = firebaseUser.phoneNumber || '';
+        const email = firebaseUser.email || '';
         const newProfile: UserProfile = {
           uid: firebaseUser.uid,
-          phone: firebaseUser.phoneNumber || '+919876543210',
+          phone: '',
           name: defaultName,
-          email: firebaseUser.email || '',
+          email: '',
           role: 'seeker',
           city: 'Chennai',
           localities: ['Velachery'],
@@ -500,7 +549,7 @@ export function useAuth() {
           connectsUsed: 0,
           connectsLimit: 5,
           verificationLevel: 1,
-          isVerified: true,
+          isVerified: false,
           savedProfileIds: [],
           savedRoomIds: [],
           skippedUserIds: [],
@@ -508,8 +557,12 @@ export function useAuth() {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
-        await setDoc(userRef, newProfile, { merge: true });
-        setProfile(newProfile);
+        await persistPublicUser(
+          firebaseUser.uid,
+          newProfile as unknown as Record<string, unknown>,
+          { phone, email }
+        );
+        setProfile(await hydrateOwnProfile({ ...newProfile, phone, email }));
         setUser(firebaseUser);
         return { isNew: true, role: 'seeker' };
       } else {
@@ -523,20 +576,21 @@ export function useAuth() {
         if (firebaseUser.displayName && firebaseUser.displayName !== existingProfile.name) {
           profileUpdates.name = firebaseUser.displayName;
         }
-        if (firebaseUser.email && firebaseUser.email !== existingProfile.email) {
-          profileUpdates.email = firebaseUser.email;
-        }
         if (firebaseUser.photoURL && firebaseUser.photoURL !== existingProfile.avatar) {
           profileUpdates.avatar = firebaseUser.photoURL;
         }
 
-        await setDoc(userRef, {
+        await persistPublicUser(
+          firebaseUser.uid,
+          { ...existingProfile, ...profileUpdates } as unknown as Record<string, unknown>,
+          firebaseUser.email ? { email: firebaseUser.email } : undefined
+        );
+
+        const merged = await hydrateOwnProfile({
           ...existingProfile,
           ...profileUpdates,
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-
-        const merged = { ...existingProfile, ...profileUpdates };
+          uid: firebaseUser.uid,
+        });
         setProfile(merged);
         setUser(firebaseUser);
         return { isNew: false, role: merged.role };

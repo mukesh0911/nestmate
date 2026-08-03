@@ -40,6 +40,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import StateLoading from '@/components/StateLoading';
+import StateEmpty from '@/components/StateEmpty';
 
 const CATEGORY_ICONS: Record<string, any> = {
   sleep_time: Moon,
@@ -276,23 +278,18 @@ export default function MatchDetail() {
     }
   };
 
-  if (isLoading) return (
-    <div className="min-h-screen bg-parchment flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2 className="w-12 h-12 text-fire animate-spin" />
-        <p className="text-ink/60 font-medium animate-pulse">Loading profile...</p>
-      </div>
-    </div>
-  );
+  if (isLoading) return <StateLoading label="Loading profile..." fullScreen />;
 
   if (!matchedUser) return (
-    <div className="min-h-screen bg-parchment flex items-center justify-center">
-      <div className="text-center">
-        <Star className="w-16 h-16 text-ink/20 mx-auto mb-4" />
-        <h2 className="text-xl font-serif italic text-ink">Profile not found</h2>
-        <p className="text-sm text-ink/50 mt-2">This user may have deactivated their account.</p>
-        <button onClick={() => navigate(-1)} className="btn-fire mt-6 text-sm">Go Back</button>
-      </div>
+    <div className="min-h-screen bg-parchment flex items-center justify-center px-4">
+      <StateEmpty
+        icon={Star}
+        title="Profile not found"
+        description="This user may have deactivated their account."
+        action={
+          <button onClick={() => navigate(-1)} className="btn-fire text-sm">Go Back</button>
+        }
+      />
     </div>
   );
 
@@ -329,7 +326,7 @@ export default function MatchDetail() {
     : '4.8';
 
   return (
-    <div className="min-h-screen bg-parchment pb-28 lg:pb-12 text-ink font-sans">
+    <div className="min-h-screen bg-parchment pb-above-nav md:pb-12 lg:pb-12 text-ink font-sans page-transition overflow-x-hidden">
       {/* ── Desktop Two-Column Wrapper ── */}
       <div className="max-w-6xl mx-auto py-6 px-4 sm:px-6 flex flex-col lg:flex-row gap-7">
         
@@ -343,8 +340,9 @@ export default function MatchDetail() {
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 flex-1 z-10">
               {/* Back Button */}
               <button 
-                onClick={() => navigate(-1)} 
-                className="w-10 h-10 rounded-full bg-white border border-orange-200 flex items-center justify-center text-fire shadow-2xs hover:bg-orange-50 transition-all flex-shrink-0"
+                onClick={() => navigate(-1)}
+                aria-label="Go back"
+                className="touch-target w-11 h-11 rounded-full bg-white border border-orange-200 flex items-center justify-center text-fire shadow-2xs hover:bg-orange-50 transition-all flex-shrink-0"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
@@ -711,18 +709,19 @@ export default function MatchDetail() {
 
       </div>
 
-      {/* Mobile Floating Bottom Bar */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-md border-t border-border z-40 lg:hidden flex gap-3">
+      {/* Mobile Floating Bottom Bar — sits above Layout bottom nav */}
+      <div className="fixed bottom-above-nav md:bottom-0 left-0 right-0 p-3 sm:p-4 bg-white/95 backdrop-blur-md border-t border-border z-40 lg:hidden flex gap-3">
         <button
           onClick={handleToggleSave}
-          className={`p-3.5 rounded-2xl border flex items-center justify-center ${isSaved ? 'bg-fire/10 border-fire/30 text-fire' : 'border-border text-ink/70'}`}
+          aria-label={isSaved ? 'Remove from saved' : 'Save profile'}
+          className={`touch-target p-3.5 rounded-2xl border flex items-center justify-center shrink-0 ${isSaved ? 'bg-fire/10 border-fire/30 text-fire' : 'border-border text-ink/70'}`}
         >
           <Heart className={`w-5 h-5 ${isSaved ? 'fill-fire text-fire' : ''}`} />
         </button>
         <button
           onClick={handleConnectOrChat}
           disabled={connecting || connectState === 'pending'}
-          className="btn-fire flex-1 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 text-white shadow-md"
+          className="btn-fire flex-1 min-h-[48px] py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 text-white shadow-md"
         >
           <MessageCircle className="w-4.5 h-4.5" />
           {connectState === 'pending' ? 'Request Sent' : connectState === 'chat' ? 'Chat Now' : 'Connect & Chat'}

@@ -156,7 +156,8 @@ export default function SeedData() {
         await setDoc(doc(db, 'users', uid), {
           uid,
           name,
-          email: `${name.toLowerCase().replace(/\s+/g, '.')}@nestmate-seed.com`,
+          email: '',
+          phone: '',
           role: 'seeker',
           age: 22 + (i % 10),
           gender: isFemale ? 'female' : 'male',
@@ -169,9 +170,11 @@ export default function SeedData() {
           bio: `Hi! I'm a ${professions[i % professions.length]} in ${city}. Looking for a compatible flatmate who values ${quizType === 'morning' ? 'early mornings and clean spaces' : quizType === 'night' ? 'late nights and work-from-home culture' : 'a balanced, flexible lifestyle'}.`,
           quizAnswers: getRealisticQuiz(quizType),
           onboardingComplete: true,
+          // Admin seed path can set trust flags via admin override rules
           isPremium: i % 5 === 0,
           isVerified: i % 4 === 0,
           workEmailVerified: i % 3 === 0,
+          verificationLevel: i % 4 === 0 ? 3 : 1,
           connectsUsed: 0,
           savedProfileIds: [],
           savedRoomIds: [],
@@ -179,6 +182,7 @@ export default function SeedData() {
           createdAt: Timestamp.fromDate(new Date(Date.now() - Math.random() * 20 * 86400000)),
           lastActiveAt: Timestamp.fromDate(new Date(Date.now() - Math.random() * 2 * 86400000)),
         });
+        // Contact fields are private — seed docs use synthetic UIDs so skip privateUserData (owner-only rules)
         seekerIds.push(uid);
         log(`  ✓ Seeker: ${name} | ${city} | ₹${budget.toLocaleString()}/mo | ${quizType}`);
       }
@@ -195,7 +199,8 @@ export default function SeedData() {
         await setDoc(doc(db, 'users', uid), {
           uid,
           name,
-          email: `${name.toLowerCase().replace(/\s+/g, '.')}@nestmate-seed.com`,
+          email: '',
+          phone: '',
           role: 'owner',
           age: 25 + (i % 8),
           gender: isFemale ? 'female' : 'male',
@@ -204,12 +209,13 @@ export default function SeedData() {
           localities: [cityLocalities[city][i % cityLocalities[city].length]],
           budget: 0,
           avatar: `https://i.pravatar.cc/150?u=${uid}`,
-          bio: `Room owner in ${city}. Verified professional. Looking for a responsible, clean flatmate.`,
+          bio: `Room owner in ${city}. Looking for a responsible, clean flatmate.`,
           quizAnswers: getRealisticQuiz(quizType),
           onboardingComplete: true,
           isPremium: i % 3 === 0,
           isVerified: i % 2 === 0,
           workEmailVerified: i % 2 === 1,
+          verificationLevel: i % 2 === 0 ? 3 : 1,
           connectsUsed: 0,
           savedProfileIds: [],
           savedRoomIds: [],

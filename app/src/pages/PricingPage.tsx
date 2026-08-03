@@ -2,13 +2,11 @@ import { useNavigate } from 'react-router-dom';
 import { Check, Crown, X, ChevronDown, HelpCircle, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 export default function PricingPage() {
   const navigate = useNavigate();
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile } = useAuth();
   const [isAnnual, setIsAnnual] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [paying, setPaying] = useState(false);
@@ -16,24 +14,24 @@ export default function PricingPage() {
   const [selectedPrice, setSelectedPrice] = useState(299);
 
   const features = [
-    { name: 'Connect Requests', free: '5/month', premium: 'Unlimited', corporate: 'Unlimited' },
+    { name: 'Connect Requests', free: 'Unlimited*', premium: 'Unlimited', corporate: 'Unlimited' },
     { name: 'View Matches', free: true, premium: true, corporate: true },
     { name: 'Active Listings', free: '1', premium: '5', corporate: 'Unlimited' },
     { name: 'Basic Chat', free: true, premium: true, corporate: true },
-    { name: 'Agreements', free: '1/month', premium: 'Unlimited', corporate: 'Unlimited' },
+    { name: 'Trust Badges', free: true, premium: true, corporate: true },
     { name: 'See who viewed you', free: false, premium: true, corporate: true },
     { name: 'Priority Placement', free: false, premium: true, corporate: true },
     { name: 'Profile Boost', free: false, premium: true, corporate: true },
     { name: 'HR Dashboard', free: false, premium: false, corporate: true },
-    { name: 'Bulk Agreements', free: false, premium: false, corporate: true },
+    { name: 'Bulk Listings', free: false, premium: false, corporate: true },
   ];
 
   const faqs = [
-    { q: 'How does the free plan work?', a: 'You get 5 connect requests per month, 1 active listing, and basic chat. It is perfect for trying out NestMate. When you need more, upgrade to Premium.' },
+    { q: 'How does the free plan work?', a: 'NestMate is currently free for all core features including connects, chat, and matching. Premium tiers for priority placement are coming soon.' },
     { q: 'Is my phone number visible to others?', a: 'No. Phone numbers are hidden until both parties mutually agree to share them. All communication happens through our secure in-app chat.' },
-    { q: 'Can I cancel my premium subscription?', a: 'Yes, you can cancel anytime. Your premium features will remain active until the end of your billing period. No refunds for partial months.' },
+    { q: 'Can I cancel my premium subscription?', a: 'Yes, once Premium launches you can cancel anytime. Features remain active until the end of your billing period.' },
     { q: 'How does compatibility matching work?', a: 'We ask 10 lifestyle questions covering sleep schedule, food preferences, work mode, cleanliness, and more. Our algorithm compares answers to generate a compatibility percentage for every match.' },
-    { q: 'Is Aadhaar verification mandatory?', a: 'No, but verified profiles get 3x more views and appear higher in search results. Verification helps build trust in the community.' },
+    { q: 'Is Aadhaar verification mandatory?', a: 'No, but verified profiles appear higher in search results. Upload ID from Edit Profile for admin review.' },
     { q: 'What cities is NestMate available in?', a: 'We are currently active in Chennai, Bengaluru, Hyderabad, Pune, Mumbai, and Delhi NCR. We are expanding to more cities soon.' },
   ];
 
@@ -57,6 +55,8 @@ export default function PricingPage() {
       return;
     }
 
+    // Future Production Integration: Razorpay + Cloud Function must set isPremium server-side.
+    // Client-side premium flips are blocked by Firestore rules (LB-07).
     const key = import.meta.env.VITE_RAZORPAY_KEY_ID;
     if (!key || key === 'rzp_test_mockkey12345') {
       setSelectedPrice(price);
@@ -72,66 +72,12 @@ export default function PricingPage() {
       return;
     }
 
-    const options = {
-      key: key,
-      amount: price * 100, // amount in paise
-      currency: 'INR',
-      name: 'NestMate Premium',
-      description: isAnnual ? 'Annual Subscription' : 'Monthly Subscription',
-      handler: async function (response: any) {
-        try {
-          await updateDoc(doc(db, 'users', user.uid), {
-            isPremium: true,
-            premiumSince: new Date().toISOString(),
-          });
-          await refreshProfile(user.uid);
-          toast.success('Welcome to NestMate Premium! 🎉');
-          navigate('/dashboard');
-        } catch (err: any) {
-          toast.error('Failed to activate premium plan. Please contact support.');
-        } finally {
-          setPaying(false);
-        }
-      },
-      prefill: {
-        name: profile?.name || '',
-        email: profile?.email || '',
-        contact: profile?.phone || '',
-      },
-      theme: {
-        color: '#E05A47',
-      },
-      modal: {
-        ondismiss: function () {
-          setPaying(false);
-        }
-      }
-    };
-
-    try {
-      const rzp = new (window as any).Razorpay(options);
-      rzp.open();
-    } catch (err) {
-      // Fallback in case Razorpay object is blocked or cannot instantiate in iframe
-      toast.info('Simulating payment gateway success…');
-      try {
-        await updateDoc(doc(db, 'users', user.uid), {
-          isPremium: true,
-          premiumSince: new Date().toISOString(),
-        });
-        await refreshProfile(user.uid);
-        toast.success('Welcome to NestMate Premium! (Sandbox Mode) 🎉');
-        navigate('/dashboard');
-      } catch (dbErr) {
-        toast.error('Activation failed.');
-      } finally {
-        setPaying(false);
-      }
-    }
+    toast.info('Premium payments are being finalized. Contact support to upgrade, or try again soon.');
+    setPaying(false);
   };
 
   return (
-    <div className="min-h-screen bg-parchment">
+    <div className="min-h-screen bg-parchment page-transition">
       {/* Header */}
       <div className="gradient-dark py-20 px-4 text-center">
         <h1 className="text-4xl sm:text-5xl font-display italic text-white mb-4">Simple Pricing</h1>
@@ -303,7 +249,7 @@ export default function PricingPage() {
             {/* Body */}
             <div className="p-6 space-y-4">
               <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 text-xs leading-relaxed">
-                <span className="font-bold">Sandbox Mode:</span> Razorpay key not detected. You can simulate a successful or failed payment to verify integrations.
+                <span className="font-bold">Coming soon:</span> Live Razorpay checkout requires a Cloud Function to verify payment and grant Premium. Client-side activation is disabled for security.
               </div>
 
               <div className="space-y-3">
@@ -328,35 +274,21 @@ export default function PricingPage() {
 
               <div className="space-y-2 pt-2 border-t border-border">
                 <button
-                  onClick={async () => {
-                    setPaying(true);
+                  onClick={() => {
+                    toast.info('Premium activation is a Future Production Integration (Razorpay + server verify).');
                     setShowMockCheckout(false);
-                    try {
-                      await updateDoc(doc(db, 'users', user!.uid), {
-                        isPremium: true,
-                        premiumSince: new Date().toISOString(),
-                      });
-                      await refreshProfile(user!.uid);
-                      toast.success('Payment Successful! Welcome to NestMate Premium! 🎉');
-                      navigate('/dashboard');
-                    } catch (err) {
-                      toast.error('Failed to update premium status.');
-                    } finally {
-                      setPaying(false);
-                    }
                   }}
                   className="w-full py-3 bg-teal hover:bg-teal/90 text-white rounded-xl text-sm font-semibold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                 >
-                  Simulate Success Payment
+                  Notify me when Premium launches
                 </button>
                 <button
                   onClick={() => {
-                    toast.error('Payment cancelled / failed.');
                     setShowMockCheckout(false);
                   }}
                   className="w-full py-3 border border-border hover:bg-cream/30 text-ink/75 rounded-xl text-sm font-semibold transition-all"
                 >
-                  Simulate Payment Failure
+                  Close
                 </button>
               </div>
             </div>

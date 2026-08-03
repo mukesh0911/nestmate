@@ -13,6 +13,11 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import {
+  FREE_CONNECT_LIMIT,
+  findExistingConnectionId,
+  countConnectionsSince,
+} from '@/lib/connectionGuards';
 
 export interface Connection {
   id: string;
@@ -22,7 +27,7 @@ export interface Connection {
   createdAt: Timestamp;
 }
 
-export const FREE_CONNECT_LIMIT = 5;
+export { FREE_CONNECT_LIMIT };
 
 export function useConnections() {
   /** Count outgoing connections sent this calendar month */
@@ -37,36 +42,38 @@ export function useConnections() {
       where('fromUserId', '==', userId)
     );
     const snap = await getDocs(q);
-    return snap.docs.filter(d => {
+    const msList = snap.docs.map(d => {
       const createdAt = d.data().createdAt;
-      if (!createdAt) return false;
-      const ms = createdAt.toMillis ? createdAt.toMillis() : (createdAt instanceof Date ? createdAt.getTime() : 0);
-      return ms >= startMs;
-    }).length;
+      if (!createdAt) return 0;
+      return createdAt.toMillis ? createdAt.toMillis() : (createdAt instanceof Date ? createdAt.getTime() : 0);
+    });
+    return countConnectionsSince(msList, startMs);
   }, []);
 
-  /** Send a connect request from `fromId` to `toId`. Enforces free-tier monthly limit. */
+  /** Send a connect request from `fromId` to `toId`. */
   const sendRequest = useCallback(
     async (fromId: string, toId: string): Promise<string> => {
       // Platform is 100% free for all users - unlimited connections
 
-      // Check if a connection already exists between these two
       const q = query(
         collection(db, 'connections'),
         where('fromUserId', '==', fromId),
         where('toUserId', '==', toId)
       );
       const existing = await getDocs(q);
-      if (!existing.empty) return existing.docs[0].id;
-
-      // Also check the reverse direction
       const q2 = query(
         collection(db, 'connections'),
         where('fromUserId', '==', toId),
         where('toUserId', '==', fromId)
       );
       const existing2 = await getDocs(q2);
-      if (!existing2.empty) return existing2.docs[0].id;
+
+      const pairs = [
+        ...existing.docs.map(d => ({ id: d.id, fromUserId: fromId, toUserId: toId })),
+        ...existing2.docs.map(d => ({ id: d.id, fromUserId: toId, toUserId: fromId })),
+      ];
+      const existingId = findExistingConnectionId(pairs, fromId, toId);
+      if (existingId) return existingId;
 
       const ref = await addDoc(collection(db, 'connections'), {
         fromUserId: fromId,
@@ -76,7 +83,7 @@ export function useConnections() {
       });
       return ref.id;
     },
-    [getMonthlyConnectCount]
+    []
   );
 
   /** Get all pending requests sent TO a specific user */

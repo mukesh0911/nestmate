@@ -12,6 +12,7 @@ import {
   Wind, ShieldAlert
 } from 'lucide-react';
 import { cities, localitiesByCity, amenitiesList as allAmenities } from '@/lib/staticData';
+import StateEmpty from '@/components/StateEmpty';
 
 export default function BrowseRooms() {
   const navigate = useNavigate();
@@ -107,15 +108,17 @@ export default function BrowseRooms() {
   });
 
   return (
-    <div className="min-h-screen bg-white pb-24 font-sans text-ink">
+    <div className="min-h-screen bg-white pb-above-nav md:pb-24 font-sans text-ink overflow-x-hidden">
       
       {/* Sticky Top Filter Header */}
       <div className="sticky top-[60px] z-40 bg-white border-b border-border/80 shadow-sm py-3">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-center">
           {/* Centered Floating Filter Pill */}
-          <div 
-            onClick={() => setShowFilters(true)} 
-            className="flex items-center bg-white border border-border/80 rounded-full py-1.5 pl-6 pr-2 shadow-sm hover:shadow-md transition-all cursor-pointer w-full max-w-xl justify-between hover:border-fire/40 border-ink/15"
+          <button
+            type="button"
+            onClick={() => setShowFilters(true)}
+            aria-label="Open filters"
+            className="flex items-center bg-white border border-border/80 rounded-full py-1.5 pl-4 sm:pl-6 pr-2 shadow-sm hover:shadow-md transition-all cursor-pointer w-full max-w-xl justify-between hover:border-fire/40 border-ink/15 text-left"
           >
             <div className="flex items-center divide-x divide-border flex-1 min-w-0">
               <div className="pr-4 sm:pr-6 text-left">
@@ -135,7 +138,7 @@ export default function BrowseRooms() {
               <SlidersHorizontal className="w-4 h-4" />
               <span className="text-xs font-bold pl-2 hidden sm:inline">Filters</span>
             </div>
-          </div>
+          </button>
         </div>
       </div>
 
@@ -310,23 +313,28 @@ export default function BrowseRooms() {
 
         {/* Empty State */}
         {!isLoading && filtered.length === 0 && (
-          <div className="text-center py-20 bg-cream/20 rounded-3xl max-w-xl mx-auto border border-border/40">
-            <Bed className="w-12 h-12 text-ink/30 mx-auto mb-4" />
-            <h3 className="text-lg font-bold mb-1">No rooms match your search</h3>
-            <p className="text-xs text-ink/50 mb-6">Try refining your filter settings.</p>
-            <button onClick={clearFilters} className="px-5 py-2.5 bg-fire text-white rounded-full text-xs font-bold hover:bg-fire-dark transition-colors shadow-md">
-              Clear All Filters
-            </button>
-          </div>
+          <StateEmpty
+            icon={Bed}
+            title="No rooms match your search"
+            description="Try refining your filter settings."
+            action={
+              <button onClick={clearFilters} className="btn-fire text-sm px-5">
+                Clear All Filters
+              </button>
+            }
+            className="bg-cream/20 rounded-3xl max-w-xl mx-auto border border-border/40"
+          />
         )}
 
       </div>
 
-      {/* Floating Bottom Airbnb Toggle Map Button */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
+      {/* Floating Map Button — above mobile bottom nav */}
+      <div className="fixed bottom-above-nav md:bottom-6 left-1/2 -translate-x-1/2 z-40 px-4">
         <button
+          type="button"
           onClick={() => navigate('/map')}
-          className="bg-ink hover:bg-ink/90 text-white rounded-full py-3.5 px-6 shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2.5 text-xs font-bold tracking-wide"
+          aria-label="Show map"
+          className="bg-ink hover:bg-ink/90 text-white rounded-full py-3.5 px-6 min-h-[48px] shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2.5 text-xs font-bold tracking-wide"
         >
           <span>Show Map</span>
           <Map className="w-4 h-4 text-fire fill-current" />

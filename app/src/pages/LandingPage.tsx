@@ -4,7 +4,7 @@ import {
   ArrowRight, Check, Star, Shield, MessageCircle,
   FileText, Users, Search, ChevronRight, Menu, X, LogOut,
   Building2, Sparkles, ShieldCheck, CheckCircle2, ArrowUpRight,
-  MapPin, Heart, Zap, Award
+  MapPin, Heart, Zap, Award, Map
 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -127,11 +127,11 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-parchment">
+    <div className="min-h-screen bg-parchment overflow-x-hidden">
       {/* Hero Section - Split Screen */}
-      <section className="min-h-screen flex flex-col lg:flex-row">
+      <section className="min-h-[calc(100dvh-60px)] flex flex-col lg:flex-row">
         {/* Left Column - Value Proposition & Search */}
-        <div className="flex-1 flex flex-col justify-center px-6 sm:px-10 lg:px-16 xl:px-20 pt-20 pb-12">
+        <div className="flex-1 flex flex-col justify-center px-4 sm:px-10 lg:px-16 xl:px-20 pt-8 sm:pt-12 lg:pt-16 pb-10 sm:pb-12">
           <div className="max-w-2xl">
             {/* Eyebrow Tag */}
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-fire/10 rounded-full mb-6 border border-fire/20 shadow-xs">
@@ -146,7 +146,7 @@ export default function LandingPage() {
 
             {/* Description */}
             <p className="text-base sm:text-lg text-ink/70 mb-8 leading-relaxed">
-              NestMate matches you with compatible roommates based on lifestyle, sleep habits & budget. Verified profiles, zero brokerage, safe chat & digital rental agreements.
+              NestMate matches you with compatible roommates based on lifestyle, sleep habits & budget. Verified profiles, zero brokerage, and safe in-app chat.
             </p>
 
             {/* Premium Hero Search Box */}
@@ -218,19 +218,26 @@ export default function LandingPage() {
               </form>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-3 mb-8">
-              <button onClick={handleBrowseRooms} className="btn-fire flex items-center justify-center gap-2 text-sm px-5 py-3 shadow-sm">
+            {/* Action Buttons — mobile: Demo only (search tabs already cover browse); sm+: full set */}
+            <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 mb-6 sm:mb-8">
+              <button
+                onClick={handleBrowseRooms}
+                className="hidden sm:inline-flex btn-fire items-center justify-center gap-2 text-sm px-5 py-3 shadow-sm"
+              >
                 <Building2 className="w-4 h-4" />
                 Browse All Rooms
               </button>
-              <button onClick={handleBrowseSeekers} className="btn-outline flex items-center justify-center gap-2 text-sm px-5 py-3">
+              <button
+                onClick={handleBrowseSeekers}
+                className="hidden sm:inline-flex btn-outline items-center justify-center gap-2 text-sm px-5 py-3"
+              >
                 <Users className="w-4 h-4 text-navy" />
                 Find Flatmates
               </button>
               <button
+                type="button"
                 onClick={() => useStore.getState().openAuthModal()}
-                className="flex items-center gap-1.5 px-4 py-3 rounded-xl border border-teal/40 bg-teal/5 text-teal hover:bg-teal/10 font-bold text-sm transition-all"
+                className="inline-flex items-center justify-center gap-1.5 w-full sm:w-auto px-4 py-3 min-h-[48px] rounded-xl border border-teal/40 bg-teal/5 text-teal hover:bg-teal/10 font-bold text-sm transition-all"
               >
                 <Sparkles className="w-4 h-4" />
                 Instant Demo
@@ -238,20 +245,20 @@ export default function LandingPage() {
             </div>
 
             {/* List Your Room CTA */}
-            <div className="mb-8">
+            <div className="mb-6 sm:mb-8">
               <button
                 onClick={handleListRoom}
-                className="inline-flex items-center gap-2 text-sm font-bold text-ink/70 hover:text-fire transition-colors group bg-white/70 px-4 py-2.5 rounded-xl border border-border/50 shadow-2xs"
+                className="inline-flex items-center gap-2 text-sm font-bold text-ink/70 hover:text-fire transition-colors group bg-white/70 px-4 py-2.5 rounded-xl border border-border/50 shadow-2xs max-w-full"
               >
-                <FileText className="w-4 h-4 text-fire" />
-                Have a room to offer? List Your Room Free
-                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-fire" />
+                <FileText className="w-4 h-4 text-fire shrink-0" />
+                <span className="text-left leading-snug">Have a room to offer? List Your Room Free</span>
+                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-fire shrink-0" />
               </button>
             </div>
 
             {/* Social Proof */}
-            <div className="flex items-center gap-3">
-              <div className="flex -space-x-2">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="flex -space-x-2 shrink-0">
                 {[
                   'https://api.dicebear.com/7.x/avataaars/svg?seed=Priya&backgroundColor=c0aede',
                   'https://api.dicebear.com/7.x/avataaars/svg?seed=Arjun&backgroundColor=b6e3f4',
@@ -261,15 +268,17 @@ export default function LandingPage() {
                   <img key={i} src={src} alt="" className="w-9 h-9 rounded-full border-2 border-parchment object-cover" />
                 ))}
               </div>
-              <p className="text-xs sm:text-sm text-ink/60">
-                <span className="font-bold text-ink">12,400+</span> verified room matches in Bengaluru, Mumbai & Delhi NCR
+              <p className="text-xs sm:text-sm text-ink/60 min-w-0 flex-1 leading-snug">
+                <span className="font-bold text-ink">12,400+</span>
+                <span className="sm:hidden"> verified matches across top cities</span>
+                <span className="hidden sm:inline"> verified room matches in Bengaluru, Mumbai & Delhi NCR</span>
               </p>
             </div>
           </div>
         </div>
 
-        {/* Right Column - Dynamic Interactive Hero Match Showcase Panel */}
-        <div className="flex-1 gradient-dark relative overflow-hidden flex flex-col items-center justify-center p-6 sm:p-8 lg:p-12 gradient-mesh-fire min-h-[580px]">
+        {/* Right Column - Match Showcase */}
+        <div className="flex-1 gradient-dark relative overflow-hidden flex flex-col items-center justify-center px-3 py-8 sm:p-8 lg:p-12 gradient-mesh-fire min-h-0 sm:min-h-[520px] lg:min-h-[580px]">
           <HeroMatchShowcase />
         </div>
       </section>
@@ -420,7 +429,7 @@ export default function LandingPage() {
                 step: '03',
                 icon: MessageCircle,
                 title: 'Connect & Move In',
-                desc: 'Chat safely, split rent fairly, sign agreements digitally — all inside NestMate.',
+                desc: 'Chat safely in-app and share phone numbers only when both of you agree.',
               },
             ].map((item, i) => (
               <div key={i} className="card-nestmate-hover p-8 text-center bg-parchment/40 border border-border/60 rounded-3xl">
@@ -447,11 +456,11 @@ export default function LandingPage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
               { icon: Users, title: 'Compatibility Matching', desc: 'Lifestyle quiz generates compatibility scores for every match. Find people who actually fit your routine.' },
-              { icon: ShieldCheck, title: 'Verified Profiles', desc: 'Aadhaar and Work ID verification create a trust ladder. Verified users get 3x more views.' },
+              { icon: ShieldCheck, title: 'Verified Profiles', desc: 'Phone, Work ID, and Government ID verification create a trust ladder reviewed by our team.' },
               { icon: Building2, title: 'Browse Rooms', desc: 'Filter by budget, location, amenities, and compatibility. See rooms that match your lifestyle.' },
               { icon: MessageCircle, title: 'Safe Chat', desc: 'Built-in messaging with phone number privacy. Share contacts only when both parties agree.' },
-              { icon: FileText, title: 'Digital Agreement', desc: 'Create, review, and sign room sharing agreements digitally. OTP-verified signatures for both parties.' },
-              { icon: Zap, title: 'Fair Rent Splitter', desc: 'Calculate fair split based on room size, private bath, and balcony features.' },
+              { icon: Map, title: 'Map Discovery', desc: 'Explore listings on an interactive map across Chennai, Bengaluru, Hyderabad, Pune, Mumbai, and Delhi NCR.' },
+              { icon: Zap, title: 'Smart Filters', desc: 'Narrow by gender, budget, furnishing, amenities, and verified-only profiles in seconds.' },
             ].map((feat, i) => (
               <div key={i} className="card-nestmate-hover p-6 bg-white border border-border/70 rounded-2xl shadow-xs">
                 <div className="w-12 h-12 bg-fire/10 rounded-xl flex items-center justify-center mb-4">
@@ -535,7 +544,7 @@ export default function LandingPage() {
                 </div>
               </div>
               <ul className="space-y-3 mb-8 flex-1">
-                {['5 connect requests/month', 'View all matches', '1 active listing', 'Basic chat', '1 agreement/month'].map(f => (
+                {['5 connect requests/month', 'View all matches', '1 active listing', 'Basic chat', 'Trust badges'].map(f => (
                   <li key={f} className="flex items-center gap-2 text-sm text-ink/70">
                     <Check className="w-4 h-4 text-teal flex-shrink-0" />
                     {f}
@@ -559,7 +568,7 @@ export default function LandingPage() {
                 <p className="text-xs text-ink/50 mt-1">Or ₹2,499/year (Save 30%)</p>
               </div>
               <ul className="space-y-3 mb-8 flex-1">
-                {['Unlimited connects', 'See who viewed your profile', 'Priority placement', 'Unlimited agreements', 'Profile boost', 'Multiple listings'].map(f => (
+                {['Unlimited connects', 'See who viewed your profile', 'Priority placement', 'Map discovery', 'Profile boost', 'Multiple listings'].map(f => (
                   <li key={f} className="flex items-center gap-2 text-sm text-ink/70">
                     <Check className="w-4 h-4 text-fire flex-shrink-0" />
                     {f}
@@ -579,7 +588,7 @@ export default function LandingPage() {
                 <p className="text-xs text-ink/50 mt-1">For companies & HR teams</p>
               </div>
               <ul className="space-y-3 mb-8 flex-1">
-                {['HR dashboard', 'Employee housing mgmt', 'Bulk agreements', 'Verified company badge', 'Priority support'].map(f => (
+                {['HR dashboard', 'Employee housing mgmt', 'Priority support', 'Verified company badge', 'Bulk listings'].map(f => (
                   <li key={f} className="flex items-center gap-2 text-sm text-ink/70">
                     <Check className="w-4 h-4 text-navy flex-shrink-0" />
                     {f}

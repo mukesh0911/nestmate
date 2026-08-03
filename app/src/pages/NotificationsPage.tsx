@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotifications, type Notification } from '@/hooks/useNotifications';
 import { Bell, MessageCircle, UserPlus, Home, FileText, Shield, Settings, CheckCheck, Trash2 } from 'lucide-react';
+import PageShell from '@/components/PageShell';
+import StateEmpty from '@/components/StateEmpty';
 
 const iconMap: Record<string, { icon: any; color: string }> = {
   match: { icon: Bell, color: 'bg-navy/10 text-navy' },
@@ -58,19 +60,19 @@ export default function NotificationsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-parchment">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-display italic">Notifications</h1>
-          {notifications.some(n => !n.read) && (
-            <button onClick={handleMarkAllRead} className="text-sm text-fire flex items-center gap-1.5">
-              <CheckCheck className="w-4 h-4" /> Mark all read
-            </button>
-          )}
-        </div>
-
+    <PageShell
+      maxWidth="max-w-3xl"
+      title="Notifications"
+      actions={
+        notifications.some(n => !n.read) ? (
+          <button onClick={handleMarkAllRead} className="text-sm text-fire flex items-center gap-1.5 font-medium hover:text-fire-dark transition-colors">
+            <CheckCheck className="w-4 h-4" /> Mark all read
+          </button>
+        ) : undefined
+      }
+    >
         {permissionStatus === 'default' && (
-          <div className="bg-teal/10 border border-teal/20 rounded-2xl p-4 mb-6 flex items-center justify-between">
+          <div className="bg-teal/10 border border-teal/20 rounded-2xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-teal/20 rounded-full flex items-center justify-center flex-shrink-0">
                 <Bell className="w-5 h-5 text-teal" />
@@ -82,7 +84,7 @@ export default function NotificationsPage() {
             </div>
             <button 
               onClick={handleEnablePush}
-              className="px-4 py-2 bg-teal text-white text-xs font-bold rounded-xl hover:bg-teal-dark transition-colors"
+              className="px-4 py-2 bg-teal text-white text-xs font-bold rounded-xl hover:bg-teal-dark transition-colors shrink-0"
             >
               Enable
             </button>
@@ -90,11 +92,11 @@ export default function NotificationsPage() {
         )}
 
         {notifications.length === 0 ? (
-          <div className="text-center py-16">
-            <Bell className="w-16 h-16 text-ink/20 mx-auto mb-4" />
-            <h3 className="text-xl font-display italic mb-2">All caught up!</h3>
-            <p className="text-sm text-ink/50">You have no new notifications</p>
-          </div>
+          <StateEmpty
+            icon={Bell}
+            title="All caught up!"
+            description="You have no new notifications"
+          />
         ) : (
           <div className="space-y-4">
             {todayNotifs.length > 0 && (
@@ -124,8 +126,8 @@ export default function NotificationsPage() {
                           </div>
                         </button>
                         <div className="flex items-center gap-1 flex-shrink-0">
-                          {!notif.read && <span className="w-2 h-2 bg-fire rounded-full" />}
-                          <button onClick={() => handleDelete(notif.id)} className="p-1 text-ink/20 hover:text-red-400 transition-all">
+                          {!notif.read && <span className="w-2 h-2 bg-fire rounded-full" aria-label="Unread" />}
+                          <button onClick={() => handleDelete(notif.id)} className="p-1.5 text-ink/20 hover:text-red-400 transition-all rounded-lg hover:bg-red-50" aria-label="Delete notification">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -163,8 +165,8 @@ export default function NotificationsPage() {
                           </div>
                         </button>
                         <div className="flex items-center gap-1 flex-shrink-0">
-                          {!notif.read && <span className="w-2 h-2 bg-fire rounded-full" />}
-                          <button onClick={() => handleDelete(notif.id)} className="p-1 text-ink/20 hover:text-red-400 transition-all">
+                          {!notif.read && <span className="w-2 h-2 bg-fire rounded-full" aria-label="Unread" />}
+                          <button onClick={() => handleDelete(notif.id)} className="p-1.5 text-ink/20 hover:text-red-400 transition-all rounded-lg hover:bg-red-50" aria-label="Delete notification">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -176,7 +178,6 @@ export default function NotificationsPage() {
             )}
           </div>
         )}
-      </div>
-    </div>
+    </PageShell>
   );
 }

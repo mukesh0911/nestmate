@@ -58,7 +58,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-parchment flex">
+    <div className="min-h-screen bg-parchment flex page-transition">
       {/* Left: Brand Panel (desktop only) */}
       <div className="hidden lg:flex w-[420px] flex-shrink-0 gradient-dark flex-col justify-between p-10">
         <Link to="/" className="flex items-center gap-2">
@@ -77,8 +77,8 @@ export default function AuthPage() {
               '✅ Verified profiles — no fake accounts',
               '🔒 Safe chat with phone privacy',
               '🎯 10-dimension lifestyle matching',
-              '📄 Digital rent agreements',
-              '💰 Split rent fairly, save ₹8K/month',
+              '🗺️ Map discovery across 6 metros',
+              '💰 Direct connect — zero brokerage',
             ].map(item => (
               <li key={item} className="text-sm text-white/70">{item}</li>
             ))}

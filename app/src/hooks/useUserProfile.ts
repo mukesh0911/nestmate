@@ -12,17 +12,44 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { UserProfile } from './useAuth';
+import { sanitizePublicProfile } from '@/lib/sanitizeProfile';
+import { savePrivateUserData, stripPiiFromWrite } from '@/lib/privateUserData';
 
 export function useUserProfile() {
+  /** Public profile only — contact PII stripped. */
   const getProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
     const snap = await getDoc(doc(db, 'users', userId));
-    return snap.exists() ? (snap.data() as UserProfile) : null;
+    if (!snap.exists()) return null;
+    return sanitizePublicProfile({ uid: userId, ...snap.data() }) as UserProfile;
   }, []);
 
   const updateProfile = useCallback(async (userId: string, data: Partial<UserProfile>) => {
     const userRef = doc(db, 'users', userId);
+    const existingSnap = await getDoc(userRef);
+    const existing = existingSnap.exists() ? existingSnap.data() : {};
+
+    const { phone, email, workEmail, ...rest } = data as Partial<UserProfile> & Record<string, unknown>;
+
+    // Prefer explicit writes; otherwise migrate legacy public PII into private store
+    const phoneToSave = phone !== undefined ? String(phone) : (existing.phone as string | undefined);
+    const emailToSave = email !== undefined ? String(email) : (existing.email as string | undefined);
+    const workEmailToSave = workEmail !== undefined ? String(workEmail) : (existing.workEmail as string | undefined);
+
+    if (phoneToSave || emailToSave || workEmailToSave) {
+      await savePrivateUserData(userId, {
+        ...(phoneToSave ? { phone: phoneToSave } : {}),
+        ...(emailToSave ? { email: emailToSave } : {}),
+        ...(workEmailToSave ? { workEmail: workEmailToSave } : {}),
+      });
+    }
+
+    const publicData = stripPiiFromWrite({ ...rest } as Record<string, unknown>);
     await setDoc(userRef, {
-      ...data,
+      ...publicData,
+      // Clear legacy PII from publicly readable users doc
+      phone: '',
+      email: '',
+      workEmail: '',
       updatedAt: serverTimestamp(),
     }, { merge: true });
   }, []);

@@ -14,17 +14,35 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.token.email.matches('.*@nestmate\\.com$');
     }
 
+    // Trust / billing fields — only admins (or Future Production Integration via Cloud Functions) may set these
+    function trustFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['isVerified', 'isPremium', 'workEmailVerified', 'verificationLevel', 'verificationDetails', 'premiumSince', 'isAadhaarVerified', 'isWorkIdVerified', 'isStudentIdVerified']);
+    }
+
+    function trustFieldsSafeOnCreate() {
+      return (!('isVerified' in request.resource.data) || request.resource.data.isVerified == false)
+        && (!('isPremium' in request.resource.data) || request.resource.data.isPremium == false)
+        && (!('workEmailVerified' in request.resource.data) || request.resource.data.workEmailVerified == false)
+        && (!('verificationLevel' in request.resource.data) || request.resource.data.verificationLevel == 0 || request.resource.data.verificationLevel == 1);
+    }
+
     // Admin override for maintenance and system tasks
     match /{document=**} {
       allow read, write, delete: if isAdmin();
     }
 
-    // Users: public read access so visitors can browse seekers & owners
+    // Users: public browse profile — contact PII lives in privateUserData
     match /users/{userId} {
       allow read: if true;
-      allow create: if isOwner(userId) || isAdmin();
-      allow update: if isOwner(userId) || isAdmin();
+      allow create: if (isOwner(userId) && trustFieldsSafeOnCreate()) || isAdmin();
+      allow update: if (isOwner(userId) && trustFieldsUnchanged()) || isAdmin();
       allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // Private contact fields (phone, email, workEmail) — owner or admin only
+    match /privateUserData/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
     }
 
     // Listings: public read access so visitors can browse room listings
@@ -70,7 +88,15 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants || isAdmin());
         allow create: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants || isAdmin());
-        allow update: if isAuthenticated() || isAdmin();
+        // Participants may mark read; sender may edit own message content; admins unrestricted
+        allow update: if isAdmin() || (
+          isAuthenticated()
+          && request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants
+          && (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+            || request.auth.uid == resource.data.senderId
+          )
+        );
         allow delete: if isAdmin();
       }
     }

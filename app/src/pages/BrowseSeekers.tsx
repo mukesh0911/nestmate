@@ -6,9 +6,9 @@ import { useAuth } from '@/hooks/useAuth';
 import type { UserProfile } from '@/hooks/useAuth';
 import { calculateCompatibility } from '@/hooks/useMatches';
 import { useChat } from '@/hooks/useChat';
-import { Search, MapPin, Briefcase, ChevronRight, Loader2, MessageCircle, Sparkles } from 'lucide-react';
-
-
+import { Search, MapPin, Briefcase, ChevronRight, Loader2, MessageCircle, Sparkles, Users } from 'lucide-react';
+import StateEmpty from '@/components/StateEmpty';
+import StateLoading from '@/components/StateLoading';
 import { useStore } from '@/store/useStore';
 
 interface SeekerWithScore {
@@ -90,22 +90,23 @@ export default function BrowseSeekers() {
   };
 
   return (
-    <div className="min-h-screen bg-parchment pb-20">
+    <div className="min-h-screen bg-parchment pb-4 overflow-x-hidden">
       {/* Header */}
-      <div className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-border px-4 py-4">
-        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
+      <div className="bg-white/80 backdrop-blur-md sticky top-[60px] z-30 border-b border-border px-4 py-4">
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="min-w-0">
             <h1 className="text-2xl font-display italic">Browse Seekers</h1>
             <p className="text-sm text-ink/60">Find potential roommates</p>
           </div>
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
             <input
               type="text"
               placeholder="Filter by city..."
               value={searchCity}
               onChange={(e) => setSearchCity(e.target.value)}
-              className="w-full sm:w-64 pl-9 pr-4 py-2 bg-cream/50 rounded-xl text-sm outline-none focus:border-fire border border-border"
+              aria-label="Filter by city"
+              className="w-full sm:w-64 pl-9 pr-4 py-2.5 min-h-[44px] bg-cream/50 rounded-xl text-sm outline-none focus:border-fire border border-border"
             />
           </div>
         </div>
@@ -113,14 +114,14 @@ export default function BrowseSeekers() {
 
       <div className="max-w-4xl mx-auto px-4 py-6">
         {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-fire" />
-          </div>
+          <StateLoading label="Finding seekers..." />
         ) : seekers.length === 0 ? (
-          <div className="text-center py-20 bg-cream/30 rounded-2xl border-2 border-dashed border-border">
-            <h3 className="text-lg font-medium text-ink/70">No seekers found</h3>
-            <p className="text-sm text-ink/50 mt-1">Try changing your city filter</p>
-          </div>
+          <StateEmpty
+            icon={Users}
+            title="No seekers found"
+            description="Try changing your city filter"
+            className="bg-cream/30 rounded-2xl border border-dashed border-border"
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {seekers.map(({ profile, score }) => (

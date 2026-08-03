@@ -12,6 +12,7 @@ import {
 import { deleteUser } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { toast } from 'sonner';
+import PageShell from '@/components/PageShell';
 
 interface SettingsState {
   profilePublic: boolean;
@@ -131,8 +132,13 @@ export default function SettingsPage() {
       const roomsSnap = await getDocs(query(collection(db, 'chatRooms'), where('participants', 'array-contains', uid)));
       await Promise.all(roomsSnap.docs.map(d => deleteDoc(d.ref)));
 
-      // 5. Delete user profile doc
+      // 5. Delete user profile + private contact data
       await deleteDoc(doc(db, 'users', uid));
+      try {
+        await deleteDoc(doc(db, 'privateUserData', uid));
+      } catch {
+        // May not exist for legacy accounts
+      }
 
       // 6. Delete Firebase Auth user
       if (auth.currentUser) {
@@ -160,9 +166,15 @@ export default function SettingsPage() {
       const uid = user.uid;
       const data: Record<string, any> = {};
 
-      // Gather user profile
+      // Gather user profile + private contact fields
       const profileSnap = await getDoc(doc(db, 'users', uid));
       data.profile = profileSnap.exists() ? profileSnap.data() : null;
+      try {
+        const privateSnap = await getDoc(doc(db, 'privateUserData', uid));
+        data.privateContact = privateSnap.exists() ? privateSnap.data() : null;
+      } catch {
+        data.privateContact = null;
+      }
 
       // Listings
       const listingsSnap = await getDocs(query(collection(db, 'listings'), where('ownerId', '==', uid)));
@@ -208,15 +220,13 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-parchment">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-display italic">Settings</h1>
-          {saving && <span className="text-xs text-fire animate-pulse">Saving...</span>}
-        </div>
-
+    <PageShell
+      maxWidth="max-w-3xl"
+      title="Settings"
+      actions={saving ? <span className="text-xs text-fire animate-pulse">Saving...</span> : undefined}
+    >
         {/* Tabs */}
-        <div className="flex gap-1 bg-cream/50 rounded-xl p-1 mb-6 overflow-x-auto">
+        <div className="flex gap-1 bg-cream/50 rounded-xl p-1 mb-6 overflow-x-auto scrollbar-hide -mx-1 px-1">
           {([
             { key: 'account', label: 'Account', icon: Lock },
             { key: 'privacy', label: 'Privacy', icon: Eye },
@@ -226,7 +236,7 @@ export default function SettingsPage() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all flex-1 justify-center ${
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium whitespace-nowrap transition-all flex-1 justify-center ${
                 activeTab === tab.key ? 'bg-white shadow-sm text-fire' : 'text-ink/50 hover:text-ink'
               }`}
             >
@@ -505,7 +515,6 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
-      </div>
 
       {/* Delete Account Confirmation Modal */}
       {showDeleteModal && (
@@ -542,6 +551,6 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

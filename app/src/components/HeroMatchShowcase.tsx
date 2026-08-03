@@ -155,22 +155,22 @@ export default function HeroMatchShowcase() {
   }, [currentIndex, activeCategory, showConnectModal]);
 
   return (
-    <div className="w-full max-w-[440px] mx-auto flex flex-col items-center gap-4">
-      {/* 1. Sleek Top Trust Header (Ultra-Crisp Premium Pills) */}
-      <div className="w-full flex items-center justify-between gap-2 px-1">
-        <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white rounded-full shadow-sm border border-teal/30 text-xs font-extrabold text-ink">
-          <ShieldCheck className="w-4 h-4 text-teal" />
+    <div className="w-full max-w-[440px] mx-auto flex flex-col items-center gap-3 sm:gap-4 min-w-0">
+      {/* 1. Trust pills — wrap on narrow phones */}
+      <div className="w-full flex flex-wrap items-center justify-between gap-2 px-0.5 min-w-0">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full shadow-sm border border-teal/30 text-[11px] sm:text-xs font-extrabold text-ink">
+          <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-teal shrink-0" />
           <span>Aadhaar Verified</span>
         </div>
 
-        <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-fire to-fire-dark text-white rounded-full shadow-md border border-fire/30 text-xs font-extrabold">
-          <Flame className="w-3.5 h-3.5 text-white animate-pulse" />
-          <span>{currentProfile.matchScore}% Match Score</span>
+        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-fire to-fire-dark text-white rounded-full shadow-md border border-fire/30 text-[11px] sm:text-xs font-extrabold">
+          <Flame className="w-3.5 h-3.5 text-white shrink-0" />
+          <span>{currentProfile.matchScore}% Match</span>
         </div>
       </div>
 
-      {/* 2. Premium Category Filter Segmented Control */}
-      <div className="w-full bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-border/80 shadow-xs flex items-center gap-1 overflow-x-auto no-scrollbar">
+      {/* 2. Category filter — hide scrollbar (class must exist) */}
+      <div className="w-full min-w-0 bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-border/80 shadow-xs flex items-center gap-1 overflow-x-auto scrollbar-hide">
         {[
           { id: 'all', label: 'All' },
           { id: 'tech', label: 'Tech' },
@@ -180,13 +180,14 @@ export default function HeroMatchShowcase() {
         ].map((cat) => (
           <button
             key={cat.id}
+            type="button"
             onClick={() => {
               setActiveCategory(cat.id as any);
               setCurrentIndex(0);
             }}
-            className={`flex-1 min-w-[64px] py-1.5 rounded-xl text-xs font-extrabold transition-all text-center ${
+            className={`flex-1 min-w-[56px] sm:min-w-[64px] py-2 rounded-xl text-[11px] sm:text-xs font-extrabold transition-all text-center whitespace-nowrap ${
               activeCategory === cat.id
-                ? 'bg-fire text-white shadow-sm scale-102'
+                ? 'bg-fire text-white shadow-sm'
                 : 'text-ink/75 hover:text-ink hover:bg-cream/60'
             }`}
           >
@@ -197,17 +198,17 @@ export default function HeroMatchShowcase() {
 
       {/* 3. Main Interactive Profile Card */}
       <div
-        className={`w-full bg-white rounded-3xl shadow-2xl p-6 border border-border/80 transition-all duration-300 relative overflow-hidden ${
-          animating ? 'opacity-30 scale-98' : 'opacity-100 scale-100'
+        className={`w-full min-w-0 bg-white rounded-3xl shadow-2xl p-4 sm:p-6 border border-border/80 transition-all duration-300 relative overflow-hidden ${
+          animating ? 'opacity-30 scale-[0.98]' : 'opacity-100 scale-100'
         }`}
       >
         {/* Profile Card Top Section */}
-        <div className="flex items-start gap-4 mb-4">
+        <div className="flex items-start gap-3 sm:gap-4 mb-4">
           <div className="relative flex-shrink-0">
             <img
               src={currentProfile.avatar}
               alt={currentProfile.name}
-              className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl object-cover border-2 border-fire/20 shadow-sm"
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 border-fire/20 shadow-sm"
             />
             {currentProfile.verified && (
               <div className="absolute -bottom-1 -right-1 bg-teal text-white p-1 rounded-full shadow-md" title="Verified Roommate">
@@ -217,16 +218,14 @@ export default function HeroMatchShowcase() {
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <h3 className="font-extrabold text-ink text-lg truncate">
-                {currentProfile.name}
-              </h3>
-            </div>
+            <h3 className="font-extrabold text-ink text-base sm:text-lg truncate">
+              {currentProfile.name}
+            </h3>
             <p className="text-xs text-ink/60 font-semibold truncate mt-0.5">{currentProfile.role}</p>
             <p className="text-xs text-ink/40 font-medium truncate">{currentProfile.location}</p>
 
             <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-teal bg-teal/10 px-2.5 py-0.5 rounded-lg border border-teal/20">
-              <Zap className="w-3 h-3" /> {currentProfile.repliedTime}
+              <Zap className="w-3 h-3 shrink-0" /> {currentProfile.repliedTime}
             </div>
           </div>
         </div>
@@ -237,64 +236,54 @@ export default function HeroMatchShowcase() {
         </div>
 
         {/* Compatibility Factors Grid */}
-        <div className="bg-parchment/60 rounded-2xl p-3.5 mb-4 border border-border/60">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-ink/40 flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-fire" /> Compatibility Breakdown
+        <div className="bg-parchment/60 rounded-2xl p-3 mb-4 border border-border/60">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-ink/40 flex items-center gap-1 min-w-0">
+              <Sparkles className="w-3 h-3 text-fire shrink-0" /> Compatibility
             </span>
-            <span className="text-[10px] font-extrabold text-teal">4/4 Matched</span>
+            <span className="text-[10px] font-extrabold text-teal shrink-0">4/4 Matched</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
             {currentProfile.factors.map((factor, idx) => (
               <div
                 key={idx}
-                className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-border/40 shadow-2xs"
+                className="flex items-start gap-1.5 bg-white px-2 sm:px-2.5 py-1.5 rounded-xl border border-border/40 shadow-2xs min-w-0"
               >
-                <CheckCircle2 className="w-3.5 h-3.5 text-teal flex-shrink-0" />
-                <span className="truncate text-xs font-semibold text-ink/80">{factor.label}</span>
+                <CheckCircle2 className="w-3.5 h-3.5 text-teal flex-shrink-0 mt-0.5" />
+                <span className="line-clamp-2 text-[11px] sm:text-xs font-semibold text-ink/80 leading-snug">
+                  {factor.label}
+                </span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Rent & Budget Savings */}
-        <div className="bg-gradient-to-r from-teal/10 via-parchment to-fire/10 rounded-2xl p-3.5 mb-5 border border-border/60 flex items-center justify-between">
-          <div>
+        <div className="bg-gradient-to-r from-teal/10 via-parchment to-fire/10 rounded-2xl p-3 mb-4 border border-border/60 flex items-center justify-between gap-2 min-w-0">
+          <div className="min-w-0">
             <p className="text-[10px] font-extrabold text-ink/50 uppercase tracking-wider">Your Share</p>
-            <p className="text-lg font-black text-ink">
-              ₹{currentProfile.yourShare.toLocaleString('en-IN')}<span className="text-xs font-normal text-ink/50">/mo</span>
+            <p className="text-base sm:text-lg font-black text-ink truncate">
+              ₹{currentProfile.yourShare.toLocaleString('en-IN')}
+              <span className="text-xs font-normal text-ink/50">/mo</span>
             </p>
           </div>
-          <div className="h-7 w-px bg-border/60" />
-          <div className="text-right">
-            <p className="text-[10px] font-extrabold text-teal uppercase tracking-wider">Est. Monthly Savings</p>
-            <p className="text-lg font-black text-teal">
-              ₹{currentProfile.youSave.toLocaleString('en-IN')}<span className="text-xs font-normal text-teal/70">/mo</span>
+          <div className="h-7 w-px bg-border/60 shrink-0" />
+          <div className="text-right min-w-0">
+            <p className="text-[10px] font-extrabold text-teal uppercase tracking-wider">Est. Savings</p>
+            <p className="text-base sm:text-lg font-black text-teal truncate">
+              ₹{currentProfile.youSave.toLocaleString('en-IN')}
+              <span className="text-xs font-normal text-teal/70">/mo</span>
             </p>
           </div>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-2">
+        {/* Actions: primary CTA full-width, then nav row (no 4-in-a-row wrap) */}
+        <div className="flex flex-col gap-2">
           <button
-            onClick={handlePrev}
-            className="p-3 border border-border rounded-xl text-ink/60 hover:text-ink hover:bg-cream/60 transition-all"
-            title="Previous Profile"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={handleNext}
-            className="flex-1 py-3 border border-border rounded-xl text-xs font-bold text-ink/70 hover:bg-cream/60 transition-all flex items-center justify-center gap-1.5"
-          >
-            <RefreshCw className="w-3.5 h-3.5" /> Skip
-          </button>
-
-          <button
+            type="button"
             onClick={handleConnect}
-            className={`flex-1 py-3 rounded-xl text-xs font-extrabold transition-all shadow-sm flex items-center justify-center gap-1.5 text-white ${
+            className={`w-full min-h-[48px] py-3 rounded-xl text-sm font-extrabold transition-all shadow-sm flex items-center justify-center gap-1.5 text-white ${
               isLiked ? 'bg-teal hover:bg-teal-dark' : 'bg-fire hover:bg-fire-dark'
             }`}
           >
@@ -309,31 +298,51 @@ export default function HeroMatchShowcase() {
             )}
           </button>
 
-          <button
-            onClick={handleNext}
-            className="p-3 border border-border rounded-xl text-ink/60 hover:text-ink hover:bg-cream/60 transition-all"
-            title="Next Profile"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handlePrev}
+              aria-label="Previous profile"
+              className="touch-target shrink-0 p-3 border border-border rounded-xl text-ink/60 hover:text-ink hover:bg-cream/60 transition-all flex items-center justify-center"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleNext}
+              className="flex-1 min-h-[44px] py-2.5 border border-border rounded-xl text-xs font-bold text-ink/70 hover:bg-cream/60 transition-all flex items-center justify-center gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Skip
+            </button>
+
+            <button
+              type="button"
+              onClick={handleNext}
+              aria-label="Next profile"
+              className="touch-target shrink-0 p-3 border border-border rounded-xl text-ink/60 hover:text-ink hover:bg-cream/60 transition-all flex items-center justify-center"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* 4. Harmonized Bottom Social Proof Metrics */}
-      <div className="w-full bg-white rounded-2xl p-4 flex items-center justify-around text-center shadow-lg border border-border/80">
-        <div className="flex-1 px-1">
-          <p className="text-xl font-black text-ink tracking-tight">12.4K+</p>
-          <p className="text-[10px] text-ink/50 font-bold uppercase tracking-wider mt-0.5">Verified Users</p>
+      {/* 4. Bottom metrics */}
+      <div className="w-full min-w-0 bg-white rounded-2xl px-2 py-3 sm:p-4 flex items-center justify-around text-center shadow-lg border border-border/80">
+        <div className="flex-1 px-0.5 min-w-0">
+          <p className="text-base sm:text-xl font-black text-ink tracking-tight">12.4K+</p>
+          <p className="text-[9px] sm:text-[10px] text-ink/50 font-bold uppercase tracking-wider mt-0.5 leading-tight">Verified</p>
         </div>
-        <div className="h-6 w-px bg-border/60" />
-        <div className="flex-1 px-1">
-          <p className="text-xl font-black text-fire tracking-tight">96%</p>
-          <p className="text-[10px] text-ink/50 font-bold uppercase tracking-wider mt-0.5">Match Accuracy</p>
+        <div className="h-6 w-px bg-border/60 shrink-0" />
+        <div className="flex-1 px-0.5 min-w-0">
+          <p className="text-base sm:text-xl font-black text-fire tracking-tight">96%</p>
+          <p className="text-[9px] sm:text-[10px] text-ink/50 font-bold uppercase tracking-wider mt-0.5 leading-tight">Accuracy</p>
         </div>
-        <div className="h-6 w-px bg-border/60" />
-        <div className="flex-1 px-1">
-          <p className="text-xl font-black text-teal tracking-tight">₹8.5K</p>
-          <p className="text-[10px] text-ink/50 font-bold uppercase tracking-wider mt-0.5">Avg Savings</p>
+        <div className="h-6 w-px bg-border/60 shrink-0" />
+        <div className="flex-1 px-0.5 min-w-0">
+          <p className="text-base sm:text-xl font-black text-teal tracking-tight">₹8.5K</p>
+          <p className="text-[9px] sm:text-[10px] text-ink/50 font-bold uppercase tracking-wider mt-0.5 leading-tight">Avg Save</p>
         </div>
       </div>
 

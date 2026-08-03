@@ -205,9 +205,18 @@ export function useAdmin() {
 
   const approveVerification = useCallback(async (id: string, userId: string, type: string) => {
     await updateDoc(doc(db, 'verifications', id), { status: 'approved', reviewedAt: serverTimestamp() });
-    const fieldMap: Record<string, string> = { aadhaar: 'isAadhaarVerified', work_id: 'isWorkIdVerified', student_id: 'isStudentIdVerified' };
-    const field = fieldMap[type];
-    if (field) await updateDoc(doc(db, 'users', userId), { [field]: true, updatedAt: serverTimestamp() });
+    // Align with TrustBadge / UI fields (isVerified, workEmailVerified) — not unused isAadhaarVerified flags
+    const userUpdates: Record<string, unknown> = { updatedAt: serverTimestamp() };
+    if (type === 'aadhaar' || type === 'student_id') {
+      userUpdates.isVerified = true;
+      userUpdates.verificationLevel = 3;
+      userUpdates.isAadhaarVerified = type === 'aadhaar';
+      userUpdates.isStudentIdVerified = type === 'student_id';
+    } else if (type === 'work_id') {
+      userUpdates.workEmailVerified = true;
+      userUpdates.isWorkIdVerified = true;
+    }
+    await updateDoc(doc(db, 'users', userId), userUpdates);
     await addDoc(collection(db, 'notifications'), {
       userId, type: 'verification', title: 'Verification Approved',
       description: `Your ${type.replace('_', ' ')} verification has been approved!`,

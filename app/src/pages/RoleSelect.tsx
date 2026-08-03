@@ -24,7 +24,7 @@ export default function RoleSelect() {
   };
 
   return (
-    <div className="min-h-screen bg-parchment flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-parchment flex items-center justify-center px-4 py-12 page-transition">
       <div className="w-full max-w-3xl">
         {/* Header */}
         <div className="text-center mb-10">

@@ -116,7 +116,7 @@ export default function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-parchment">
+    <div className="min-h-screen bg-parchment overflow-x-hidden">
       {/* Auth Modal Rendered Globally */}
       <AuthModal
         isOpen={authModalOpen}
@@ -127,7 +127,7 @@ export default function Layout() {
       />
 
       {/* Navigation Bar */}
-      <nav aria-label="Main navigation" className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+      <nav aria-label="Main navigation" className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 pt-safe ${
         scrolled ? 'frosted-glass shadow-sm border-b border-border/40' : 'bg-parchment/90 backdrop-blur-lg border-b border-border/30'
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -356,14 +356,19 @@ export default function Layout() {
         )}
       </nav>
 
-      {/* Main Content */}
-      <main id="main-content" className="pt-[60px] pb-[68px] md:pb-0 min-h-screen">
-        <Outlet />
+      {/* Main Content — extra bottom pad on mobile for bottom nav + safe area */}
+      <main
+        id="main-content"
+        className="pt-[60px] pb-[calc(68px+env(safe-area-inset-bottom,0px))] md:pb-0 min-h-screen overflow-x-hidden"
+      >
+        <div key={location.pathname} className="page-transition">
+          <Outlet />
+        </div>
       </main>
 
       {/* Mobile Bottom Bar */}
       <nav aria-label="Mobile navigation" className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-border/60 pb-safe shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
-        <div className="flex items-center justify-around h-[60px] px-2">
+        <div className="flex items-center justify-around h-[60px] px-1 sm:px-2">
           {links.map((link) => {
             const isActive = location.pathname === link.path;
             const Icon = link.icon;
@@ -371,12 +376,12 @@ export default function Layout() {
               <Link
                 key={link.path}
                 to={link.path}
-                className={`relative flex flex-col items-center justify-center w-16 h-full transition-all ${
+                className={`relative flex flex-col items-center justify-center min-w-[56px] min-h-[48px] flex-1 max-w-[72px] h-full transition-all ${
                   isActive ? 'text-fire font-bold' : 'text-ink/50 hover:text-ink/80'
                 }`}
               >
-                <Icon className="w-5 h-5" />
-                <span className="text-[10px] font-semibold mt-1 tracking-tight truncate max-w-[60px]">{link.label}</span>
+                <Icon className="w-5 h-5" aria-hidden />
+                <span className="text-[10px] font-semibold mt-1 tracking-tight truncate max-w-[64px] px-0.5">{link.label}</span>
                 {isActive && (
                   <span className="absolute top-0 w-8 h-1 bg-fire rounded-full" />
                 )}
@@ -386,11 +391,11 @@ export default function Layout() {
           {isAuthenticated ? (
             <Link
               to="/profile"
-              className={`relative flex flex-col items-center justify-center w-16 h-full transition-all ${
+              className={`relative flex flex-col items-center justify-center min-w-[56px] min-h-[48px] flex-1 max-w-[72px] h-full transition-all ${
                 location.pathname === '/profile' ? 'text-fire font-bold' : 'text-ink/50 hover:text-ink/80'
               }`}
             >
-              <User className="w-5 h-5" />
+              <User className="w-5 h-5" aria-hidden />
               <span className="text-[10px] font-semibold mt-1 tracking-tight">{t('profile')}</span>
               {location.pathname === '/profile' && (
                 <span className="absolute top-0 w-8 h-1 bg-fire rounded-full" />
@@ -398,10 +403,12 @@ export default function Layout() {
             </Link>
           ) : (
             <button
+              type="button"
               onClick={() => openAuthModal()}
-              className="relative flex flex-col items-center justify-center w-16 h-full text-fire font-bold"
+              aria-label="Open demo or sign in"
+              className="relative flex flex-col items-center justify-center min-w-[56px] min-h-[48px] flex-1 max-w-[72px] h-full text-fire font-bold"
             >
-              <Sparkles className="w-5 h-5 animate-pulse" />
+              <Sparkles className="w-5 h-5" aria-hidden />
               <span className="text-[10px] font-semibold mt-1 tracking-tight">Demo</span>
             </button>
           )}

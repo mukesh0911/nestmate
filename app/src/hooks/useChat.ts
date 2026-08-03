@@ -13,12 +13,14 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { assignSharedPhones } from '@/lib/phoneShare';
 
 export interface PhoneSharing {
   requestedBy: string | null;
   requestedAt: Timestamp | null;
   acceptedBy: string | null;
   acceptedAt: Timestamp | null;
+  requesterPhone?: string | null;
   ownerPhone: string | null;
   seekerPhone: string | null;
 }
@@ -111,6 +113,7 @@ export function useChat() {
         phoneSharing: {
           requestedBy: null, requestedAt: null,
           acceptedBy: null, acceptedAt: null,
+          requesterPhone: null,
           ownerPhone: null, seekerPhone: null,
         },
       });
@@ -183,14 +186,15 @@ export function useChat() {
 
   // --- Phone Sharing ---
   const requestPhoneShare = useCallback(
-    async (roomId: string, requesterId: string, requesterName: string) => {
+    async (roomId: string, requesterId: string, requesterName: string, requesterPhone: string) => {
       await updateDoc(doc(db, 'chatRooms', roomId), {
         'phoneSharing.requestedBy': requesterId,
         'phoneSharing.requestedAt': serverTimestamp(),
+        'phoneSharing.requesterPhone': requesterPhone,
       });
       await sendSystemMessage(roomId, `📱 ${requesterName} wants to share phone numbers`);
     },
-    []
+    [sendSystemMessage]
   );
 
   const acceptPhoneShare = useCallback(
@@ -203,8 +207,11 @@ export function useChat() {
       requesterRole: 'owner' | 'seeker' | null,
       accepterRole: 'owner' | 'seeker' | null
     ) => {
-      const ownerPhone = requesterRole === 'owner' ? requesterPhone : accepterPhone;
-      const seekerPhone = requesterRole === 'seeker' ? requesterPhone : accepterPhone;
+      const { ownerPhone, seekerPhone } = assignSharedPhones({
+        requesterPhone,
+        accepterPhone,
+        requesterRole,
+      });
 
       await updateDoc(doc(db, 'chatRooms', roomId), {
         'phoneSharing.acceptedBy': accepterId,
@@ -214,7 +221,7 @@ export function useChat() {
       });
       await sendSystemMessage(roomId, `✅ Phone numbers are now shared between both parties`);
     },
-    []
+    [sendSystemMessage]
   );
 
   return {

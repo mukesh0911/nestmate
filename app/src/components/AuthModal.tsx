@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signInAnonymously } from 'firebase/auth';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+import { toast } from 'sonner';
 import { X, Sparkles, User, Building2, Phone, ShieldCheck, Loader2 } from 'lucide-react';
 
 interface AuthModalProps {
@@ -28,81 +29,78 @@ export default function AuthModal({
   const handleDemoLogin = async (role: 'seeker' | 'owner') => {
     setLoadingRole(role);
     try {
-      // 1. Sign in anonymously with Firebase Auth
-      const userCred = await signInAnonymously(auth);
+      // Anonymous Auth is disabled on the NestMate Firebase project.
+      // Use ephemeral email/password demo accounts instead (no paid dependency).
+      const stamp = Date.now();
+      const demoEmail = `demo.${role}.${stamp}@nestmate.app`;
+      const demoPassword = `Demo!${stamp}`;
+      const userCred = await createUserWithEmailAndPassword(auth, demoEmail, demoPassword);
       const uid = userCred.user.uid;
 
-      if (role === 'seeker') {
-        await setDoc(doc(db, 'users', uid), {
-          uid,
-          name: 'Rohan (Demo Seeker)',
-          phone: '+919999900001',
-          email: 'demo.seeker@nestmate.in',
-          role: 'seeker',
-          age: 25,
-          gender: 'Male',
-          profession: 'Software Engineer',
-          company: 'Zoho',
-          city: 'Chennai',
-          localities: ['Velachery', 'Adyar'],
-          budget: 12000,
-          bio: 'Friendly software engineer looking for a clean room and a like-minded flatmate.',
-          onboardingComplete: true,
-          isPremium: true,
-          isVerified: true,
-          quizAnswers: { q1: '1', q2: '2', q3: '1', q4: '3', q5: '2', q6: '1', q7: '4', q8: '2', q9: '1', q10: '3' },
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
-      } else {
-        await setDoc(doc(db, 'users', uid), {
-          uid,
-          name: 'Priya (Demo Owner)',
-          phone: '+919999900002',
-          email: 'demo.owner@nestmate.in',
-          role: 'owner',
-          age: 28,
-          gender: 'Female',
-          city: 'Chennai',
-          bio: 'Property owner offering premium verified flatmates & rooms.',
-          onboardingComplete: true,
-          isPremium: true,
-          isVerified: true,
-          verificationLevel: 3,
-          savedRoomIds: [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
-      }
+      await setDoc(doc(db, 'users', uid), {
+        uid,
+        name: role === 'seeker' ? 'Rohan (Demo Seeker)' : 'Priya (Demo Owner)',
+        phone: '',
+        email: '',
+        role,
+        age: role === 'seeker' ? 25 : 28,
+        gender: role === 'seeker' ? 'male' : 'female',
+        ...(role === 'seeker'
+          ? {
+              profession: 'Software Engineer',
+              company: 'Zoho',
+              localities: ['Velachery', 'Adyar'],
+              budget: 12000,
+              quizAnswers: { q1: '1', q2: '2', q3: '1', q4: '3', q5: '2', q6: '1', q7: '4', q8: '2', q9: '1', q10: '3' },
+            }
+          : { savedRoomIds: [] }),
+        city: 'Chennai',
+        bio: role === 'seeker'
+          ? 'Friendly software engineer looking for a clean room and a like-minded flatmate.'
+          : 'Property owner offering rooms to verified flatmates.',
+        onboardingComplete: true,
+        isPremium: false,
+        isVerified: false,
+        verificationLevel: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
 
+      const { savePrivateUserData } = await import('@/lib/privateUserData');
+      await savePrivateUserData(uid, {
+        phone: role === 'seeker' ? '+919999900001' : '+919999900002',
+        email: demoEmail,
+      });
+
+      toast.success(`Demo ${role} account ready`);
       onClose();
       if (redirectAfterLogin) {
         navigate(redirectAfterLogin);
       } else {
         navigate(role === 'seeker' ? '/dashboard' : '/owner-dashboard');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Demo login error:', err);
+      toast.error(err?.message || 'Demo login failed. Please try email signup instead.');
     } finally {
       setLoadingRole(null);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-ink/60 backdrop-blur-sm animate-fade-in">
       <div
-        className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-border relative animate-scale-up"
+        className="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-border relative animate-scale-up max-h-[90dvh] overflow-y-auto pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full text-ink/40 hover:text-ink hover:bg-cream/60 transition-all"
+          aria-label="Close"
+          className="absolute top-3 right-3 touch-target p-2 rounded-full text-ink/40 hover:text-ink hover:bg-cream/60 transition-all flex items-center justify-center"
         >
           <X className="w-5 h-5" />
         </button>
 
-        {/* Modal Header */}
         <div className="text-center pt-2 pb-4">
           <div className="w-12 h-12 rounded-2xl gradient-fire flex items-center justify-center mx-auto mb-3 shadow-md">
             <Sparkles className="w-6 h-6 text-white" />
@@ -111,7 +109,6 @@ export default function AuthModal({
           <p className="text-xs text-ink/60 mt-1.5 leading-relaxed">{subtitle}</p>
         </div>
 
-        {/* 1-Click Demo Buttons */}
         <div className="space-y-3 my-4">
           <div className="text-[11px] font-bold text-ink/40 uppercase tracking-wider text-center">
             Instant 1-Click Evaluation
@@ -127,66 +124,48 @@ export default function AuthModal({
                 {loadingRole === 'seeker' ? <Loader2 className="w-5 h-5 animate-spin" /> : <User className="w-5 h-5" />}
               </div>
               <div>
-                <p className="text-sm font-semibold text-ink group-hover:text-fire transition-colors">
-                  Try as Seeker (Room Hunter)
-                </p>
-                <p className="text-[11px] text-ink/50">Explore matches, send interest, split rent</p>
+                <div className="text-sm font-bold text-ink">Continue as Seeker</div>
+                <div className="text-[11px] text-ink/50">Browse matches &amp; send connects</div>
               </div>
             </div>
-            <span className="text-xs font-bold text-fire bg-white px-2.5 py-1 rounded-full border border-fire/20 shadow-sm">
-              Instant Demo
-            </span>
+            <ShieldCheck className="w-4 h-4 text-fire/40" />
           </button>
 
           <button
             onClick={() => handleDemoLogin('owner')}
             disabled={loadingRole !== null}
-            className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-navy/30 bg-gradient-to-r from-navy/5 to-transparent hover:from-navy/10 hover:border-navy transition-all group text-left"
+            className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-navy/20 bg-gradient-to-r from-navy/5 to-transparent hover:from-navy/10 hover:border-navy/40 transition-all group text-left"
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-navy/10 text-navy flex items-center justify-center group-hover:scale-105 transition-transform">
                 {loadingRole === 'owner' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Building2 className="w-5 h-5" />}
               </div>
               <div>
-                <p className="text-sm font-semibold text-ink group-hover:text-navy transition-colors">
-                  Try as Owner / Room Provider
-                </p>
-                <p className="text-[11px] text-ink/50">Post listing, review applicants, chat</p>
+                <div className="text-sm font-bold text-ink">Continue as Owner</div>
+                <div className="text-[11px] text-ink/50">Manage listing &amp; applicants</div>
               </div>
             </div>
-            <span className="text-xs font-bold text-navy bg-white px-2.5 py-1 rounded-full border border-navy/20 shadow-sm">
-              Instant Demo
-            </span>
+            <ShieldCheck className="w-4 h-4 text-navy/40" />
           </button>
         </div>
 
-        {/* Divider */}
-        <div className="relative my-4">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border" />
-          </div>
-          <div className="relative flex justify-center text-[10px] uppercase font-bold text-ink/40 bg-white px-2">
-            Or Use Mobile Login
+        <div className="relative my-5">
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
+          <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
+            <span className="bg-white px-3 text-ink/40 font-bold">or</span>
           </div>
         </div>
 
-        {/* Standard Auth Button */}
         <button
           onClick={() => {
             onClose();
             navigate('/login');
           }}
-          className="w-full btn-outline flex items-center justify-center gap-2 py-3 rounded-xl text-sm"
+          className="w-full py-3 rounded-xl bg-ink text-white text-sm font-bold hover:bg-ink/90 transition-all flex items-center justify-center gap-2"
         >
-          <Phone className="w-4 h-4 text-fire" />
-          Sign in with Phone / OTP
+          <Phone className="w-4 h-4" />
+          Sign in with Email / Phone
         </button>
-
-        {/* Trust Footer */}
-        <div className="flex items-center justify-center gap-1.5 mt-4 text-[11px] text-ink/40">
-          <ShieldCheck className="w-3.5 h-3.5 text-teal" />
-          <span>No spam guarantee · Verified profiles only</span>
-        </div>
       </div>
     </div>
   );

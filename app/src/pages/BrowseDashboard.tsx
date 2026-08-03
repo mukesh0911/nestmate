@@ -12,6 +12,8 @@ import {
   Sparkles, ArrowUpDown, Building2, Calendar, Utensils
 } from 'lucide-react';
 import { professions } from '@/lib/staticData';
+import StateEmpty from '@/components/StateEmpty';
+import StateLoading from '@/components/StateLoading';
 
 // ── Lazy-load BrowseRooms so old view is preserved ──
 import BrowseRooms from './BrowseRooms';
@@ -347,9 +349,7 @@ function SeekersView() {
 
         {/* Loading */}
         {loading && (
-          <div className="flex justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-fire" />
-          </div>
+          <StateLoading label="Finding seekers..." />
         )}
 
         {/* Seeker Grid */}
@@ -473,12 +473,14 @@ function SeekersView() {
 
         {/* Empty State */}
         {!loading && filtered.length === 0 && (
-          <div className="text-center py-16">
-            <Users className="w-16 h-16 text-ink/20 mx-auto mb-4" />
-            <h3 className="text-xl font-display italic mb-2">No seekers found</h3>
-            <p className="text-sm text-ink/50 mb-4">Try adjusting your filters or city</p>
-            <button onClick={clearFilters} className="btn-outline text-sm">Clear All Filters</button>
-          </div>
+          <StateEmpty
+            icon={Users}
+            title="No seekers found"
+            description="Try adjusting your filters or city"
+            action={
+              <button onClick={clearFilters} className="btn-outline text-sm">Clear All Filters</button>
+            }
+          />
         )}
       </div>
 

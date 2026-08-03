@@ -16,6 +16,8 @@ import { Search, LayoutGrid, List, Crown, Shield, ShieldCheck, Star, MessageCirc
 import { MapPreview } from '@/components/MapPreview';
 import TrustBadge from '@/components/TrustBadge';
 import ProfileCompleteness from '@/components/ProfileCompleteness';
+import StateEmpty from '@/components/StateEmpty';
+import { StateSkeletonGrid } from '@/components/StateLoading';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -405,7 +407,7 @@ export default function SeekerDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-parchment">
+    <div className="min-h-screen bg-parchment overflow-x-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex flex-col lg:flex-row gap-6">
 
@@ -622,30 +624,13 @@ export default function SeekerDashboard() {
                 <option value="budgetDesc">Budget: High → Low</option>
               </select>
               <div className="hidden sm:flex bg-cream/50 rounded-xl p-0.5 border border-border flex-shrink-0">
-                <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-fire' : 'text-ink/40'}`}><LayoutGrid className="w-4 h-4" /></button>
-                <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-fire' : 'text-ink/40'}`}><List className="w-4 h-4" /></button>
+                <button type="button" onClick={() => setViewMode('grid')} aria-label="Grid view" className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-fire' : 'text-ink/40'}`}><LayoutGrid className="w-4 h-4" /></button>
+                <button type="button" onClick={() => setViewMode('list')} aria-label="List view" className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-fire' : 'text-ink/40'}`}><List className="w-4 h-4" /></button>
               </div>
             </div>
 
             {/* Skeleton Loading State */}
-            {isLoading && (
-              <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="bg-white rounded-2xl overflow-hidden shadow-card">
-                    <div className="h-[168px] skeleton-shimmer" />
-                    <div className="p-4 space-y-2">
-                      <div className="h-4 w-3/4 skeleton-shimmer rounded-lg" />
-                      <div className="h-3 w-1/2 skeleton-shimmer rounded-lg" />
-                      <div className="h-3 w-2/3 skeleton-shimmer rounded-lg mt-3" />
-                      <div className="flex gap-2 mt-3">
-                        <div className="flex-1 h-8 skeleton-shimmer rounded-lg" />
-                        <div className="flex-1 h-8 skeleton-shimmer rounded-lg" />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            {isLoading && <StateSkeletonGrid count={6} />}
 
             {/* Featured Best Match (Only show in All Matches) */}
             {!isLoading && activeTab === 'all' && bestMatch && (() => {
@@ -882,24 +867,30 @@ export default function SeekerDashboard() {
 
             {/* Empty States */}
             {!isLoading && filteredMatches.length === 0 && activeTab === 'all' && (
-              <div className="text-center py-12">
-                <Search className="w-16 h-16 text-ink/20 mx-auto mb-4" />
-                <h3 className="text-xl font-display italic mb-2">No matches found</h3>
-                <p className="text-sm text-ink/50 mb-4">Try adjusting your filters or expanding your search</p>
-                <button onClick={() => updateFilters({ city: '', budgetMin: 1000, budgetMax: 25000, localities: [], gender: 'any', verifiedOnly: false })} className="btn-outline text-sm mb-6">Reset Filters</button>
-              </div>
+              <StateEmpty
+                icon={Search}
+                title="No matches found"
+                description="Try adjusting your filters or expanding your search"
+                action={
+                  <button onClick={() => updateFilters({ city: '', budgetMin: 1000, budgetMax: 25000, localities: [], gender: 'any', verifiedOnly: false })} className="btn-outline text-sm">
+                    Reset Filters
+                  </button>
+                }
+              />
             )}
             
             {!isLoading && filteredMatches.length === 0 && activeTab === 'saved' && (
-              <div className="text-center py-16 bg-white/50 rounded-3xl border border-ink/5 shadow-sm">
-                <div className="w-20 h-20 bg-ink/5 rounded-full flex items-center justify-center mx-auto mb-5">
-                  <Bookmark className="w-8 h-8 text-ink/20" />
-                </div>
-                <h3 className="text-xl font-display italic mb-2">No saved profiles yet</h3>
-                <p className="text-sm text-ink/50 mb-6 max-w-sm mx-auto">Heart a profile to save it for later</p>
-                <button onClick={() => setActiveTab('all')} className="btn-primary text-sm px-6">
-                  Browse Matches
-                </button>
+              <div className="bg-white/50 rounded-3xl border border-ink/5 shadow-sm">
+                <StateEmpty
+                  icon={Bookmark}
+                  title="No saved profiles yet"
+                  description="Heart a profile to save it for later"
+                  action={
+                    <button onClick={() => setActiveTab('all')} className="btn-fire text-sm px-6">
+                      Browse Matches
+                    </button>
+                  }
+                />
               </div>
             )}
 

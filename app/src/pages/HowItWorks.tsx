@@ -32,15 +32,15 @@ export default function HowItWorks() {
     {
       num: '04',
       title: 'Move In Together',
-      desc: 'Chat safely and sign a digital agreement — all without leaving the app.',
-      points: ['In-app chat (phone hidden)', 'Digital agreement with e-signature'],
+      desc: 'Chat safely in-app, share phone numbers only with mutual consent, then arrange your visit.',
+      points: ['In-app chat (phone hidden)', 'Mutual phone-share when both agree'],
       icon: Home,
       image: 'movein',
     },
   ];
 
   return (
-    <div className="min-h-screen bg-parchment">
+    <div className="min-h-screen bg-parchment page-transition">
       {/* Header */}
       <div className="gradient-dark py-20 px-4 text-center">
         <h1 className="text-4xl sm:text-5xl font-display italic text-white mb-4">How NestMate Works</h1>

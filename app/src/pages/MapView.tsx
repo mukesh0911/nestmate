@@ -16,6 +16,7 @@ import {
   Search, Crosshair, Loader2, MapPin, Users, Home,
   ChevronUp, ChevronDown, X, List as ListIcon, Map as MapIcon
 } from 'lucide-react';
+import StateEmpty from '@/components/StateEmpty';
 
 // Fix leaflet icons
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
@@ -263,7 +264,14 @@ export default function MapView() {
         </div>
         <div className="p-3 space-y-1">
           {loading ? Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 skeleton-shimmer rounded-xl" />) :
-           sortedItems.length === 0 ? <p className="text-center text-sm text-ink/50 py-12">No {mode} in this area</p> :
+           sortedItems.length === 0 ? (
+             <StateEmpty
+               compact
+               icon={MapPin}
+               title={`No ${mode} in this area`}
+               description="Try another location or switch mode"
+             />
+           ) :
            sortedItems.map(item => <SidebarCard key={item.type === 'person' ? item.uid : item.id} item={item} />)}
         </div>
       </div>
@@ -271,7 +279,7 @@ export default function MapView() {
   }
 
   return (
-    <div className="h-[calc(100vh-60px)] w-full flex relative">
+    <div className="h-app-mobile md:h-app-desktop -mb-[calc(68px+env(safe-area-inset-bottom,0px))] md:mb-0 w-full flex relative overflow-hidden">
       {/* Desktop Sidebar */}
       {!isMobile && sidebarOpen && (
         <div className="w-[320px] bg-white border-r border-border flex flex-col shrink-0 z-10">
@@ -289,12 +297,13 @@ export default function MapView() {
           <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
             {loading ? Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 skeleton-shimmer rounded-xl" />) :
              sortedItems.length === 0 ? (
-              <div className="text-center py-16">
-                <MapPin className="w-10 h-10 text-ink/15 mx-auto mb-3" />
-                <p className="text-sm font-semibold text-ink/50">No {mode} in this area</p>
-                <p className="text-xs text-ink/30 mt-1">Try expanding your search radius</p>
-              </div>
-            ) : sortedItems.map(item => <SidebarCard key={item.type === 'person' ? item.uid : item.id} item={item} />)}
+              <StateEmpty
+                compact
+                icon={MapPin}
+                title={`No ${mode} in this area`}
+                description="Try expanding your search radius"
+              />
+             ) : sortedItems.map(item => <SidebarCard key={item.type === 'person' ? item.uid : item.id} item={item} />)}
           </div>
         </div>
       )}

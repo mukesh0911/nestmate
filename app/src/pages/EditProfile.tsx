@@ -8,6 +8,7 @@ import { collection, getDocs, query, where, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useStorage } from '@/hooks/useStorage';
 import { toast } from 'sonner';
+import StateEmpty from '@/components/StateEmpty';
 
 export default function EditProfile() {
   const navigate = useNavigate();
@@ -76,35 +77,25 @@ export default function EditProfile() {
       const path = `profiles/${user.uid}/verifications/${selectedDocType}_${Date.now()}.${ext}`;
       const url = await uploadGenericImage(file, path, (pct) => setUploadProgress(pct));
 
+      // Submit for admin review — never self-grant verified status (LB-01)
       const newDocRef = await addDoc(collection(db, 'verifications'), {
         userId: user.uid,
         type: selectedDocType,
-        status: 'approved',
+        status: 'pending',
         documentUrl: url,
         submittedAt: new Date(),
-        reviewedAt: new Date(),
-        reviewNote: 'Verified'
       });
-
-      await updateProfile(user.uid, {
-        isVerified: true,
-        verificationLevel: 3,
-        ...(selectedDocType === 'work_id' ? { workEmailVerified: true } : {})
-      });
-      await refreshProfile();
 
       setVerifications(prev => [...prev, {
         id: newDocRef.id,
         userId: user.uid,
         type: selectedDocType,
-        status: 'approved',
+        status: 'pending',
         documentUrl: url,
         submittedAt: { toDate: () => new Date() },
-        reviewedAt: new Date(),
-        reviewNote: 'Verified'
       }]);
 
-      toast.success('Document uploaded & profile verified!');
+      toast.success('Document submitted for review. An admin will verify it shortly.');
     } catch (err) {
       console.error(err);
       toast.error('Failed to upload document.');
@@ -118,7 +109,7 @@ export default function EditProfile() {
       setFormData({
         name: profile.name || '',
         age: profile.age?.toString() || '',
-        gender: profile.gender || '',
+        gender: (profile.gender || '').toLowerCase(),
         profession: profile.profession || '',
         bio: profile.bio || '',
         city: profile.city || '',
@@ -154,7 +145,7 @@ export default function EditProfile() {
         locality: formData.locality,
         localities: formData.locality ? [formData.locality] : [],
         workEmail: formData.workEmail,
-        workEmailVerified: workEmailVerified || !!formData.workEmail,
+        // workEmailVerified is admin/OTP-only — never self-grant from typing an email
         socialLinks: {
           linkedin: formData.linkedin,
           instagram: formData.instagram,
@@ -192,7 +183,7 @@ export default function EditProfile() {
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-border px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/profile')} className="p-2 -ml-2 rounded-full hover:bg-cream/50 transition-colors">
+          <button onClick={() => navigate('/profile')} className="p-2 -ml-2 rounded-full hover:bg-cream/50 transition-colors" aria-label="Back to profile">
             <ArrowLeft className="w-5 h-5 text-ink/70" />
           </button>
           <h1 className="text-xl font-display italic">Edit Profile</h1>
@@ -353,7 +344,12 @@ export default function EditProfile() {
               ))}
             </div>
           ) : (
-            <p className="text-xs text-ink/40 py-2">You haven't submitted any verification documents yet.</p>
+            <StateEmpty
+              compact
+              icon={FileText}
+              title="No documents yet"
+              description="You haven't submitted any verification documents yet."
+            />
           )}
 
           {/* Upload Controls */}
