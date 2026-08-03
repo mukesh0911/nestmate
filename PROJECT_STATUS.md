@@ -1,12 +1,12 @@
 # NestMate — Project Status
 
 > **Product**: NestMate  
-> **Last Updated**: 2026-08-03 (landing mobile alignment)  
-> **Overall Status**: **Production live** + local landing mobile layout fixes verified  
+> **Last Updated**: 2026-08-03 (premium redesign Phases 1–6 design docs)  
+> **Overall Status**: **Production live** + premium redesign research/wire/hi-fi in `docs/design/` (React gated)  
 > **Firebase project**: `nestmate-eb562`  
 > **Live hosting**: https://nestmate-eb562.web.app  
 > **Deployed client**: `index-D7-Bo4nk.js` / `index-DiyJV2-4.css` (UI polish; mobile + landing fixes pending next hosting deploy)  
-> **Operating docs**: `FEATURE_ROADMAP.md` · `TECHNICAL_DEBT.md` · `CHANGELOG.md`
+> **Operating docs**: `FEATURE_ROADMAP.md` · `TECHNICAL_DEBT.md` · `CHANGELOG.md` · `docs/design/README.md`
 
 ### Product strategy (locked — do not change without explicit request)
 
@@ -29,8 +29,11 @@ Every completed task logs what/why/files/testing/regression in `CHANGELOG.md`.
 | UI/UX polish (shared empty/loading/page chrome) | ✅ Live on Hosting |
 | Mobile-first responsive audit + fixes | ✅ Local verified (smoke **33/33**) |
 | Landing mobile alignment (showcase CTA / scrollbar / social proof) | ✅ Local verified (`npm run build`) |
+| Premium redesign Phases 1–4 (research / principles / IA) | ✅ `docs/design/01–04` |
+| Premium redesign Phase 5–6 (lo-fi + hi-fi HTML; React gated) | ✅ `docs/design/wireframes` + `hifi` — awaiting your approval; Figma MCP auth needed on desktop |
 | Unit tests / tsc | ✅ Pass |
 | Hosting deploy for mobile + landing fixes | Pending |
+| React implementation of premium redesign | Blocked until hi-fi approval |
 
 ### Mobile responsive improvements (2026-08-03)
 

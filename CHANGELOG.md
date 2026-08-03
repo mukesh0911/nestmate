@@ -6,6 +6,31 @@ Format: newest first. Each entry should include what / why / files / testing whe
 
 ---
 
+## 2026-08-03 — Premium redesign: Head of Design process (Phases 1–6 docs)
+
+### What changed
+- Phase 1–4 written research: product brief, competitive UX, design principles, IA redesign under `docs/design/`
+- Phase 5 low-fi wireframes (390) as reviewable HTML — search-first landing, browse, detail, auth sheet, chat, shell
+- Phase 6 hi-fi mobile + click prototype + self-critique HTML; Figma sync bootstrap script
+- React implementation explicitly gated (`06-REACT_GATE.md`)
+
+### Why
+- Redesign NestMate as a premium consumer product using research → principles → IA → lo-fi → hi-fi — not incremental UI tweaks
+
+### Strategy preserved
+- Guest browse / auth-on-action / Demo only on explicit click
+- No React presentation changes in this pass
+
+### Testing / regression
+- Docs + static HTML only (no app code)
+- Figma MCP: blocked in cloud (needs Cursor desktop auth); HTML is interim source of truth
+
+### Files
+- `docs/design/**`
+- `CHANGELOG.md`, `PROJECT_STATUS.md`
+
+---
+
 ## 2026-08-03 — Landing mobile alignment fix
 
 ### What changed
