@@ -184,11 +184,7 @@ export default function ProfilePage() {
                 <span className="text-sm flex-1">Notifications</span>
                 <ChevronRight className="w-4 h-4 text-ink/30" />
               </button>
-              <button onClick={() => navigate('/my-agreements')} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-cream/50 transition-all text-left">
-                <FileText className="w-4 h-4 text-ink/60" />
-                <span className="text-sm flex-1">My Agreements</span>
-                <ChevronRight className="w-4 h-4 text-ink/30" />
-              </button>
+
               <button className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-cream/50 transition-all text-left">
                 <HelpCircle className="w-4 h-4 text-ink/60" />
                 <span className="text-sm flex-1">Help & Support</span>

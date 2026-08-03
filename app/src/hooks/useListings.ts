@@ -18,7 +18,7 @@ import {
   DocumentSnapshot,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { mockListings } from '@/lib/mockData';
+
 
 
 export interface Listing {
@@ -170,10 +170,7 @@ export function useListings() {
         console.warn('Firestore listings fetch warning:', e);
       }
 
-      // Fallback to mock listings if Firestore has no listings yet
-      if (fetchedResults.length === 0) {
-        fetchedResults = mockListings;
-      }
+
 
       // Apply client-side filtering on Firestore results
       let results = applyClientFilters(fetchedResults, filters);

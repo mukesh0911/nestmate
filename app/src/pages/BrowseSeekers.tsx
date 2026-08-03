@@ -7,7 +7,7 @@ import type { UserProfile } from '@/hooks/useAuth';
 import { calculateCompatibility } from '@/hooks/useMatches';
 import { useChat } from '@/hooks/useChat';
 import { Search, MapPin, Briefcase, ChevronRight, Loader2, MessageCircle, Sparkles } from 'lucide-react';
-import { mockSeekers } from '@/lib/mockData';
+
 
 import { useStore } from '@/store/useStore';
 
@@ -55,7 +55,7 @@ export default function BrowseSeekers() {
           profile: u,
           score: currentUser?.quizAnswers
             ? calculateCompatibility(currentUser.quizAnswers, u.quizAnswers || {})
-            : 88,
+            : 0,
         }));
 
         setSeekers(scored.sort((a, b) => b.score - a.score));

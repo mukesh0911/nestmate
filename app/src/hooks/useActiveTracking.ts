@@ -26,7 +26,6 @@ export function useActiveTracking() {
             lastActiveAt: serverTimestamp(),
           });
           lastUpdateRef.current = now;
-          console.log('Activity status updated to Firestore');
         } catch (e) {
           console.error('Failed to update activity status:', e);
         } finally {

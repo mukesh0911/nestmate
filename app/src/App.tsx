@@ -70,9 +70,6 @@ const PAGE_TITLES: Record<string, string> = {
   '/settings': 'Settings | NestMate',
   '/notifications': 'Notifications | NestMate',
   '/map': 'Map View | NestMate',
-  '/rent-calculator': 'Fair Rent Splitter | NestMate',
-  '/agreement-builder': 'Digital Agreement Builder | NestMate',
-  '/my-agreements': 'My Agreements | NestMate',
   '/admin': 'Admin Dashboard | NestMate',
 };
 

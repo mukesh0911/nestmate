@@ -321,23 +321,23 @@ export default function LandingPage() {
       <section className="py-20 sm:py-28 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto space-y-16">
           
-          {/* Banner 1: Digital Rental Agreements */}
+          {/* Banner 1: Verified & Trusted Community */}
           <div className="bg-white rounded-3xl p-8 sm:p-12 shadow-xl border border-border/80 flex flex-col md:flex-row items-center justify-between gap-8 overflow-hidden relative">
             <div className="max-w-xl z-10">
               <div className="w-12 h-12 bg-teal/10 rounded-2xl flex items-center justify-center mb-5">
-                <FileText className="w-6 h-6 text-teal" />
+                <ShieldCheck className="w-6 h-6 text-teal" />
               </div>
               <h2 className="text-2xl sm:text-3xl font-display italic text-ink mb-4 leading-tight">
-                Getting Rental Agreement made easy, quick and affordable
+                Every profile is verified. Every connection is safe.
               </h2>
               <p className="text-ink/70 text-sm sm:text-base leading-relaxed mb-6">
-                Avoid physical paperwork and lawyer runs. Create legally binding flatmate agreements with custom rent split terms, OTP e-signatures, and instant PDF download.
+                NestMate uses 3-tier verification — Phone, Work Email, and Government ID — to ensure every person you connect with is real, genuine, and trustworthy.
               </p>
               <button
-                onClick={() => navigate('/rent-calculator')}
+                onClick={() => navigate('/how-it-works')}
                 className="btn-teal px-6 py-3 text-sm font-bold rounded-xl inline-flex items-center gap-2 shadow-sm"
               >
-                Create Agreement Now <ArrowRight className="w-4 h-4" />
+                Learn How It Works <ArrowRight className="w-4 h-4" />
               </button>
             </div>
             <div className="w-full md:w-80 h-56 bg-gradient-to-tr from-teal/20 to-teal/5 rounded-2xl flex items-center justify-center p-6 border border-teal/20 relative">
@@ -345,9 +345,9 @@ export default function LandingPage() {
                 <div className="w-10 h-10 bg-teal/10 rounded-full flex items-center justify-center mx-auto text-teal">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
-                <p className="text-xs font-bold text-ink">e-Signed Rental Agreement</p>
-                <p className="text-[11px] text-ink/50">Legally verified across 28 states</p>
-                <span className="inline-block px-3 py-1 bg-teal/10 text-teal text-[10px] font-bold rounded-full">100% Digital PDF</span>
+                <p className="text-xs font-bold text-ink">3-Tier Verified Profile</p>
+                <p className="text-[11px] text-ink/50">Phone · Work Email · Aadhaar</p>
+                <span className="inline-block px-3 py-1 bg-teal/10 text-teal text-[10px] font-bold rounded-full">100% Trusted</span>
               </div>
             </div>
           </div>

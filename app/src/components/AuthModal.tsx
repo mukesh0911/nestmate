@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { signInAnonymously } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import { mockSeekers, mockListings } from '@/lib/mockData';
 import { X, Sparkles, User, Building2, Phone, ShieldCheck, Loader2 } from 'lucide-react';
 
 interface AuthModalProps {
@@ -34,15 +33,20 @@ export default function AuthModal({
       const uid = userCred.user.uid;
 
       if (role === 'seeker') {
-        const demoProfile = mockSeekers[0];
         await setDoc(doc(db, 'users', uid), {
-          ...demoProfile,
           uid,
           name: 'Rohan (Demo Seeker)',
           phone: '+919999900001',
           email: 'demo.seeker@nestmate.in',
           role: 'seeker',
+          age: 25,
+          gender: 'Male',
+          profession: 'Software Engineer',
+          company: 'Zoho',
           city: 'Chennai',
+          localities: ['Velachery', 'Adyar'],
+          budget: 12000,
+          bio: 'Friendly software engineer looking for a clean room and a like-minded flatmate.',
           onboardingComplete: true,
           isPremium: true,
           isVerified: true,
@@ -51,10 +55,9 @@ export default function AuthModal({
           updatedAt: new Date(),
         });
       } else {
-        const demoOwner = mockListings[0];
         await setDoc(doc(db, 'users', uid), {
           uid,
-          name: (demoOwner?.ownerName || 'Priya') + ' (Demo Owner)',
+          name: 'Priya (Demo Owner)',
           phone: '+919999900002',
           email: 'demo.owner@nestmate.in',
           role: 'owner',
