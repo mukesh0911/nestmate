@@ -453,68 +453,97 @@ export default function MatchDetail() {
           </div>
 
           {/* Detailed Compatibility Breakdown Table */}
-          <div className="bg-white rounded-3xl p-6 border border-border/80 shadow-2xs">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-border/80 shadow-2xs">
             <h3 className="font-bold text-base text-ink mb-6 flex items-center gap-2">
               <Star className="w-4.5 h-4.5 text-gold fill-gold" />
               Detailed Compatibility Breakdown
             </h3>
 
-            <div className="overflow-x-auto">
-              <div className="min-w-[500px]">
-                {/* Table Header */}
-                <div className="grid grid-cols-[1.5fr_1fr_1.2fr_auto] gap-4 text-[10px] font-extrabold text-ink/40 uppercase tracking-wider pb-3 border-b border-border">
-                  <div>CATEGORY</div>
-                  <div>YOUR PREFERENCE</div>
-                  <div>THEIR LIFESTYLE</div>
-                  <div className="text-center w-12">MATCH</div>
-                </div>
+            {/* Desktop: 4-column grid table */}
+            <div className="hidden sm:block">
+              {/* Table Header */}
+              <div className="grid grid-cols-[1.5fr_1fr_1.2fr_auto] gap-4 text-[10px] font-extrabold text-ink/40 uppercase tracking-wider pb-3 border-b border-border">
+                <div>CATEGORY</div>
+                <div>YOUR PREFERENCE</div>
+                <div>THEIR LIFESTYLE</div>
+                <div className="text-center w-12">MATCH</div>
+              </div>
 
-                {/* Table Rows */}
-                <div className="divide-y divide-border/40">
-                  {breakdownRows.map((row) => {
-                    const IconComp = CATEGORY_ICONS[row.id] || Sparkles;
-                    return (
-                      <div key={row.id} className="grid grid-cols-[1.5fr_1fr_1.2fr_auto] gap-4 items-center py-3 text-xs">
-                        {/* Category with Icon */}
-                        <div className="font-semibold text-ink/80 flex items-center gap-2.5">
-                          <IconComp className="w-4 h-4 text-fire/80 flex-shrink-0" />
-                          <span className="truncate">
-                            {row.question
-                              .replace('What time do you usually ', '')
-                              .replace('What is your ', '')
-                              .replace('How often do you ', '')
-                              .replace('How important is ', '')
-                              .replace('How do you feel about ', '')}
-                          </span>
-                        </div>
-
-                        {/* Your Preference */}
-                        <div className="text-ink/40 font-medium truncate">{row.myLabel}</div>
-
-                        {/* Their Lifestyle */}
-                        <div className="font-bold text-ink truncate">{row.theirLabel}</div>
-
-                        {/* Match Status Icon */}
-                        <div className="flex justify-center w-12">
-                          <div className="w-5 h-5 rounded-full border-2 border-emerald-500 text-emerald-500 flex items-center justify-center">
-                            <Check className="w-3.5 h-3.5 stroke-[3]" />
-                          </div>
+              {/* Table Rows */}
+              <div className="divide-y divide-border/40">
+                {breakdownRows.map((row) => {
+                  const IconComp = CATEGORY_ICONS[row.id] || Sparkles;
+                  return (
+                    <div key={row.id} className="grid grid-cols-[1.5fr_1fr_1.2fr_auto] gap-4 items-center py-3 text-xs">
+                      <div className="font-semibold text-ink/80 flex items-center gap-2.5">
+                        <IconComp className="w-4 h-4 text-fire/80 flex-shrink-0" />
+                        <span className="truncate">
+                          {row.question
+                            .replace('What time do you usually ', '')
+                            .replace('What is your ', '')
+                            .replace('How often do you ', '')
+                            .replace('How important is ', '')
+                            .replace('How do you feel about ', '')}
+                        </span>
+                      </div>
+                      <div className="text-ink/40 font-medium truncate">{row.myLabel}</div>
+                      <div className="font-bold text-ink truncate">{row.theirLabel}</div>
+                      <div className="flex justify-center w-12">
+                        <div className="w-5 h-5 rounded-full border-2 border-emerald-500 text-emerald-500 flex items-center justify-center">
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })}
               </div>
+            </div>
+
+            {/* Mobile: stacked card layout — no horizontal scroll */}
+            <div className="sm:hidden space-y-2">
+              {breakdownRows.map((row) => {
+                const IconComp = CATEGORY_ICONS[row.id] || Sparkles;
+                return (
+                  <div key={row.id} className="bg-cream/30 rounded-xl p-3 border border-border/40">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="font-semibold text-xs text-ink/80 flex items-center gap-2 min-w-0">
+                        <IconComp className="w-4 h-4 text-fire/80 flex-shrink-0" />
+                        <span className="truncate">
+                          {row.question
+                            .replace('What time do you usually ', '')
+                            .replace('What is your ', '')
+                            .replace('How often do you ', '')
+                            .replace('How important is ', '')
+                            .replace('How do you feel about ', '')}
+                        </span>
+                      </div>
+                      <div className="w-5 h-5 rounded-full border-2 border-emerald-500 text-emerald-500 flex items-center justify-center flex-shrink-0 ml-2">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px]">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-ink/40 block text-[9px] uppercase font-bold tracking-wide">You</span>
+                        <span className="text-ink/60 font-medium truncate block">{row.myLabel}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-ink/40 block text-[9px] uppercase font-bold tracking-wide">Them</span>
+                        <span className="text-ink font-bold truncate block">{row.theirLabel}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           {/* Lifestyle Setup Cards Grid */}
-          <div className="bg-white rounded-3xl p-6 border border-border/80 shadow-2xs">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-border/80 shadow-2xs">
             <h3 className="font-bold text-base text-ink mb-5">
               {p.name}'s Lifestyle Setup
             </h3>
 
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3.5">
               {quizQuestions.slice(0, 10).map((q) => {
                 const ansId = theirAnswers[q.id];
                 const opt = q.options.find((o) => o.id === ansId);
@@ -544,7 +573,7 @@ export default function MatchDetail() {
 
           {/* Room Available Section (If Owner) */}
           {listing && (
-            <div className="bg-white border-2 border-fire/30 rounded-3xl p-6 shadow-sm">
+            <div className="bg-white border-2 border-fire/30 rounded-3xl p-4 sm:p-6 shadow-sm">
               <div className="flex items-center gap-2.5 mb-4 text-fire">
                 <HomeIcon className="w-5 h-5" />
                 <h3 className="font-bold text-base">Active Room Listing Available</h3>
@@ -567,7 +596,7 @@ export default function MatchDetail() {
 
           {/* Approximate Location Card */}
           {p.city && (
-            <div className="bg-white rounded-3xl p-6 border border-border/80 shadow-2xs">
+            <div className="bg-white rounded-3xl p-4 sm:p-6 border border-border/80 shadow-2xs">
               <h3 className="font-bold text-base text-ink mb-1">Approximate Location</h3>
               <p className="text-xs text-ink/50 font-medium mb-4 flex items-center gap-1.5">
                 <MapPin className="w-4 h-4 text-fire" /> 
@@ -595,7 +624,7 @@ export default function MatchDetail() {
           )}
 
           {/* Vouches & Reviews Card */}
-          <div className="bg-white rounded-3xl p-6 border border-border/80 shadow-2xs text-center">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-border/80 shadow-2xs text-center">
             <h3 className="font-bold text-base text-ink mb-6 text-left flex items-center gap-2">
               <Star className="w-4.5 h-4.5 text-gold fill-gold" />
               Vouches & Reviews
@@ -624,7 +653,7 @@ export default function MatchDetail() {
           <div className="sticky top-24 space-y-6">
             
             {/* Card 1: "At a Glance" */}
-            <div className="bg-white rounded-3xl p-6 border border-border/80 shadow-sm relative">
+            <div className="bg-white rounded-3xl p-4 sm:p-6 border border-border/80 shadow-sm relative">
               <div className="flex items-center justify-between mb-6 pb-2 border-b border-border">
                 <h3 className="font-serif font-bold text-xl text-ink">At a Glance</h3>
                 <DropdownMenu>

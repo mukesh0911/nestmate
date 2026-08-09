@@ -365,7 +365,7 @@ export default function EditListing() {
                 <input type="number" value={form.deposit} onChange={e => setForm({ ...form, deposit: parseInt(e.target.value) || 0 })} className="input-nestmate w-full" />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="text-xs text-ink/50 mb-1 block">Partners Needed</label>
                 <input type="number" min="1" max="10" value={form.partnersNeeded} onChange={e => setForm({ ...form, partnersNeeded: parseInt(e.target.value) || 1 })} className="input-nestmate w-full" />

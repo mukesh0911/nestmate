@@ -630,7 +630,7 @@ export default function OwnerOnboarding() {
         emoji="✨" title="Flat Amenities" subtitle="Select what appliances and features are included"
         onNext={() => next()} onBack={() => go(-1)} error={error}
       >
-        <div className="grid grid-cols-3 gap-2 mt-4 max-h-[40vh] overflow-y-auto p-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4 max-h-[40vh] overflow-y-auto p-1">
           {amenitiesList.map(a => {
             const sel = amenities.includes(a);
             return (
