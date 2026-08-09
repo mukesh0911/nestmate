@@ -161,11 +161,21 @@ export default function OwnerOnboarding() {
     setScreenIndex(SCREENS.indexOf('loading'));
     setSaving(true);
     setError('');
+    setUploadProgress(0);
+
+    const safeProgress = (pct: number) => {
+      setUploadProgress(Math.min(100, Math.max(0, Math.round(pct))));
+    };
+
     try {
       setCurrentRole('owner');
       let avatarUrl = authProfile?.avatar || '';
       if (avatarFile) {
-        avatarUrl = await uploadProfilePicture(avatarFile, user.uid, (pct) => setUploadProgress(pct));
+        try {
+          avatarUrl = await uploadProfilePicture(avatarFile, user.uid, safeProgress);
+        } catch (e) {
+          console.warn("Avatar upload failed, continuing...", e);
+        }
       }
 
       const total = parseInt(totalRent || '0');
@@ -227,10 +237,15 @@ export default function OwnerOnboarding() {
       }
 
       if (listingFiles.length > 0) {
-        const uploadedUrls = await uploadListingImages(listingFiles, listingId, (pct) => setUploadProgress(pct));
-        await updateListing(listingId, { images: uploadedUrls });
+        try {
+          const uploadedUrls = await uploadListingImages(listingFiles, listingId, safeProgress);
+          await updateListing(listingId, { images: uploadedUrls });
+        } catch (e) {
+          console.warn("Listing images upload failed/partial, continuing...", e);
+        }
       }
 
+      safeProgress(100);
       await refreshProfile(user.uid);
 
       // Fetch actual seeker count in this city
