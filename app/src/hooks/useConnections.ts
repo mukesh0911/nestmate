@@ -3,6 +3,7 @@ import {
   collection,
   addDoc,
   getDocs,
+  getDoc,
   updateDoc,
   query,
   where,
@@ -11,6 +12,7 @@ import {
   serverTimestamp,
   Timestamp,
   onSnapshot,
+  or,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
@@ -50,11 +52,9 @@ export function useConnections() {
     return countConnectionsSince(msList, startMs);
   }, []);
 
-  /** Send a connect request from `fromId` to `toId`. */
+  /** Send a connect request from `fromId` to `toId`. Returns the connection doc ID. */
   const sendRequest = useCallback(
     async (fromId: string, toId: string): Promise<string> => {
-      // Platform is 100% free for all users - unlimited connections
-
       const q = query(
         collection(db, 'connections'),
         where('fromUserId', '==', fromId),
@@ -113,6 +113,13 @@ export function useConnections() {
     return results;
   }, []);
 
+  /** Get a single connection document by ID */
+  const getConnectionById = useCallback(async (connectionId: string): Promise<Connection | null> => {
+    const snap = await getDoc(doc(db, 'connections', connectionId));
+    if (!snap.exists()) return null;
+    return { id: snap.id, ...snap.data() } as Connection;
+  }, []);
+
   /** Accept a connection request */
   const acceptRequest = useCallback(async (connectionId: string) => {
     await updateDoc(doc(db, 'connections', connectionId), {
@@ -134,7 +141,7 @@ export function useConnections() {
     });
   }, []);
 
-  /** Subscribe to incoming pending requests (real-time) */
+  /** Subscribe to incoming pending requests (real-time) — used by OwnerDashboard */
   const subscribeToIncoming = useCallback(
     (userId: string, onChange: (conns: Connection[]) => void) => {
       const q = query(
@@ -150,14 +157,61 @@ export function useConnections() {
     []
   );
 
+  /**
+   * Subscribe to ALL connections involving a user in either direction (real-time).
+   * Used by SeekerDashboard and MatchDetail so button states update instantly
+   * when the other party accepts/rejects without a page refresh.
+   *
+   * Firestore does not support OR queries across two fields directly, so we run
+   * two listeners and merge them in memory, deduplicating by connection ID.
+   */
+  const subscribeToMyConnections = useCallback(
+    (userId: string, onChange: (conns: Connection[]) => void) => {
+      const map = new Map<string, Connection>();
+
+      const notify = () => onChange(Array.from(map.values()));
+
+      const qSent = query(
+        collection(db, 'connections'),
+        where('fromUserId', '==', userId)
+      );
+      const qReceived = query(
+        collection(db, 'connections'),
+        where('toUserId', '==', userId)
+      );
+
+      const unsubSent = onSnapshot(qSent, snap => {
+        snap.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() } as Connection));
+        // Remove any docs that were deleted from this query
+        snap.docChanges().filter(c => c.type === 'removed').forEach(c => map.delete(c.doc.id));
+        notify();
+      });
+
+      const unsubReceived = onSnapshot(qReceived, snap => {
+        snap.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() } as Connection));
+        snap.docChanges().filter(c => c.type === 'removed').forEach(c => map.delete(c.doc.id));
+        notify();
+      });
+
+      // Return a combined unsubscribe function
+      return () => {
+        unsubSent();
+        unsubReceived();
+      };
+    },
+    []
+  );
+
   return {
     sendRequest,
     getIncomingRequests,
     getMyConnections,
+    getConnectionById,
     acceptRequest,
     rejectRequest,
     blockUser,
     subscribeToIncoming,
+    subscribeToMyConnections,
     getMonthlyConnectCount,
   };
 }

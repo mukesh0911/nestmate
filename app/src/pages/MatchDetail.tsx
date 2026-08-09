@@ -62,7 +62,7 @@ export default function MatchDetail() {
   const { user, profile, refreshProfile } = useAuth();
   const { getProfile, toggleSavedProfile, blockUser, reportUser } = useUserProfile();
   const { getOrCreateChatRoom } = useChat();
-  const { sendRequest, getMyConnections } = useConnections();
+  const { sendRequest, getMyConnections, subscribeToMyConnections, acceptRequest, rejectRequest } = useConnections();
   const { createNotification } = useNotifications();
 
   const [matchedUser, setMatchedUser] = useState<MatchedUser | null>(null);
@@ -98,11 +98,8 @@ export default function MatchDetail() {
     
     Promise.all([
       getProfile(id).catch(() => null),
-      user?.uid ? getMyConnections(user.uid).catch(() => []) : Promise.resolve([]),
       getReviewsForUser(id).catch(() => [])
-    ]).then(async ([targetProfileResult, conns]) => {
-      setMyConnections(conns || []);
-      
+    ]).then(async ([targetProfileResult]) => {
       const targetProfile = targetProfileResult;
 
       if (targetProfile) {
@@ -142,7 +139,14 @@ export default function MatchDetail() {
       }
       setIsLoading(false);
     });
-  }, [id, profile, user?.uid, geocode]);
+  }, [id, profile, geocode]);
+
+  // Real-time connection listener — updates button state instantly
+  useEffect(() => {
+    if (!user?.uid) return;
+    const unsub = subscribeToMyConnections(user.uid, setMyConnections);
+    return unsub;
+  }, [user?.uid]);
 
   const handleBlock = async () => {
     if (!user?.uid || !id) return;
@@ -240,7 +244,8 @@ export default function MatchDetail() {
     if (!matchedUser?.profile.uid) return;
 
     const existingConn = myConnections.find(c => c.toUserId === id || c.fromUserId === id);
-    
+
+    // Already connected — open chat
     if (existingConn?.status === 'accepted') {
       setConnecting(true);
       try {
@@ -255,24 +260,64 @@ export default function MatchDetail() {
       return;
     }
 
+    // They sent me a request — accept it
+    if (existingConn?.status === 'pending' && existingConn.toUserId === user.uid) {
+      setConnecting(true);
+      try {
+        await acceptRequest(existingConn.id);
+        const roomId = await getOrCreateChatRoom(user.uid, matchedUser.profile.uid);
+        await createNotification({
+          userId: matchedUser.profile.uid,
+          type: 'connect',
+          title: 'Connection Accepted!',
+          description: `${profile?.name || 'A user'} accepted your connect request. Start chatting!`,
+          read: false,
+          actionUrl: `/chat/${roomId}`,
+        });
+        toast.success('Connection accepted! Opening chat...');
+        navigate(`/chat/${roomId}`);
+      } catch (err) {
+        console.error(err);
+        toast.error('Failed to accept request');
+      } finally {
+        setConnecting(false);
+      }
+      return;
+    }
+
+    // I already sent a request — disabled state, nothing to do
+    if (existingConn?.status === 'pending' && existingConn.fromUserId === user.uid) return;
+
+    // No connection — send a new request
     setConnecting(true);
     try {
-      await sendRequest(user.uid, matchedUser.profile.uid || '');
-      const conns = await getMyConnections(user.uid);
-      setMyConnections(conns);
-      
+      const connectionId = await sendRequest(user.uid, matchedUser.profile.uid || '');
       await createNotification({
         userId: matchedUser.profile.uid || '',
         type: 'connect',
         title: 'New Connect Request!',
         description: `${profile?.name || 'Someone'} wants to connect with you.`,
         read: false,
-        actionUrl: '/owner-dashboard',
+        actionUrl: `/owner-dashboard?request=${connectionId}`,
       });
       toast.success('Connect request sent successfully!');
     } catch (err) {
       console.error(err);
       toast.error('Failed to send request');
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleRejectRequest = async () => {
+    const existingConn = myConnections.find(c => c.toUserId === id || c.fromUserId === id);
+    if (!existingConn || existingConn.status !== 'pending' || existingConn.toUserId !== user?.uid) return;
+    setConnecting(true);
+    try {
+      await rejectRequest(existingConn.id);
+      toast.success('Request declined.');
+    } catch {
+      toast.error('Failed to decline request');
     } finally {
       setConnecting(false);
     }
@@ -297,12 +342,14 @@ export default function MatchDetail() {
   const isSaved = profile?.savedProfileIds?.includes(p.uid || '') || false;
   const activeStatus = getActiveStatus(p.lastActiveAt);
 
-  // Connection state logic
+  // Connection state logic (4-state machine)
   const connection = myConnections.find(c => c.toUserId === id || c.fromUserId === id);
-  let connectState: 'none' | 'pending' | 'accepted' | 'chat' = 'none';
+  let connectState: 'none' | 'pending_sent' | 'pending_received' | 'accepted' | 'chat' = 'none';
   if (connection) {
     if (connection.status === 'accepted') connectState = 'chat';
-    else if (connection.status === 'pending') connectState = 'pending';
+    else if (connection.status === 'pending') {
+      connectState = connection.fromUserId === user?.uid ? 'pending_sent' : 'pending_received';
+    }
   }
 
   // Build Quiz Data
@@ -640,14 +687,29 @@ export default function MatchDetail() {
                 {/* Connect & Chat - Fire Button */}
                 <button
                   onClick={handleConnectOrChat}
-                  disabled={connecting || connectState === 'pending'}
-                  className={`btn-fire w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-md ${
-                    connectState === 'pending' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' : ''
+                  disabled={connecting || connectState === 'pending_sent'}
+                  className={`w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-md transition-all ${
+                    connectState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
+                    connectState === 'pending_received' ? 'bg-teal text-white hover:opacity-90' :
+                    'btn-fire text-white'
                   }`}
                 >
                   <MessageCircle className="w-4.5 h-4.5" />
-                  {connectState === 'pending' ? 'Request Sent' : connectState === 'chat' ? 'Chat Now' : 'Connect & Chat'}
+                  {connectState === 'pending_sent' ? 'Request Sent' :
+                   connectState === 'pending_received' ? 'Accept Request' :
+                   connectState === 'chat' ? 'Chat Now' : 'Connect & Chat'}
                 </button>
+
+                {/* Reject button — shown only when they sent us a request */}
+                {connectState === 'pending_received' && (
+                  <button
+                    onClick={handleRejectRequest}
+                    disabled={connecting}
+                    className="w-full py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 border border-red-200 text-red-500 hover:bg-red-50 transition-all"
+                  >
+                    <X className="w-4 h-4" /> Decline Request
+                  </button>
+                )}
                 
                 {/* Save Profile Button */}
                 <button
@@ -720,11 +782,17 @@ export default function MatchDetail() {
         </button>
         <button
           onClick={handleConnectOrChat}
-          disabled={connecting || connectState === 'pending'}
-          className="btn-fire flex-1 min-h-[48px] py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 text-white shadow-md"
+          disabled={connecting || connectState === 'pending_sent'}
+          className={`flex-1 min-h-[48px] py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-md transition-all ${
+            connectState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
+            connectState === 'pending_received' ? 'bg-teal text-white' :
+            'btn-fire text-white'
+          }`}
         >
           <MessageCircle className="w-4.5 h-4.5" />
-          {connectState === 'pending' ? 'Request Sent' : connectState === 'chat' ? 'Chat Now' : 'Connect & Chat'}
+          {connectState === 'pending_sent' ? 'Request Sent' :
+           connectState === 'pending_received' ? 'Accept Request' :
+           connectState === 'chat' ? 'Chat Now' : 'Connect & Chat'}
         </button>
       </div>
 

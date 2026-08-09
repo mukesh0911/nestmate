@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useListings } from '@/hooks/useListings';
@@ -41,6 +41,19 @@ export default function OwnerDashboard() {
   const [weeklyViews, setWeeklyViews] = useState<{ day: string; views: number }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Deep-link support: /owner-dashboard?request={connectionId}
+  const [searchParams] = useSearchParams();
+  const highlightedRequestId = searchParams.get('request');
+
+  // Auto-scroll to highlighted request when landing from a notification deep-link
+  useEffect(() => {
+    if (!highlightedRequestId || pendingApplicants.length === 0) return;
+    const el = document.getElementById(`request-${highlightedRequestId}`);
+    if (el) {
+      setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400);
+    }
+  }, [highlightedRequestId, pendingApplicants]);
 
   // Load listings
   useEffect(() => {
@@ -138,9 +151,53 @@ export default function OwnerDashboard() {
     setShowDeleteConfirm(false);
   };
 
+  const handleDeleteSpecificListing = async (e: React.MouseEvent, listingId: string) => {
+    e.stopPropagation();
+    try {
+      await deleteListing(listingId);
+      const remaining = allListings.filter(l => l.id !== listingId);
+      setAllListings(remaining);
+      if (myListing?.id === listingId) {
+        setMyListing(remaining[0] || null);
+      }
+    } catch (err) {
+      console.error('Failed to delete listing', err);
+    }
+  };
+
+  const handleCleanDuplicates = async () => {
+    if (allListings.length <= 1) return;
+    const seen = new Set<string>();
+    const toKeep: Listing[] = [];
+    const toDeleteIds: string[] = [];
+
+    allListings.forEach(l => {
+      const key = `${l.locality.toLowerCase().trim()}_${l.flatType.toLowerCase().trim()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        toKeep.push(l);
+      } else {
+        toDeleteIds.push(l.id);
+      }
+    });
+
+    if (toDeleteIds.length === 0) return;
+
+    for (const id of toDeleteIds) {
+      await deleteListing(id);
+    }
+
+    setAllListings(toKeep);
+    setMyListing(toKeep[0] || null);
+  };
+
   if (isLoading) return <StateLoading label="Loading dashboard..." fullScreen />;
 
   const totalWeeklyViews = weeklyViews.reduce((s, d) => s + d.views, 0);
+
+  const hasDuplicateProperties = allListings.some(l => 
+    allListings.filter(x => x.locality.toLowerCase().trim() === l.locality.toLowerCase().trim() && x.flatType === l.flatType).length > 1
+  );
 
   return (
     <PageShell maxWidth="max-w-6xl">
@@ -151,21 +208,53 @@ export default function OwnerDashboard() {
             {allListings.length > 0 && (
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 bg-white/40 backdrop-blur-md border border-border p-4 rounded-2xl shadow-sm">
                 <div>
-                  <label className="text-[10px] font-bold text-ink/40 uppercase tracking-widest block mb-2">Select Property</label>
-                  <div className="flex flex-wrap gap-2">
-                    {allListings.map(l => (
+                  <div className="flex items-center gap-2 mb-2">
+                    <label className="text-[10px] font-bold text-ink/40 uppercase tracking-widest block">Select Property</label>
+                    {hasDuplicateProperties && (
                       <button
-                        key={l.id}
-                        onClick={() => handleSelectListing(l)}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                          myListing?.id === l.id
-                            ? 'border-fire bg-fire text-white shadow-sm shadow-fire/20 font-bold'
-                            : 'border-border bg-white hover:border-fire/30 text-ink/70'
-                        }`}
+                        onClick={handleCleanDuplicates}
+                        className="text-[10px] font-bold text-red-500 hover:text-red-600 underline transition-colors"
+                        title="Delete duplicate listings created during testing"
                       >
-                        {l.locality} ({l.flatType})
+                        Remove Duplicates
                       </button>
-                    ))}
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {allListings.map((l, index) => {
+                      const isDuplicateName = allListings.filter(x => x.locality === l.locality && x.flatType === l.flatType).length > 1;
+                      const isSelected = myListing?.id === l.id;
+                      return (
+                        <div key={l.id} className="relative group">
+                          <button
+                            onClick={() => handleSelectListing(l)}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                              isSelected
+                                ? 'border-fire bg-fire text-white shadow-sm shadow-fire/20 font-bold pr-7'
+                                : 'border-border bg-white hover:border-fire/30 text-ink/70 pr-7'
+                            }`}
+                          >
+                            <span>{l.title ? (l.title.length > 22 ? `${l.title.substring(0, 22)}...` : l.title) : `${l.locality} (${l.flatType})`}</span>
+                            {isDuplicateName && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-md ${isSelected ? 'bg-white/20 text-white' : 'bg-ink/10 text-ink/60'}`}>
+                                #{index + 1}
+                              </span>
+                            )}
+                          </button>
+                          {allListings.length > 1 && (
+                            <button
+                              onClick={(e) => handleDeleteSpecificListing(e, l.id)}
+                              className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full flex items-center justify-center text-[10px] transition-all ${
+                                isSelected ? 'bg-white/30 text-white hover:bg-white/50' : 'bg-ink/10 text-ink/50 hover:bg-red-500 hover:text-white'
+                              }`}
+                              title="Delete this listing"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -279,12 +368,24 @@ export default function OwnerDashboard() {
               <div className="space-y-3">
                 {pendingApplicants.map(applicant => {
                   const p = applicant.profile;
+                  const isHighlighted = highlightedRequestId === applicant.connection.id;
                   return (
-                    <div key={applicant.connection.id} className="flex items-center gap-4 p-4 rounded-xl bg-navy/5 border border-navy/10">
+                    <div
+                      key={applicant.connection.id}
+                      id={`request-${applicant.connection.id}`}
+                      className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
+                        isHighlighted
+                          ? 'bg-fire/5 border-fire/30 shadow-sm shadow-fire/10 ring-1 ring-fire/20'
+                          : 'bg-navy/5 border-navy/10'
+                      }`}
+                    >
                       <img src={p.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} alt={p.name} className="w-12 h-12 rounded-full" />
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <h4 className="font-semibold text-sm">{p.name}</h4>
+                          {isHighlighted && (
+                            <span className="text-[10px] font-bold bg-fire text-white px-2 py-0.5 rounded-full">New!</span>
+                          )}
                           {p.workEmailVerified && <CheckCircle2 className="w-3.5 h-3.5 text-blue-500" aria-label="Corporate Verified" />}
                           {(p.verificationLevel ?? 0) > 0 && <Shield className="w-3.5 h-3.5 text-teal" aria-label="ID Verified" />}
                         </div>

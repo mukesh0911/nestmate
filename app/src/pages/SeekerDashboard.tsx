@@ -41,8 +41,8 @@ export default function SeekerDashboard() {
   const { profile, user, refreshProfile } = useAuth();
   const { filters, updateFilters } = useStore();
   const { findMatches, getProfilesByIds, hasMore } = useMatches();
-  const { subscribeToChatRooms } = useChat();
-  const { sendRequest, getMyConnections, getMonthlyConnectCount } = useConnections();
+  const { subscribeToChatRooms, getOrCreateChatRoom } = useChat();
+  const { sendRequest, getMyConnections, getMonthlyConnectCount, subscribeToMyConnections, acceptRequest, rejectRequest } = useConnections();
   const { createNotification } = useNotifications();
   const { toggleSavedProfile, addSkippedUser, blockUser, reportUser, saveSearch, deleteSearch } = useUserProfile();
 
@@ -209,11 +209,12 @@ export default function SeekerDashboard() {
     return unsub;
   }, [user?.uid]);
 
-  // Load existing connections for button state
+  // Real-time connections subscription — updates button state instantly without page refresh
   useEffect(() => {
     if (!user?.uid) return;
-    getMyConnections(user.uid).then(setMyConnections).catch(() => {});
+    const unsub = subscribeToMyConnections(user.uid, setMyConnections);
     getMonthlyConnectCount(user.uid).then(setConnectsUsed).catch(() => {});
+    return unsub;
   }, [user?.uid]);
 
   // Save / Unsave
@@ -265,58 +266,87 @@ export default function SeekerDashboard() {
     }, 5500);
   }, [user?.uid, profile, filters.city, addSkippedUser, findMatches, refreshProfile]);
 
-  // Connect: real sendRequest + state machine
+  // Full connection state machine with 4 states
+  const getConnectState = useCallback(
+    (targetUid: string): 'connect' | 'pending_sent' | 'pending_received' | 'chat' => {
+      if (chatRoomMap[targetUid]) return 'chat';
+      const conn = myConnections.find(c =>
+        (c.fromUserId === user?.uid && c.toUserId === targetUid) ||
+        (c.toUserId === user?.uid && c.fromUserId === targetUid)
+      );
+      if (!conn) return 'connect';
+      if (conn.status === 'accepted') return 'chat';
+      if (conn.status === 'pending') {
+        // I sent the request
+        if (conn.fromUserId === user?.uid) return 'pending_sent';
+        // They sent me the request — I can accept
+        return 'pending_received';
+      }
+      return 'connect'; // rejected / blocked — allow retry
+    },
+    [chatRoomMap, myConnections, user?.uid]
+  );
+
+  // Handle connect button click — works for all 4 states
   const handleConnect = useCallback(async (targetUid: string, targetName: string) => {
     if (!user?.uid || connectingId) return;
-    // If already has a chat room, navigate there
+
+    // Already has a chat room → go to chat
     if (chatRoomMap[targetUid]) {
       navigate(`/chat/${chatRoomMap[targetUid]}`);
       return;
     }
+
+    const conn = myConnections.find(c =>
+      (c.fromUserId === user.uid && c.toUserId === targetUid) ||
+      (c.toUserId === user.uid && c.fromUserId === targetUid)
+    );
+
+    // They sent me a request — Accept it
+    if (conn && conn.status === 'pending' && conn.toUserId === user.uid) {
+      setConnectingId(targetUid);
+      try {
+        await acceptRequest(conn.id);
+        const roomId = await getOrCreateChatRoom(user.uid, targetUid);
+        await createNotification({
+          userId: targetUid,
+          type: 'connect',
+          title: 'Connection Accepted!',
+          description: `${profile?.name || 'Someone'} accepted your connect request. Start chatting!`,
+          read: false,
+          actionUrl: `/chat/${roomId}`,
+        });
+        navigate(`/chat/${roomId}`);
+      } catch {
+        toast.error('Failed to accept request.');
+      } finally {
+        setConnectingId(null);
+      }
+      return;
+    }
+
+    // Already sent a pending request — do nothing (button is disabled)
+    if (conn && conn.status === 'pending' && conn.fromUserId === user.uid) return;
+
+    // No connection — send new request
     setConnectingId(targetUid);
     try {
-      await sendRequest(user.uid, targetUid);
+      const connectionId = await sendRequest(user.uid, targetUid);
       await createNotification({
         userId: targetUid,
         type: 'connect',
         title: 'New Connection Request!',
         description: `${profile?.name || 'Someone'} wants to connect with you.`,
         read: false,
-        actionUrl: '/owner-dashboard',
+        actionUrl: `/owner-dashboard?request=${connectionId}`,
       });
-      // Refresh connections list
-      const updated = await getMyConnections(user.uid);
-      setMyConnections(updated);
       toast.success(`Connection request sent to ${targetName}!`);
     } catch (err: any) {
-      if (err?.message === 'LIMIT_REACHED') {
-        toast.error(`You've used all 5 free connects this month. Upgrade to Premium for unlimited connects!`, {
-          action: {
-            label: 'Upgrade',
-            onClick: () => navigate('/pricing'),
-          },
-          duration: 6000,
-        });
-      } else {
-        toast.error('Failed to send connection request.');
-      }
+      toast.error('Failed to send connection request.');
     } finally {
       setConnectingId(null);
     }
-  }, [user?.uid, connectingId, chatRoomMap, sendRequest, createNotification, getMyConnections, profile?.name, profile?.isPremium, navigate]);
-
-  // Determine connect button state for a user
-  const getConnectState = useCallback((targetUid: string): 'connect' | 'pending' | 'chat' => {
-    if (chatRoomMap[targetUid]) return 'chat';
-    const conn = myConnections.find(c =>
-      (c.fromUserId === user?.uid && c.toUserId === targetUid) ||
-      (c.toUserId === user?.uid && c.fromUserId === targetUid)
-    );
-    if (!conn) return 'connect';
-    if (conn.status === 'accepted') return 'chat';
-    if (conn.status === 'pending') return 'pending';
-    return 'connect';
-  }, [chatRoomMap, myConnections, user?.uid]);
+  }, [user?.uid, connectingId, chatRoomMap, myConnections, sendRequest, acceptRequest, getOrCreateChatRoom, createNotification, profile?.name, navigate]);
 
   // Combine local matches and fetched saved profiles to create a unified pool
   const allAvailableMatches = useMemo(() => [
@@ -712,16 +742,17 @@ export default function SeekerDashboard() {
                           </button>
                         )}
                         <button
-                          disabled={bState === 'pending' || connectingId === bestMatch.profile.uid}
+                          disabled={bState === 'pending_sent' || connectingId === bestMatch.profile.uid}
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleConnect(bestMatch.profile.uid || '', bestMatch.profile.name || ''); }}
                           className={`flex-[1.5] py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${
                             bState === 'chat' ? 'bg-teal text-white hover:opacity-90' :
-                            bState === 'pending' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
+                            bState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
+                            bState === 'pending_received' ? 'bg-teal text-white hover:opacity-90' :
                             'bg-fire text-white hover:bg-fire-dark'
                           }`}
                         >
                           {connectingId === bestMatch.profile.uid ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
-                          {bState === 'chat' ? 'Chat' : bState === 'pending' ? 'Request Sent' : 'Connect'}
+                          {bState === 'chat' ? 'Chat' : bState === 'pending_sent' ? 'Request Sent' : bState === 'pending_received' ? 'Accept Request' : 'Connect'}
                         </button>
                       </div>
                     </div>
@@ -818,16 +849,17 @@ export default function SeekerDashboard() {
                             </button>
                           )}
                           <button
-                            disabled={cState === 'pending' || connectingId === p.uid}
+                            disabled={cState === 'pending_sent' || connectingId === p.uid}
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleConnect(p.uid || '', p.name || ''); }}
                             className={`flex-[1.5] py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${
                               cState === 'chat' ? 'bg-teal text-white' :
-                              cState === 'pending' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
+                              cState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
+                              cState === 'pending_received' ? 'bg-teal text-white' :
                               'bg-fire text-white hover:bg-fire-dark'
                             }`}
                           >
                             {connectingId === p.uid ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                            {cState === 'chat' ? 'Chat' : cState === 'pending' ? 'Sent' : 'Connect'}
+                            {cState === 'chat' ? 'Chat' : cState === 'pending_sent' ? 'Sent' : cState === 'pending_received' ? 'Accept' : 'Connect'}
                           </button>
                         </div>
                       </div>

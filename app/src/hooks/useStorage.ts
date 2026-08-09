@@ -6,6 +6,7 @@ import {
   deleteObject,
 } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
+import { compressImage } from '@/lib/imageCompressor';
 
 export interface UploadProgress {
   progress: number;
@@ -15,10 +16,10 @@ export interface UploadProgress {
 
 /**
  * Upload a file and get back its public download URL.
- * Supports a progress callback.
+ * Supports a progress callback with 0-100% clamping.
  */
 async function uploadFile(
-  file: File,
+  file: File | Blob,
   path: string,
   onProgress?: (progress: number) => void
 ): Promise<string> {
@@ -29,8 +30,10 @@ async function uploadFile(
     uploadTask.on(
       'state_changed',
       (snapshot) => {
-        const pct = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        onProgress?.(Math.round(pct));
+        if (snapshot.totalBytes > 0) {
+          const pct = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          onProgress?.(Math.min(100, Math.max(0, Math.round(pct))));
+        }
       },
       (error) => reject(error),
       async () => {
@@ -48,20 +51,26 @@ export function useStorage() {
       userId: string,
       onProgress?: (pct: number) => void
     ): Promise<string> => {
+      let blobToUpload: File | Blob = file;
+      try {
+        blobToUpload = await compressImage(file, 800, 800, 0.85);
+      } catch (e) {
+        console.warn('Profile picture compression failed', e);
+      }
       const ext = file.name.split('.').pop() || 'jpg';
-      return uploadFile(file, `profiles/${userId}/avatar.${ext}`, onProgress);
+      return uploadFile(blobToUpload, `profiles/${userId}/avatar.${ext}`, onProgress);
     },
     []
   );
 
   const uploadListingImage = useCallback(
     async (
-      file: File,
+      file: File | Blob,
       listingId: string,
       index: number,
       onProgress?: (pct: number) => void
     ): Promise<string> => {
-      const ext = file.name.split('.').pop() || 'jpg';
+      const ext = (file as File).name?.split('.').pop() || 'jpg';
       return uploadFile(
         file,
         `listings/${listingId}/image_${index}.${ext}`,
@@ -72,7 +81,8 @@ export function useStorage() {
   );
 
   /**
-   * Upload multiple listing images in parallel and return all URLs.
+   * Upload multiple listing images in parallel, compressing large camera photos
+   * and calculating exact average upload progress across all files (0-100%).
    */
   const uploadListingImages = useCallback(
     async (
@@ -80,14 +90,25 @@ export function useStorage() {
       listingId: string,
       onProgress?: (overall: number) => void
     ): Promise<string[]> => {
-      let completed = 0;
+      if (!files || files.length === 0) return [];
+      const fileProgresses = new Array(files.length).fill(0);
+
       const urls = await Promise.all(
-        files.map((file, i) =>
-          uploadListingImage(file, listingId, i, () => {
-            completed++;
-            onProgress?.(Math.round((completed / files.length) * 100));
-          })
-        )
+        files.map(async (file, i) => {
+          let blobToUpload: File | Blob = file;
+          try {
+            blobToUpload = await compressImage(file, 1200, 1200, 0.8);
+          } catch (e) {
+            console.warn('Listing image compression skipped/failed for file', i, e);
+          }
+
+          return uploadListingImage(blobToUpload, listingId, i, (singlePct) => {
+            fileProgresses[i] = singlePct;
+            const sum = fileProgresses.reduce((acc, p) => acc + p, 0);
+            const overall = Math.round(sum / files.length);
+            onProgress?.(Math.min(100, Math.max(0, overall)));
+          });
+        })
       );
       return urls;
     },
@@ -107,9 +128,15 @@ export function useStorage() {
 
   const uploadChatImage = useCallback(
     async (file: File, roomId: string, onProgress?: (pct: number) => void): Promise<string> => {
+      let blobToUpload: File | Blob = file;
+      try {
+        blobToUpload = await compressImage(file, 1200, 1200, 0.8);
+      } catch (e) {
+        console.warn('Chat photo compression failed', e);
+      }
       const ext = file.name.split('.').pop() || 'jpg';
       const filename = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-      return uploadFile(file, `chats/${roomId}/${filename}`, onProgress);
+      return uploadFile(blobToUpload, `chats/${roomId}/${filename}`, onProgress);
     },
     []
   );
@@ -123,3 +150,4 @@ export function useStorage() {
     uploadChatImage,
   };
 }
+

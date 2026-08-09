@@ -17,15 +17,17 @@
 | 02 | **[Requirements](./02_REQUIREMENTS/README.md)** | PRD, business/functional/non-functional requirements | ✅ Complete |
 | 03 | **[User Experience](./03_USER_EXPERIENCE/README.md)** | Personas, journeys, flows, information architecture | ✅ Complete |
 | 04 | **[Features](./04_FEATURES/README.md)** | One document per feature — 15 features total | ✅ Complete |
-| 05 | **[Architecture](./05_ARCHITECTURE/README.md)** | System design, folder structure, routing, services | ✅ Complete |
-| 06 | **[Database](./06_DATABASE/README.md)** | Firestore collections, schemas, relationships, indexes | ✅ Complete |
-| 07 | **[Developer Guide](./07_DEVELOPER_GUIDE/README.md)** | Setup, conventions, coding standards, Git workflow | ✅ Complete |
-| 08 | **[Business Logic](./08_BUSINESS_LOGIC/README.md)** | Algorithms: compatibility, matching, ranking, trust | ✅ Complete |
-| 09 | **[Admin](./09_ADMIN/README.md)** | Admin dashboard, moderation, verification workflow | ✅ Complete |
-| 10 | **[Security](./10_SECURITY/README.md)** | Auth, authorization, Firestore/Storage rules, validation | ✅ Complete |
-| 11 | **[Operations](./11_OPERATIONS/README.md)** | Roadmap, known issues, ADRs, future ideas | ✅ Complete |
-| 12 | **[QA Reference](./12_QA_REFERENCE/README.md)** | Links to existing QA documentation | ✅ Complete |
-| 13 | **[Changelog](./13_CHANGELOG/README.md)** | Version history, releases, breaking changes | ✅ Complete |
+| 05 | **[Architecture](./architecture/SYSTEM_ARCHITECTURE.md)** | System design, PII architecture, database schema | ✅ Complete |
+| 06 | **[Database](./architecture/DATABASE_SCHEMA.md)** | Firestore collections, schemas, relationships, indexes | ✅ Complete |
+| 07 | **[API Reference](./api/API_REFERENCE.md)** | Custom React hooks and pure helper API specifications | ✅ Complete |
+| 08 | **[Deployment & Setup](./deployment/DEPLOYMENT_GUIDE.md)** | Build scripts, deployment, environment setup | ✅ Complete |
+| 09 | **[Business Logic](./08_BUSINESS_LOGIC/README.md)** | Algorithms: compatibility, matching, ranking, trust | ✅ Complete |
+| 10 | **[Admin](./09_ADMIN/README.md)** | Admin dashboard, moderation, verification workflow | ✅ Complete |
+| 11 | **[Security](./10_SECURITY/README.md)** | Auth, authorization, Firestore/Storage rules, validation | ✅ Complete |
+| 12 | **[Operations](./11_OPERATIONS/README.md)** | Roadmap, known issues, ADRs, future ideas | ✅ Complete |
+| 13 | **[RC1 Archive](./archive/rc1/FINAL_RELEASE_REPORT.md)** | RC1 engineering review, release report, checklist | ✅ Complete |
+| 14 | **[Changelog](./13_CHANGELOG/README.md)** | Version history, releases, breaking changes | ✅ Complete |
+
 
 ---
 

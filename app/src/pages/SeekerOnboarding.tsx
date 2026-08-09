@@ -121,8 +121,9 @@ export default function SeekerOnboarding() {
 
   const handleFinish = async () => {
     if (!user) return;
-    go(1); // go to loading screen
+    setScreenIndex(SCREENS.indexOf('loading'));
     setSaving(true);
+    setError('');
     try {
       await updateProfile(user.uid, {
         name: name.trim(),
@@ -153,10 +154,11 @@ export default function SeekerOnboarding() {
         } catch { /* non-blocking */ }
       }
 
-      go(1); // go to success screen
+      setScreenIndex(SCREENS.indexOf('success'));
     } catch (err: any) {
+      console.error("Finish error:", err);
       setError(err.message || 'Failed to save. Please try again.');
-      setScreenIndex(SCREENS.indexOf('movein')); // go back
+      setScreenIndex(SCREENS.indexOf('movein'));
     } finally {
       setSaving(false);
     }

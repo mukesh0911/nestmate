@@ -24,7 +24,7 @@ export default function OwnerOnboarding() {
   const navigate = useNavigate();
   const { user, profile: authProfile, refreshProfile } = useAuth();
   const { updateProfile } = useUserProfile();
-  const { createListing, updateListing } = useListings();
+  const { createListing, updateListing, getMyListings } = useListings();
   const { setCurrentRole } = useStore();
   const { uploadListingImages, uploadProfilePicture } = useStorage();
 
@@ -88,11 +88,13 @@ export default function OwnerOnboarding() {
 
   const go = (delta: number) => {
     setError('');
-    const newIndex = screenIndex + delta;
-    if (authProfile?.onboardingComplete && newIndex < 6) {
-      return;
-    }
-    setScreenIndex(newIndex);
+    setScreenIndex(prev => {
+      const newIndex = prev + delta;
+      if (authProfile?.onboardingComplete && newIndex < 6) {
+        return prev;
+      }
+      return Math.min(SCREENS.length - 1, Math.max(0, newIndex));
+    });
   };
 
   const next = (validate?: () => string | null) => {
@@ -156,8 +158,9 @@ export default function OwnerOnboarding() {
 
   const handlePublish = async () => {
     if (!user) return;
-    go(1); // Go to loading screen
+    setScreenIndex(SCREENS.indexOf('loading'));
     setSaving(true);
+    setError('');
     try {
       setCurrentRole('owner');
       let avatarUrl = authProfile?.avatar || '';
@@ -184,7 +187,14 @@ export default function OwnerOnboarding() {
         ...(avatarUrl && { avatar: avatarUrl })
       });
 
-      const listingId = await createListing(user.uid, {
+      // Check if owner already has a listing for this locality and flatType
+      const existingListings = await getMyListings(user.uid);
+      const matchingListing = existingListings.find(
+        l => l.locality.toLowerCase().trim() === locality.toLowerCase().trim() && l.flatType === flatType
+      );
+
+      let listingId = '';
+      const listingData = {
         ownerName: name.trim() || authProfile?.name || 'Owner',
         ownerAvatar: avatarUrl,
         title: `${flatType} for rent in ${locality}`,
@@ -200,12 +210,21 @@ export default function OwnerOnboarding() {
         deposit: total * 2,
         amenities,
         houseRules: [...selectedRules, ...customRules],
-        images: [],
         availableFrom,
         lat: 0,
         lng: 0,
-        status: 'active',
-      });
+        status: 'active' as const,
+      };
+
+      if (matchingListing) {
+        listingId = matchingListing.id;
+        await updateListing(listingId, listingData);
+      } else {
+        listingId = await createListing(user.uid, {
+          ...listingData,
+          images: [],
+        });
+      }
 
       if (listingFiles.length > 0) {
         const uploadedUrls = await uploadListingImages(listingFiles, listingId, (pct) => setUploadProgress(pct));
@@ -227,10 +246,11 @@ export default function OwnerOnboarding() {
         console.error("Error fetching matches:", e);
       }
 
-      go(1); // Go to success screen
+      setScreenIndex(SCREENS.indexOf('success'));
     } catch (err: any) {
+      console.error("Publish error:", err);
       setError(err.message || 'Failed to publish. Please try again.');
-      setScreenIndex(SCREENS.indexOf('house_rules')); // Go back
+      setScreenIndex(SCREENS.indexOf('house_rules'));
     } finally {
       setSaving(false);
     }
@@ -247,10 +267,10 @@ export default function OwnerOnboarding() {
           </div>
           <div>
             <h2 className="text-2xl font-display italic mb-2">Publishing your listing…</h2>
-            <p className="text-ink/50 text-sm">Uploading photos and details ({uploadProgress}%)</p>
+            <p className="text-ink/50 text-sm">Uploading photos and details ({Math.min(100, Math.max(0, uploadProgress))}%)</p>
           </div>
           <div className="w-full max-w-xs bg-ink/10 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-fire h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+            <div className="bg-fire h-full transition-all duration-300" style={{ width: `${Math.min(100, Math.max(0, uploadProgress))}%` }} />
           </div>
         </div>
       );
