@@ -61,7 +61,7 @@ export default function MatchDetail() {
   const navigate = useNavigate();
   const { user, profile, refreshProfile } = useAuth();
   const { getProfile, toggleSavedProfile, blockUser, reportUser } = useUserProfile();
-  const { getOrCreateChatRoom } = useChat();
+  const { getOrCreateChatRoom, subscribeToChatRooms } = useChat();
   const { sendRequest, getMyConnections, subscribeToMyConnections, acceptRequest, rejectRequest } = useConnections();
   const { createNotification } = useNotifications();
 
@@ -73,6 +73,7 @@ export default function MatchDetail() {
   
   // Connections and Chat Map
   const [myConnections, setMyConnections] = useState<Connection[]>([]);
+  const [chatRoomMap, setChatRoomMap] = useState<Record<string, string>>({});
 
   // Report & Block State
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -146,6 +147,20 @@ export default function MatchDetail() {
     if (!user?.uid) return;
     const unsub = subscribeToMyConnections(user.uid, setMyConnections);
     return unsub;
+  }, [user?.uid]);
+
+  // Real-time chat room listener
+  useEffect(() => {
+    if (!user?.uid) return;
+    const unsub = subscribeToChatRooms(user.uid, (rooms) => {
+      const map: Record<string, string> = {};
+      rooms.forEach(r => {
+        const other = r.participants.find(p => p !== user.uid);
+        if (other) map[other] = r.id;
+      });
+      setChatRoomMap(map);
+    });
+    return () => unsub();
   }, [user?.uid]);
 
   const handleBlock = async () => {
@@ -243,13 +258,14 @@ export default function MatchDetail() {
     }
     if (!matchedUser?.profile.uid) return;
 
-    const existingConn = myConnections.find(c => c.toUserId === id || c.fromUserId === id);
+    const targetUid = matchedUser.profile.uid;
+    const existingConn = myConnections.find(c => c.toUserId === targetUid || c.fromUserId === targetUid);
 
-    // Already connected — open chat
-    if (existingConn?.status === 'accepted') {
+    // Already connected or has active chat — open chat
+    if (chatRoomMap[targetUid] || existingConn?.status === 'accepted') {
       setConnecting(true);
       try {
-        const roomId = await getOrCreateChatRoom(user.uid, matchedUser.profile.uid);
+        const roomId = chatRoomMap[targetUid] || (await getOrCreateChatRoom(user.uid, targetUid));
         navigate(`/chat/${roomId}`);
       } catch (err) {
         console.error(err);
@@ -265,9 +281,9 @@ export default function MatchDetail() {
       setConnecting(true);
       try {
         await acceptRequest(existingConn.id);
-        const roomId = await getOrCreateChatRoom(user.uid, matchedUser.profile.uid);
+        const roomId = await getOrCreateChatRoom(user.uid, targetUid);
         await createNotification({
-          userId: matchedUser.profile.uid,
+          userId: targetUid,
           type: 'connect',
           title: 'Connection Accepted!',
           description: `${profile?.name || 'A user'} accepted your connect request. Start chatting!`,
@@ -291,9 +307,9 @@ export default function MatchDetail() {
     // No connection — send a new request
     setConnecting(true);
     try {
-      const connectionId = await sendRequest(user.uid, matchedUser.profile.uid || '');
+      const connectionId = await sendRequest(user.uid, targetUid);
       await createNotification({
-        userId: matchedUser.profile.uid || '',
+        userId: targetUid,
         type: 'connect',
         title: 'New Connect Request!',
         description: `${profile?.name || 'Someone'} wants to connect with you.`,
@@ -310,7 +326,8 @@ export default function MatchDetail() {
   };
 
   const handleRejectRequest = async () => {
-    const existingConn = myConnections.find(c => c.toUserId === id || c.fromUserId === id);
+    const targetUid = matchedUser?.profile.uid || id;
+    const existingConn = myConnections.find(c => c.toUserId === targetUid || c.fromUserId === targetUid);
     if (!existingConn || existingConn.status !== 'pending' || existingConn.toUserId !== user?.uid) return;
     setConnecting(true);
     try {
@@ -342,15 +359,9 @@ export default function MatchDetail() {
   const isSaved = profile?.savedProfileIds?.includes(p.uid || '') || false;
   const activeStatus = getActiveStatus(p.lastActiveAt);
 
-  // Connection state logic (4-state machine)
-  const connection = myConnections.find(c => c.toUserId === id || c.fromUserId === id);
-  let connectState: 'none' | 'pending_sent' | 'pending_received' | 'accepted' | 'chat' = 'none';
-  if (connection) {
-    if (connection.status === 'accepted') connectState = 'chat';
-    else if (connection.status === 'pending') {
-      connectState = connection.fromUserId === user?.uid ? 'pending_sent' : 'pending_received';
-    }
-  }
+  // Dynamic Connection state logic
+  const targetUid = p.uid || id || '';
+  const connectState = getRelationshipState(user?.uid, targetUid, myConnections, chatRoomMap);
 
   // Build Quiz Data
   const myAnswers = profile?.quizAnswers || {};
@@ -720,13 +731,14 @@ export default function MatchDetail() {
                   className={`w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-md transition-all ${
                     connectState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
                     connectState === 'pending_received' ? 'bg-teal text-white hover:opacity-90' :
+                    connectState === 'connected' ? 'bg-emerald-600 text-white hover:bg-emerald-700' :
                     'btn-fire text-white'
                   }`}
                 >
                   <MessageCircle className="w-4.5 h-4.5" />
                   {connectState === 'pending_sent' ? 'Request Sent' :
                    connectState === 'pending_received' ? 'Accept Request' :
-                   connectState === 'chat' ? 'Chat Now' : 'Connect & Chat'}
+                   connectState === 'connected' ? 'Connected ✓ (Message)' : 'Connect & Chat'}
                 </button>
 
                 {/* Reject button — shown only when they sent us a request */}

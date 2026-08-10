@@ -48,13 +48,21 @@ export default function SeekerDashboard() {
 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortMode, setSortMode] = useState<'best' | 'newest' | 'budgetAsc' | 'budgetDesc'>('best');
-  const [activeTab, setActiveTab] = useState<'all' | 'saved'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'saved' | 'connections'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [matches, setMatches] = useState<MatchedUser[]>([]);
   const [savedProfiles, setSavedProfiles] = useState<MatchedUser[]>([]);
+  const [connectedProfiles, setConnectedProfiles] = useState<MatchedUser[]>([]);
   const [chatCount, setChatCount] = useState(0);
   const [chatRoomMap, setChatRoomMap] = useState<Record<string, string>>({});
   const [myConnections, setMyConnections] = useState<Connection[]>([]);
+
+  const acceptedConnectedUids = useMemo(() => {
+    if (!user?.uid) return [];
+    return myConnections
+      .filter(c => c.status === 'accepted')
+      .map(c => c.fromUserId === user.uid ? c.toUserId : c.fromUserId);
+  }, [myConnections, user?.uid]);
   const [connectsUsed, setConnectsUsed] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -348,11 +356,12 @@ export default function SeekerDashboard() {
     }
   }, [user?.uid, connectingId, chatRoomMap, myConnections, sendRequest, acceptRequest, getOrCreateChatRoom, createNotification, profile?.name, navigate]);
 
-  // Combine local matches and fetched saved profiles to create a unified pool
+  // Combine local matches, saved profiles, and connected profiles to create a unified pool
   const allAvailableMatches = useMemo(() => [
     ...matches,
-    ...savedProfiles.filter(sp => !matches.some(m => m.profile.uid === sp.profile.uid))
-  ], [matches, savedProfiles]);
+    ...savedProfiles.filter(sp => !matches.some(m => m.profile.uid === sp.profile.uid)),
+    ...connectedProfiles.filter(cp => !matches.some(m => m.profile.uid === cp.profile.uid))
+  ], [matches, savedProfiles, connectedProfiles]);
 
   // Client-side filtering + sorting
   const filteredMatches = useMemo(() => {
@@ -360,6 +369,7 @@ export default function SeekerDashboard() {
       .filter(m => {
         const p = m.profile;
         if (activeTab === 'saved' && !savedProfileIds.includes(p.uid || '')) return false;
+        if (activeTab === 'connections' && !acceptedConnectedUids.includes(p.uid || '')) return false;
         if (activeTab === 'all' && filters.gender && filters.gender !== 'any') {
           if (!p.gender || p.gender.toLowerCase() !== filters.gender.toLowerCase()) return false;
         }
@@ -381,7 +391,7 @@ export default function SeekerDashboard() {
         if (sortMode === 'budgetDesc') return (b.profile.budget || 0) - (a.profile.budget || 0);
         return b.compatibilityScore - a.compatibilityScore; // 'best'
       });
-  }, [allAvailableMatches, activeTab, savedProfileIds, filters, searchQuery, sortMode]);
+  }, [allAvailableMatches, activeTab, savedProfileIds, acceptedConnectedUids, filters, searchQuery, sortMode]);
 
   const bestMatch = useMemo(() => activeTab === 'all' ? filteredMatches[0] : null, [activeTab, filteredMatches]);
   const gridMatches = useMemo(() => activeTab === 'all' ? filteredMatches.slice(1) : filteredMatches, [activeTab, filteredMatches]);
@@ -573,16 +583,16 @@ export default function SeekerDashboard() {
           {/* ─── Main Content ─── */}
           <div className="flex-1 min-w-0">
             {/* Tabs Bar */}
-            <div className="flex border-b border-ink/10 mb-5 relative">
+            <div className="flex border-b border-ink/10 mb-5 relative overflow-x-auto">
               <button 
                 onClick={() => setActiveTab('all')} 
-                className={`py-3 px-6 text-sm font-semibold transition-colors ${activeTab === 'all' ? 'text-fire' : 'text-ink/60 hover:text-ink/80'}`}
+                className={`py-3 px-6 text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'all' ? 'text-fire' : 'text-ink/60 hover:text-ink/80'}`}
               >
                 All Matches
               </button>
               <button 
                 onClick={() => setActiveTab('saved')} 
-                className={`py-3 px-6 text-sm font-semibold transition-colors flex items-center gap-2 ${activeTab === 'saved' ? 'text-fire' : 'text-ink/60 hover:text-ink/80'}`}
+                className={`py-3 px-6 text-sm font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'saved' ? 'text-fire' : 'text-ink/60 hover:text-ink/80'}`}
               >
                 Saved Profiles
                 {savedProfileIds.length > 0 && (
@@ -591,12 +601,23 @@ export default function SeekerDashboard() {
                   </span>
                 )}
               </button>
+              <button 
+                onClick={() => setActiveTab('connections')} 
+                className={`py-3 px-6 text-sm font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'connections' ? 'text-fire' : 'text-ink/60 hover:text-ink/80'}`}
+              >
+                My Connections
+                {acceptedConnectedUids.length > 0 && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${activeTab === 'connections' ? 'bg-emerald-600 text-white' : 'bg-ink/10 text-ink/60'}`}>
+                    {acceptedConnectedUids.length}
+                  </span>
+                )}
+              </button>
               {/* Active Tab Indicator */}
               <div 
                 className="absolute bottom-0 h-0.5 bg-fire transition-all duration-300 ease-out" 
                 style={{ 
-                  left: activeTab === 'all' ? '0' : '110px', 
-                  width: activeTab === 'all' ? '110px' : '145px'
+                  left: activeTab === 'all' ? '0' : activeTab === 'saved' ? '110px' : '255px', 
+                  width: activeTab === 'all' ? '110px' : activeTab === 'saved' ? '145px' : '155px'
                 }}
               />
             </div>

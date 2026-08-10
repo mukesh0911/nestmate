@@ -6,10 +6,13 @@ import { useAuth } from '@/hooks/useAuth';
 import type { UserProfile } from '@/hooks/useAuth';
 import { calculateCompatibility } from '@/hooks/useMatches';
 import { useChat } from '@/hooks/useChat';
+import { useConnections, getRelationshipState } from '@/hooks/useConnections';
+import type { Connection } from '@/hooks/useConnections';
 import { Search, MapPin, Briefcase, ChevronRight, Loader2, MessageCircle, Sparkles, Users } from 'lucide-react';
 import StateEmpty from '@/components/StateEmpty';
 import StateLoading from '@/components/StateLoading';
 import { useStore } from '@/store/useStore';
+import { toast } from 'sonner';
 
 interface SeekerWithScore {
   profile: UserProfile;
@@ -19,13 +22,30 @@ interface SeekerWithScore {
 export default function BrowseSeekers() {
   const navigate = useNavigate();
   const { user, profile: currentUser } = useAuth();
-  const { getOrCreateChatRoom } = useChat();
+  const { getOrCreateChatRoom, subscribeToChatRooms } = useChat();
+  const { sendRequest, acceptRequest, subscribeToMyConnections } = useConnections();
   const openAuthModal = useStore(state => state.openAuthModal);
 
   const [seekers, setSeekers] = useState<SeekerWithScore[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchCity, setSearchCity] = useState(currentUser?.city || '');
   const [connectingTo, setConnectingTo] = useState<string | null>(null);
+  const [myConnections, setMyConnections] = useState<Connection[]>([]);
+  const [chatRoomMap, setChatRoomMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const unsub1 = subscribeToMyConnections(user.uid, setMyConnections);
+    const unsub2 = subscribeToChatRooms(user.uid, (rooms) => {
+      const map: Record<string, string> = {};
+      rooms.forEach(r => {
+        const other = r.participants.find(p => p !== user.uid);
+        if (other) map[other] = r.id;
+      });
+      setChatRoomMap(map);
+    });
+    return () => { unsub1(); unsub2(); };
+  }, [user?.uid]);
 
   useEffect(() => {
     async function fetchSeekers() {
@@ -78,12 +98,26 @@ export default function BrowseSeekers() {
       });
       return;
     }
+    const state = getRelationshipState(user.uid, seekerId, myConnections, chatRoomMap);
+    if (state === 'pending_sent') return;
+
     setConnectingTo(seekerId);
     try {
-      const roomId = await getOrCreateChatRoom(user.uid, seekerId);
-      navigate(`/chat/${roomId}`);
+      if (state === 'connected' || chatRoomMap[seekerId]) {
+        const roomId = chatRoomMap[seekerId] || (await getOrCreateChatRoom(user.uid, seekerId));
+        navigate(`/chat/${roomId}`);
+      } else if (state === 'pending_received') {
+        const conn = myConnections.find(c => c.fromUserId === seekerId && c.toUserId === user.uid);
+        if (conn) await acceptRequest(conn.id);
+        const roomId = await getOrCreateChatRoom(user.uid, seekerId);
+        navigate(`/chat/${roomId}`);
+      } else {
+        await sendRequest(user.uid, seekerId);
+        toast.success("Connect request sent!");
+      }
     } catch (err) {
       console.error("Failed to connect", err);
+      toast.error("Failed to connect");
     } finally {
       setConnectingTo(null);
     }
@@ -124,59 +158,69 @@ export default function BrowseSeekers() {
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {seekers.map(({ profile, score }) => (
-              <div key={profile.uid} className="card-nestmate overflow-hidden flex flex-col">
-                <div className="h-24 bg-gradient-to-br from-fire/10 to-navy/10 relative">
-                  <div className="absolute -bottom-10 left-4 w-20 h-20 rounded-full border-4 border-white bg-cream flex items-center justify-center overflow-hidden">
-                    {profile.avatar ? (
-                      <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-2xl font-display italic text-ink/40">{profile.name?.[0]?.toUpperCase()}</span>
-                    )}
-                  </div>
-                  {score > 0 && (
-                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-2.5 py-1 rounded-lg text-xs font-bold text-fire shadow-sm flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-fire" /> {score}% Match
+            {seekers.map(({ profile, score }) => {
+              const state = getRelationshipState(user?.uid, profile.uid || '', myConnections, chatRoomMap);
+              return (
+                <div key={profile.uid} className="card-nestmate overflow-hidden flex flex-col">
+                  <div className="h-24 bg-gradient-to-br from-fire/10 to-navy/10 relative">
+                    <div className="absolute -bottom-10 left-4 w-20 h-20 rounded-full border-4 border-white bg-cream flex items-center justify-center overflow-hidden">
+                      {profile.avatar ? (
+                        <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-2xl font-display italic text-ink/40">{profile.name?.[0]?.toUpperCase()}</span>
+                      )}
                     </div>
-                  )}
-                </div>
-                
-                <div className="pt-12 px-4 pb-4 flex-1 flex flex-col">
-                  <h3 className="font-semibold text-lg">{profile.name}, {profile.age}</h3>
-                  <div className="flex flex-col gap-1 mt-2 mb-4 flex-1">
-                    <div className="flex items-center gap-1.5 text-xs text-ink/60">
-                      <MapPin className="w-3.5 h-3.5" /> {profile.city || 'Any City'}
-                    </div>
-                    {profile.profession && (
-                      <div className="flex items-center gap-1.5 text-xs text-ink/60">
-                        <Briefcase className="w-3.5 h-3.5" /> {profile.profession}
+                    {score > 0 && (
+                      <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-2.5 py-1 rounded-lg text-xs font-bold text-fire shadow-sm flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5 text-fire" /> {score}% Match
                       </div>
                     )}
                   </div>
-
-                  <div className="flex gap-2 mt-auto">
-                    <button 
-                      onClick={() => navigate(`/match/${profile.uid}`)}
-                      className="flex-1 btn-outline py-2 text-sm"
-                    >
-                      View Profile
-                    </button>
-                    <button 
-                      onClick={() => handleConnect(profile.uid)}
-                      disabled={connectingTo === profile.uid}
-                      className="flex-1 btn-fire py-2 text-sm flex items-center justify-center gap-1.5"
-                    >
-                      {connectingTo === profile.uid ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <MessageCircle className="w-3.5 h-3.5" />
+                  
+                  <div className="pt-12 px-4 pb-4 flex-1 flex flex-col">
+                    <h3 className="font-semibold text-lg">{profile.name}, {profile.age}</h3>
+                    <div className="flex flex-col gap-1 mt-2 mb-4 flex-1">
+                      <div className="flex items-center gap-1.5 text-xs text-ink/60">
+                        <MapPin className="w-3.5 h-3.5" /> {profile.city || 'Any City'}
+                      </div>
+                      {profile.profession && (
+                        <div className="flex items-center gap-1.5 text-xs text-ink/60">
+                          <Briefcase className="w-3.5 h-3.5" /> {profile.profession}
+                        </div>
                       )}
-                      Connect
-                    </button>
+                    </div>
+
+                    <div className="flex gap-2 mt-auto">
+                      <button 
+                        onClick={() => navigate(`/match/${profile.uid}`)}
+                        className="flex-1 btn-outline py-2 text-sm font-semibold"
+                      >
+                        View Profile
+                      </button>
+                      <button 
+                        onClick={() => handleConnect(profile.uid || '')}
+                        disabled={connectingTo === profile.uid || state === 'pending_sent'}
+                        className={`flex-1 py-2 text-sm font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all ${
+                          state === 'connected' ? 'bg-emerald-600 text-white hover:bg-emerald-700' :
+                          state === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
+                          state === 'pending_received' ? 'bg-teal text-white hover:opacity-90' :
+                          'btn-fire'
+                        }`}
+                      >
+                        {connectingTo === profile.uid ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <MessageCircle className="w-3.5 h-3.5" />
+                        )}
+                        {state === 'connected' ? 'Message' :
+                         state === 'pending_sent' ? 'Request Sent' :
+                         state === 'pending_received' ? 'Accept' : 'Connect'}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

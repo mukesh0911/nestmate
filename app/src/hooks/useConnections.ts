@@ -31,6 +31,31 @@ export interface Connection {
 
 export { FREE_CONNECT_LIMIT };
 
+export type RelationshipState = 'connected' | 'pending_sent' | 'pending_received' | 'none';
+
+export function getRelationshipState(
+  currentUserId: string | undefined,
+  targetUserId: string,
+  connections: Connection[],
+  chatRoomMap?: Record<string, string>
+): RelationshipState {
+  if (!currentUserId || !targetUserId || currentUserId === targetUserId) return 'none';
+  if (chatRoomMap && chatRoomMap[targetUserId]) return 'connected';
+
+  const conn = connections.find(
+    c =>
+      (c.fromUserId === currentUserId && c.toUserId === targetUserId) ||
+      (c.toUserId === currentUserId && c.fromUserId === targetUserId)
+  );
+
+  if (!conn) return 'none';
+  if (conn.status === 'accepted') return 'connected';
+  if (conn.status === 'pending') {
+    return conn.fromUserId === currentUserId ? 'pending_sent' : 'pending_received';
+  }
+  return 'none';
+}
+
 export function useConnections() {
   /** Count outgoing connections sent this calendar month */
   const getMonthlyConnectCount = useCallback(async (userId: string): Promise<number> => {
@@ -55,6 +80,8 @@ export function useConnections() {
   /** Send a connect request from `fromId` to `toId`. Returns the connection doc ID. */
   const sendRequest = useCallback(
     async (fromId: string, toId: string): Promise<string> => {
+      if (fromId === toId) throw new Error("Cannot connect with yourself");
+
       const q = query(
         collection(db, 'connections'),
         where('fromUserId', '==', fromId),
@@ -68,12 +95,12 @@ export function useConnections() {
       );
       const existing2 = await getDocs(q2);
 
-      const pairs = [
-        ...existing.docs.map(d => ({ id: d.id, fromUserId: fromId, toUserId: toId })),
-        ...existing2.docs.map(d => ({ id: d.id, fromUserId: toId, toUserId: fromId })),
-      ];
-      const existingId = findExistingConnectionId(pairs, fromId, toId);
-      if (existingId) return existingId;
+      const allDocs = [...existing.docs, ...existing2.docs];
+      if (allDocs.length > 0) {
+        // Return existing connection id if already exists (accepted or pending)
+        const activeDoc = allDocs.find(d => d.data().status === 'accepted' || d.data().status === 'pending');
+        return activeDoc ? activeDoc.id : allDocs[0].id;
+      }
 
       const ref = await addDoc(collection(db, 'connections'), {
         fromUserId: fromId,

@@ -97,12 +97,30 @@ function TabSwitcher({ active, onChange }: { active: 'seekers' | 'rooms'; onChan
 function SeekersView() {
   const navigate = useNavigate();
   const { user, profile: currentUser } = useAuth();
-  const { getOrCreateChatRoom } = useChat();
+  const { getOrCreateChatRoom, subscribeToChatRooms } = useChat();
+  const { sendRequest, acceptRequest, subscribeToMyConnections } = useConnections();
 
   const [allSeekers, setAllSeekers] = useState<SeekerWithScore[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectingTo, setConnectingTo] = useState<string | null>(null);
+  const [myConnections, setMyConnections] = useState<Connection[]>([]);
+  const [chatRoomMap, setChatRoomMap] = useState<Record<string, string>>({});
+
+  // Real-time connections & chat rooms
+  useEffect(() => {
+    if (!user?.uid) return;
+    const unsub1 = subscribeToMyConnections(user.uid, setMyConnections);
+    const unsub2 = subscribeToChatRooms(user.uid, (rooms) => {
+      const map: Record<string, string> = {};
+      rooms.forEach(r => {
+        const other = r.participants.find(p => p !== user.uid);
+        if (other) map[other] = r.id;
+      });
+      setChatRoomMap(map);
+    });
+    return () => { unsub1(); unsub2(); };
+  }, [user?.uid]);
 
   // Filters — default to empty/all so everything shows initially
   const [showFilters, setShowFilters] = useState(false);
@@ -128,7 +146,6 @@ function SeekersView() {
       setLoading(true);
       setError(null);
       try {
-        // Simple query: get all seekers who completed onboarding
         const q = query(
           collection(db, 'users'),
           where('role', '==', 'seeker'),
@@ -177,14 +194,12 @@ function SeekersView() {
   const filtered = useMemo(() => {
     let list = [...allSeekers];
 
-    // City filter (case-insensitive)
     if (filterCity) {
       list = list.filter(s =>
         s.profile.city?.toLowerCase() === filterCity.toLowerCase()
       );
     }
 
-    // Search (name, profession, city)
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       list = list.filter(s =>
@@ -194,31 +209,26 @@ function SeekersView() {
       );
     }
 
-    // Gender (case-insensitive)
     if (filterGender !== 'any') {
       list = list.filter(s =>
         s.profile.gender?.toLowerCase() === filterGender.toLowerCase()
       );
     }
 
-    // Profession
     if (filterProfession) {
       list = list.filter(s => s.profile.profession === filterProfession);
     }
 
-    // Budget
     if (filterBudgetMax < 50000) {
       list = list.filter(s => !s.profile.budget || s.profile.budget <= filterBudgetMax);
     }
 
-    // Verified
     if (filterVerifiedOnly) {
       list = list.filter(s =>
         s.profile.isVerified || (s.profile.verificationLevel ?? 0) > 0
       );
     }
 
-    // Sort
     switch (sortMode) {
       case 'match':
         list.sort((a, b) => b.score - a.score);
@@ -243,12 +253,26 @@ function SeekersView() {
 
   const handleConnect = async (seekerId: string) => {
     if (!user?.uid) return;
+    const state = getRelationshipState(user.uid, seekerId, myConnections, chatRoomMap);
+    if (state === 'pending_sent') return;
+
     setConnectingTo(seekerId);
     try {
-      const roomId = await getOrCreateChatRoom(user.uid, seekerId);
-      navigate(`/chat/${roomId}`);
+      if (state === 'connected' || chatRoomMap[seekerId]) {
+        const roomId = chatRoomMap[seekerId] || (await getOrCreateChatRoom(user.uid, seekerId));
+        navigate(`/chat/${roomId}`);
+      } else if (state === 'pending_received') {
+        const conn = myConnections.find(c => c.fromUserId === seekerId && c.toUserId === user.uid);
+        if (conn) await acceptRequest(conn.id);
+        const roomId = await getOrCreateChatRoom(user.uid, seekerId);
+        navigate(`/chat/${roomId}`);
+      } else {
+        await sendRequest(user.uid, seekerId);
+        toast.success("Connect request sent!");
+      }
     } catch (err) {
       console.error('Failed to connect', err);
+      toast.error('Failed to connect');
     } finally {
       setConnectingTo(null);
     }
@@ -298,13 +322,110 @@ function SeekersView() {
             >
               <SlidersHorizontal className="w-4 h-4" />
               {activeFilterCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-fire text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-fire text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                   {activeFilterCount}
                 </span>
               )}
             </button>
           </div>
         </div>
+
+        {/* Loading State */}
+        {loading && <StateLoading label="Finding active room seekers..." />}
+
+        {/* Error Banner */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-600 rounded-2xl p-4 text-sm mb-6 flex items-center justify-between">
+            <span>{error}</span>
+            <button onClick={() => window.location.reload()} className="font-bold underline text-xs">Retry</button>
+          </div>
+        )}
+
+        {/* Grid of Seekers */}
+        {!loading && filtered.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+            {filtered.map(({ profile: p, score }) => {
+              const state = getRelationshipState(user?.uid, p.uid || '', myConnections, chatRoomMap);
+              return (
+                <div key={p.uid} className="card-nestmate p-4 flex flex-col justify-between hover:border-fire/40 transition-all group">
+                  <div>
+                    {/* Header: Avatar + Match Badge */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="relative">
+                        <img
+                          src={p.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name || 'user'}`}
+                          alt={p.name}
+                          className="w-14 h-14 rounded-2xl object-cover border border-border bg-cream/50"
+                        />
+                        {p.isVerified && (
+                          <div className="absolute -bottom-1 -right-1 bg-teal text-white p-0.5 rounded-full shadow-xs">
+                            <CheckCircle2 className="w-3.5 h-3.5 fill-teal text-white" />
+                          </div>
+                        )}
+                      </div>
+                      <span className="badge-fire text-xs font-bold flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" /> {score}% Match
+                      </span>
+                    </div>
+
+                    {/* Name + Age */}
+                    <h3 className="font-bold text-ink text-base group-hover:text-fire transition-colors line-clamp-1">
+                      {p.name}, {p.age}
+                    </h3>
+                    <p className="text-xs text-ink/50 font-medium mb-3">
+                      {p.profession || 'Working Professional'} {p.company ? `at ${p.company}` : ''}
+                    </p>
+
+                    {/* Quick Specs */}
+                    <div className="space-y-1.5 mb-4 text-xs text-ink/70">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-3.5 h-3.5 text-fire flex-shrink-0" />
+                        <span className="truncate">{p.localities?.join(', ') || p.city || 'Any Location'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Wallet className="w-3.5 h-3.5 text-fire flex-shrink-0" />
+                        <span className="font-semibold text-ink">Budget: ₹{p.budget?.toLocaleString() || '15,000'}/mo</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-3.5 h-3.5 text-fire flex-shrink-0" />
+                        <span>Move-in: {p.moveInDate || 'Immediate'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 pt-3 border-t border-border/50">
+                    <button
+                      onClick={() => navigate(`/match/${p.uid}`)}
+                      className="flex-1 py-2.5 rounded-xl font-bold text-xs border border-border text-ink/70 hover:bg-cream hover:text-ink transition-all"
+                    >
+                      View Profile
+                    </button>
+                    <button
+                      onClick={() => handleConnect(p.uid || '')}
+                      disabled={connectingTo === p.uid || state === 'pending_sent'}
+                      className={`flex-1 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
+                        state === 'connected' ? 'bg-emerald-600 text-white hover:bg-emerald-700' :
+                        state === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
+                        state === 'pending_received' ? 'bg-teal text-white hover:opacity-90' :
+                        'btn-fire'
+                      }`}
+                    >
+                      {connectingTo === p.uid ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <MessageCircle className="w-4 h-4" />
+                      )}
+                      {state === 'connected' ? 'Message' :
+                       state === 'pending_sent' ? 'Request Sent' :
+                       state === 'pending_received' ? 'Accept' : 'Connect'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Sort + City chips */}
         <div className="flex flex-wrap items-center gap-2 mb-6">

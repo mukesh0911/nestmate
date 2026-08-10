@@ -15,7 +15,7 @@ import {
 } from 'recharts';
 import {
   TrendingUp, MessageCircle, Edit3, Zap, Eye, Users, Settings, MapPin,
-  Shield, Check, X, Crown, Pause, Play, Trash2, AlertTriangle, CheckCircle2, Plus
+  Shield, Check, X, Crown, Pause, Play, Trash2, AlertTriangle, CheckCircle2, Plus, UserCheck
 } from 'lucide-react';
 import StateLoading from '@/components/StateLoading';
 import StateEmpty from '@/components/StateEmpty';
@@ -30,13 +30,14 @@ export default function OwnerDashboard() {
   const navigate = useNavigate();
   const { profile, user } = useAuth();
   const { getMyListings, updateListing, deleteListing, getWeeklyViews } = useListings();
-  const { subscribeToIncoming, acceptRequest, rejectRequest } = useConnections();
+  const { subscribeToIncoming, getMyConnections, acceptRequest, rejectRequest } = useConnections();
   const { subscribeToChatRooms, getOrCreateChatRoom } = useChat();
   const { createNotification } = useNotifications();
 
   const [allListings, setAllListings] = useState<Listing[]>([]);
   const [myListing, setMyListing] = useState<Listing | null>(null);
   const [pendingApplicants, setPendingApplicants] = useState<PendingApplicant[]>([]);
+  const [acceptedConnections, setAcceptedConnections] = useState<PendingApplicant[]>([]);
   const [chatCount, setChatCount] = useState(0);
   const [weeklyViews, setWeeklyViews] = useState<{ day: string; views: number }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -415,6 +416,50 @@ export default function OwnerDashboard() {
                       : 'Create a listing to start receiving roommate requests.'
                   }
                 />
+              )}
+            </div>
+
+            {/* Accepted Connections / Friends */}
+            <div className="card-nestmate p-5 mt-5">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="font-semibold text-base flex items-center gap-2">
+                  <UserCheck className="w-4.5 h-4.5 text-teal" />
+                  My Connections ({acceptedConnections.length})
+                </h3>
+              </div>
+              {acceptedConnections.length > 0 ? (
+                <div className="space-y-3">
+                  {acceptedConnections.map(conn => {
+                    const p = conn.profile;
+                    return (
+                      <div
+                        key={conn.connection.id}
+                        className="flex items-center gap-4 p-4 rounded-xl border border-teal/20 bg-teal/5 transition-all"
+                      >
+                        <img src={p.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} alt={p.name} className="w-12 h-12 rounded-full border border-teal/30 object-cover" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-sm">{p.name}</h4>
+                            <span className="text-[10px] font-bold bg-teal text-white px-2 py-0.5 rounded-full">Connected ✓</span>
+                          </div>
+                          <p className="text-xs text-ink/50">{p.profession} · {p.city}</p>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            const targetId = p.uid || conn.connection.fromUserId;
+                            const roomId = await getOrCreateChatRoom(user.uid, targetId);
+                            navigate(`/chat/${roomId}`);
+                          }}
+                          className="px-4 py-2 bg-fire text-white rounded-xl text-xs font-bold hover:bg-fire-dark transition-all flex items-center gap-1.5"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" /> Message
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-ink/40 text-center py-4">No accepted connections yet. Accept incoming requests to connect.</p>
               )}
             </div>
           </div>

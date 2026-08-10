@@ -7,7 +7,9 @@ import { useReviews } from '@/hooks/useReviews';
 import { useMatches } from '@/hooks/useMatches';
 import { useConnections } from '@/hooks/useConnections';
 import { useChat } from '@/hooks/useChat';
-import { Crown, Shield, Star, Settings, Bell, Lock, HelpCircle, LogOut, SwitchCamera, ChevronRight, TrendingUp, MessageSquare, Heart, Eye, CheckCircle2, Linkedin, Instagram, FileText, ShieldCheck } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { Crown, Shield, Star, Settings, Bell, Lock, HelpCircle, LogOut, SwitchCamera, ChevronRight, TrendingUp, MessageSquare, Heart, Eye, CheckCircle2, Linkedin, Instagram, FileText, ShieldCheck, Users } from 'lucide-react';
 import TrustBadge from '@/components/TrustBadge';
 import ProfileCompleteness from '@/components/ProfileCompleteness';
 import StateEmpty from '@/components/StateEmpty';
@@ -21,10 +23,11 @@ export default function ProfilePage() {
   const { reviews, getReviewsForUser } = useReviews();
   const { findMatches } = useMatches();
   const { getMyConnections } = useConnections();
-  const { chatRooms } = useChat();
+  const { chatRooms, getOrCreateChatRoom } = useChat();
 
   const [topMatchScore, setTopMatchScore] = useState<number>(0);
   const [connectsCount, setConnectsCount] = useState<number>(0);
+  const [acceptedConnections, setAcceptedConnections] = useState<{ connection: any; profile: any }[]>([]);
 
   // Derive the effective role from Firebase profile or Zustand store
   const effectiveRole = profile?.role || currentRole || 'seeker';
@@ -35,6 +38,17 @@ export default function ProfilePage() {
       getMyConnections(user.uid).then(conns => {
         if (conns) setConnectsCount(conns.length);
       });
+      getMyConnections(user.uid, 'accepted').then(async conns => {
+        const list = [];
+        for (const conn of conns) {
+          const otherId = conn.fromUserId === user.uid ? conn.toUserId : conn.fromUserId;
+          const snap = await getDoc(doc(db, 'users', otherId));
+          if (snap.exists()) {
+            list.push({ connection: conn, profile: { uid: snap.id, ...snap.data() } });
+          }
+        }
+        setAcceptedConnections(list);
+      }).catch(() => {});
       if (profile) {
         findMatches(profile, profile.city || 'Chennai').then(matches => {
           if (matches && matches.length > 0) {
@@ -44,7 +58,7 @@ export default function ProfilePage() {
         });
       }
     }
-  }, [user?.uid, profile]);
+  }, [user?.uid, profile, getMyConnections]);
 
   const averageRating = reviews.length > 0
     ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
@@ -214,6 +228,52 @@ export default function ProfilePage() {
                 </div>
               </div>
             )}
+
+            {/* My Connections / Friends */}
+            <div className="card-nestmate p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-semibold text-base flex items-center gap-2">
+                  <Users className="w-4.5 h-4.5 text-teal" /> My Connections ({acceptedConnections.length})
+                </h4>
+                {acceptedConnections.length > 0 && (
+                  <button onClick={() => navigate('/chat')} className="text-xs text-fire font-semibold hover:underline">View All Chats</button>
+                )}
+              </div>
+              {acceptedConnections.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {acceptedConnections.map(conn => {
+                    const p = conn.profile;
+                    return (
+                      <div key={conn.connection.id} className="p-3 bg-cream/40 rounded-xl border border-border flex items-center gap-3">
+                        <img src={p.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} alt={p.name} className="w-10 h-10 rounded-full border border-border object-cover" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold truncate">{p.name}</p>
+                          <p className="text-xs text-ink/50 truncate">{p.profession || 'Member'} · {p.city}</p>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            const targetId = p.uid || conn.connection.fromUserId;
+                            const roomId = await getOrCreateChatRoom(user!.uid, targetId);
+                            navigate(`/chat/${roomId}`);
+                          }}
+                          className="p-2 bg-fire text-white rounded-lg hover:bg-fire-dark transition-all"
+                          title="Message"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <StateEmpty
+                  compact
+                  icon={Users}
+                  title="No connections yet"
+                  description="Connect with flatmates or property owners on NestMate"
+                />
+              )}
+            </div>
 
             {/* Activity Feed */}
             <div className="card-nestmate p-5">
