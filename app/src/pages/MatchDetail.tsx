@@ -12,7 +12,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useChat } from '@/hooks/useChat';
-import { useConnections } from '@/hooks/useConnections';
+import { useConnections, getRelationshipState } from '@/hooks/useConnections';
 import { useReviews } from '@/hooks/useReviews';
 import type { Connection } from '@/hooks/useConnections';
 import { useNotifications } from '@/hooks/useNotifications';

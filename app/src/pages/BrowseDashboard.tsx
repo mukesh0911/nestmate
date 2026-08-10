@@ -4,16 +4,18 @@ import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useChat } from '@/hooks/useChat';
+import { useConnections, getRelationshipState, type Connection } from '@/hooks/useConnections';
 import { calculateCompatibility } from '@/hooks/useMatches';
 import type { UserProfile } from '@/hooks/useAuth';
 import {
   Search, MapPin, Briefcase, Loader2, MessageCircle,
   SlidersHorizontal, X, Users, ShieldCheck,
-  Sparkles, ArrowUpDown, Building2, Calendar, Utensils
+  Sparkles, ArrowUpDown, Building2, Calendar, Utensils, Wallet, CheckCircle2
 } from 'lucide-react';
 import { professions } from '@/lib/staticData';
 import StateEmpty from '@/components/StateEmpty';
 import StateLoading from '@/components/StateLoading';
+import { toast } from 'sonner';
 
 // ── Lazy-load BrowseRooms so old view is preserved ──
 import BrowseRooms from './BrowseRooms';
