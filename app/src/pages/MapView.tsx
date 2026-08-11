@@ -131,6 +131,7 @@ export default function MapView() {
   const [mode, setMode] = useState<'people' | 'rooms'>('people');
   const [items, setItems] = useState<MapItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<MapItem | null>(null);
+  const [legendFilter, setLegendFilter] = useState<'all' | 'rooms' | 'seekers' | 'high_compat'>('all');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -156,22 +157,28 @@ export default function MapView() {
     }
   }, [profile]);
 
-  // Fetch people data
+  // Fetch people data (works for both logged-in and guest users)
   const fetchPeople = useCallback(async () => {
-    if (!user?.uid || !profile) return;
     setLoading(true);
     try {
-      const oppositeRole = profile.role === 'seeker' ? 'owner' : 'seeker';
-      const q = query(collection(db, 'users'), where('onboardingComplete', '==', true), where('role', '==', oppositeRole));
+      let q;
+      if (profile?.role) {
+        const oppositeRole = profile.role === 'seeker' ? 'owner' : 'seeker';
+        q = query(collection(db, 'users'), where('onboardingComplete', '==', true), where('role', '==', oppositeRole));
+      } else {
+        q = query(collection(db, 'users'), where('onboardingComplete', '==', true));
+      }
       const snap = await getDocs(q);
       const people: MapPerson[] = [];
       snap.docs.forEach(d => {
         const data = d.data() as UserProfile;
-        if (d.id === user.uid) return;
+        if (user?.uid && d.id === user.uid) return;
         const lat = data.geoLocation?.lat || (data as any).lat;
         const lng = data.geoLocation?.lng || (data as any).lng;
         if (!lat || !lng) return;
-        const compat = calculateCompatibility(profile.quizAnswers || {}, data.quizAnswers || {});
+        const compat = profile?.quizAnswers
+          ? calculateCompatibility(profile.quizAnswers, data.quizAnswers || {})
+          : 85;
         people.push({
           type: 'person', uid: d.id, name: data.name || 'User', avatar: data.avatar || '',
           profession: data.profession || '', role: data.role, compatibility: compat,
@@ -208,12 +215,20 @@ export default function MapView() {
     fetchRooms();
   }, [mode, fetchPeople, fetchRooms]);
 
-  // Filter items within viewport
+  // Filter items within viewport and legend filter
   const visibleItems = useMemo(() => {
-    if (!boundsRef.current) return items;
+    let filtered = items;
+    if (legendFilter === 'high_compat') {
+      filtered = filtered.filter(i => i.type === 'person' && i.compatibility >= 80);
+    } else if (legendFilter === 'seekers') {
+      filtered = filtered.filter(i => i.type === 'person');
+    } else if (legendFilter === 'rooms') {
+      filtered = filtered.filter(i => i.type === 'room');
+    }
+    if (!boundsRef.current) return filtered;
     const b = boundsRef.current;
-    return items.filter(i => i.lat >= b.getSouth() && i.lat <= b.getNorth() && i.lng >= b.getWest() && i.lng <= b.getEast());
-  }, [items, boundsRef.current]);
+    return filtered.filter(i => i.lat >= b.getSouth() && i.lat <= b.getNorth() && i.lng >= b.getWest() && i.lng <= b.getEast());
+  }, [items, boundsRef.current, legendFilter]);
 
   // Sort sidebar items
   const sortedItems = useMemo(() => {
@@ -394,7 +409,7 @@ export default function MapView() {
           </div>
 
           {/* Locate Me */}
-          <button onClick={handleLocateMe} className="w-8 h-8 sm:w-10 sm:h-10 bg-white rounded-full shadow-lg flex items-center justify-center pointer-events-auto border border-border shrink-0 hover:border-fire transition-colors" title="My location">
+          <button onClick={handleLocateMe} className="w-8 h-8 sm:w-10 sm:h-10 bg-white rounded-full shadow-lg flex items-center justify-center pointer-events-auto border border-border hover:border-fire transition-colors" title="My location">
             <Crosshair className="w-4 h-4 text-ink/60" />
           </button>
 
@@ -406,14 +421,88 @@ export default function MapView() {
           )}
         </div>
 
-        {/* Legend */}
+        {/* Interactive Legend & Category Filter */}
         {!selectedItem && (
-          <div className="absolute bottom-4 left-3 z-[900] bg-white/90 backdrop-blur rounded-xl shadow-lg p-2.5 border border-border pointer-events-none max-w-[170px] sm:max-w-none">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-fire border border-white shadow-sm shrink-0" /><span className="text-[10px] text-ink/60 leading-none">Rooms available</span></div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[#1E3A5F] border border-white shadow-sm shrink-0" /><span className="text-[10px] text-ink/60 leading-none">Seekers looking</span></div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-teal border border-white shadow-sm shrink-0" /><span className="text-[10px] text-ink/60 leading-none">High compatibility (80%+)</span></div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-ink border-2 border-white shadow-sm shrink-0" /><span className="text-[10px] text-ink/60 leading-none">Your location</span></div>
+          <div className="absolute bottom-4 left-3 z-[900] bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-2.5 sm:p-3 border border-border pointer-events-auto max-w-[210px] sm:max-w-none transition-all">
+            <div className="flex items-center justify-between mb-1.5 px-1">
+              <span className="text-[10px] font-bold text-ink/50 uppercase tracking-wider">Legend & Filters</span>
+              {legendFilter !== 'all' && (
+                <button onClick={() => setLegendFilter('all')} className="text-[10px] font-bold text-fire hover:underline">Reset</button>
+              )}
+            </div>
+            <div className="space-y-1">
+              {/* Rooms available */}
+              <button
+                onClick={() => {
+                  if (mode !== 'rooms') setMode('rooms');
+                  setLegendFilter(legendFilter === 'rooms' ? 'all' : 'rooms');
+                  toast.info(legendFilter === 'rooms' ? 'Showing all map markers' : 'Filtering: Rooms Available');
+                }}
+                className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left transition-all ${
+                  legendFilter === 'rooms' || (mode === 'rooms' && legendFilter === 'all')
+                    ? 'bg-fire/10 text-fire font-bold ring-1 ring-fire/30'
+                    : 'hover:bg-cream/60 text-ink/80'
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-3 h-3 rounded-full bg-fire border border-white shadow-sm shrink-0" />
+                  <span className="text-[11px] truncate">Rooms available</span>
+                </div>
+                {(legendFilter === 'rooms' || mode === 'rooms') && <span className="text-[10px] font-bold text-fire">✓</span>}
+              </button>
+
+              {/* Seekers looking */}
+              <button
+                onClick={() => {
+                  if (mode !== 'people') setMode('people');
+                  setLegendFilter(legendFilter === 'seekers' ? 'all' : 'seekers');
+                  toast.info(legendFilter === 'seekers' ? 'Showing all map markers' : 'Filtering: Seekers Looking');
+                }}
+                className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left transition-all ${
+                  legendFilter === 'seekers' || (mode === 'people' && legendFilter === 'all')
+                    ? 'bg-navy/10 text-navy font-bold ring-1 ring-navy/30'
+                    : 'hover:bg-cream/60 text-ink/80'
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-3 h-3 rounded-full bg-[#1E3A5F] border border-white shadow-sm shrink-0" />
+                  <span className="text-[11px] truncate">Seekers looking</span>
+                </div>
+                {(legendFilter === 'seekers' || (mode === 'people' && legendFilter === 'all')) && <span className="text-[10px] font-bold text-navy">✓</span>}
+              </button>
+
+              {/* High compatibility */}
+              <button
+                onClick={() => {
+                  if (mode !== 'people') setMode('people');
+                  setLegendFilter(legendFilter === 'high_compat' ? 'all' : 'high_compat');
+                  toast.info(legendFilter === 'high_compat' ? 'Showing all map markers' : 'Filtering: High Compatibility (80%+)');
+                }}
+                className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left transition-all ${
+                  legendFilter === 'high_compat'
+                    ? 'bg-teal/10 text-teal font-bold ring-1 ring-teal/30'
+                    : 'hover:bg-cream/60 text-ink/80'
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-3 h-3 rounded-full bg-teal border border-white shadow-sm shrink-0" />
+                  <span className="text-[11px] truncate">High compatibility (80%+)</span>
+                </div>
+                {legendFilter === 'high_compat' && <span className="text-[10px] font-bold text-teal">✓</span>}
+              </button>
+
+              {/* Your location */}
+              <button
+                onClick={() => handleLocateMe()}
+                className="w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left hover:bg-cream/60 transition-all text-ink/80"
+                title="Click to center map on your location"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-3 h-3 rounded-full bg-ink border-2 border-white shadow-sm shrink-0" />
+                  <span className="text-[11px] truncate">Your location</span>
+                </div>
+                <span className="text-[10px] text-fire font-bold">Center 🎯</span>
+              </button>
             </div>
           </div>
         )}
