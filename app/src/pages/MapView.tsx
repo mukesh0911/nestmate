@@ -78,6 +78,49 @@ function ViewportTracker({ onBoundsChange }: { onBoundsChange: (b: L.LatLngBound
   return null;
 }
 
+// Leaflet resize invalidator helper for dynamic mobile layouts & window resizes
+function LeafletResizeHandler() {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+
+    const invalidate = () => {
+      map.invalidateSize();
+    };
+
+    invalidate();
+
+    const timers = [
+      setTimeout(invalidate, 50),
+      setTimeout(invalidate, 200),
+      setTimeout(invalidate, 500),
+      setTimeout(invalidate, 1000),
+    ];
+
+    const container = map.getContainer();
+    let observer: ResizeObserver | null = null;
+    if (container && typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => {
+        invalidate();
+      });
+      observer.observe(container);
+    }
+
+    window.addEventListener('resize', invalidate);
+    window.addEventListener('orientationchange', invalidate);
+
+    return () => {
+      timers.forEach(clearTimeout);
+      if (observer) observer.disconnect();
+      window.removeEventListener('resize', invalidate);
+      window.removeEventListener('orientationchange', invalidate);
+    };
+  }, [map]);
+
+  return null;
+}
+
 export default function MapView() {
   const navigate = useNavigate();
   const { profile, user } = useAuth();
@@ -87,6 +130,7 @@ export default function MapView() {
 
   const [mode, setMode] = useState<'people' | 'rooms'>('people');
   const [items, setItems] = useState<MapItem[]>([]);
+  const [selectedItem, setSelectedItem] = useState<MapItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -156,6 +200,7 @@ export default function MapView() {
   }, [getListings]);
 
   useEffect(() => {
+    setSelectedItem(null);
     if (mode === 'people') {
       fetchPeople();
       return;
@@ -211,8 +256,9 @@ export default function MapView() {
   };
 
   const panToItem = (item: MapItem) => {
+    setSelectedItem(item);
     setMapCenter([item.lat, item.lng]);
-    setMapZoom(16);
+    setMapZoom(15);
     if (isMobile) setMobileListView(false);
   };
 
@@ -279,7 +325,7 @@ export default function MapView() {
   }
 
   return (
-    <div className="h-app-mobile md:h-app-desktop -mb-[calc(68px+env(safe-area-inset-bottom,0px))] md:mb-0 w-full flex relative overflow-hidden">
+    <div className="w-full h-full flex flex-1 relative overflow-hidden max-w-full min-h-0">
       {/* Desktop Sidebar */}
       {!isMobile && sidebarOpen && (
         <div className="w-[320px] bg-white border-r border-border flex flex-col shrink-0 z-10">
@@ -309,24 +355,24 @@ export default function MapView() {
       )}
 
       {/* Map Area */}
-      <div className="flex-1 relative z-0">
+      <div className="flex-1 relative z-0 w-full h-full min-w-0">
         {/* Top Controls */}
-        <div className="absolute top-4 left-4 right-4 z-[1000] flex items-center gap-2 pointer-events-none">
+        <div className="absolute top-2.5 left-2.5 right-2.5 sm:top-4 sm:left-4 sm:right-4 z-[1000] flex flex-wrap sm:flex-nowrap items-center justify-between gap-1.5 sm:gap-2 pointer-events-none">
           {/* Toggle */}
-          <div className="bg-white rounded-full shadow-lg p-1 flex pointer-events-auto border border-border">
-            <button onClick={() => setMode('people')} className={`px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${mode === 'people' ? 'bg-fire text-white shadow-sm' : 'text-ink/60 hover:text-ink'}`}><Users className="w-3.5 h-3.5" /> People</button>
-            <button onClick={() => setMode('rooms')} className={`px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${mode === 'rooms' ? 'bg-fire text-white shadow-sm' : 'text-ink/60 hover:text-ink'}`}><Home className="w-3.5 h-3.5" /> Rooms</button>
+          <div className="bg-white rounded-full shadow-lg p-0.5 sm:p-1 flex pointer-events-auto border border-border shrink-0">
+            <button onClick={() => setMode('people')} className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${mode === 'people' ? 'bg-fire text-white shadow-sm' : 'text-ink/60 hover:text-ink'}`}><Users className="w-3.5 h-3.5" /> People</button>
+            <button onClick={() => setMode('rooms')} className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${mode === 'rooms' ? 'bg-fire text-white shadow-sm' : 'text-ink/60 hover:text-ink'}`}><Home className="w-3.5 h-3.5" /> Rooms</button>
           </div>
 
           {/* Search */}
           {isMobile && !searchExpanded ? (
-            <button onClick={() => setSearchExpanded(true)} className="w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center pointer-events-auto border border-border"><Search className="w-4 h-4 text-ink/60" /></button>
+            <button onClick={() => setSearchExpanded(true)} className="w-8 h-8 sm:w-10 sm:h-10 bg-white rounded-full shadow-lg flex items-center justify-center pointer-events-auto border border-border shrink-0"><Search className="w-4 h-4 text-ink/60" /></button>
           ) : (
-            <div className="flex-1 flex bg-white rounded-full shadow-lg overflow-hidden pointer-events-auto border border-border">
+            <div className="w-full sm:flex-1 flex bg-white rounded-full shadow-lg overflow-hidden pointer-events-auto border border-border order-last sm:order-none mt-1 sm:mt-0">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
                 <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                  placeholder="Search area, landmark..." className="w-full pl-9 pr-2 py-2.5 text-sm outline-none bg-transparent" />
+                  placeholder="Search area, landmark..." className="w-full pl-9 pr-2 py-2 text-xs sm:text-sm outline-none bg-transparent" />
               </div>
               {searching ? <div className="px-3 flex items-center"><Loader2 className="w-4 h-4 animate-spin text-fire" /></div> :
                searchQuery && <button onClick={() => { setSearchQuery(''); setSearchCenter(null); }} className="px-2 text-ink/40 hover:text-ink"><X className="w-4 h-4" /></button>}
@@ -335,10 +381,10 @@ export default function MapView() {
           )}
 
           {/* Map Layer Switcher (Google Roadmap vs Google Satellite) */}
-          <div className="bg-white rounded-full shadow-lg p-1 flex pointer-events-auto border border-border">
+          <div className="bg-white rounded-full shadow-lg p-0.5 sm:p-1 flex pointer-events-auto border border-border shrink-0">
             <button
               onClick={() => setMapStyle(mapStyle === 'satellite' ? 'roadmap' : 'satellite')}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${
+              className={`px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${
                 mapStyle === 'satellite' ? 'bg-navy text-white shadow-sm' : 'text-ink/70 hover:text-ink'
               }`}
               title="Toggle Google Maps Satellite View"
@@ -348,34 +394,68 @@ export default function MapView() {
           </div>
 
           {/* Locate Me */}
-          <button onClick={handleLocateMe} className="w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center pointer-events-auto border border-border hover:border-fire transition-colors" title="My location">
+          <button onClick={handleLocateMe} className="w-8 h-8 sm:w-10 sm:h-10 bg-white rounded-full shadow-lg flex items-center justify-center pointer-events-auto border border-border shrink-0 hover:border-fire transition-colors" title="My location">
             <Crosshair className="w-4 h-4 text-ink/60" />
           </button>
 
           {/* Desktop sidebar toggle */}
           {!isMobile && (
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center pointer-events-auto border border-border hover:border-fire transition-colors">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center pointer-events-auto border border-border hover:border-fire transition-colors shrink-0">
               <ListIcon className="w-4 h-4 text-ink/60" />
             </button>
           )}
         </div>
 
         {/* Legend */}
-        <div className="absolute bottom-4 left-4 z-[1000] bg-white/90 backdrop-blur rounded-xl shadow-lg p-3 border border-border pointer-events-none">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-fire border border-white shadow-sm" /><span className="text-[10px] text-ink/60">Rooms available</span></div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[#1E3A5F] border border-white shadow-sm" /><span className="text-[10px] text-ink/60">Seekers looking</span></div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-teal border border-white shadow-sm" /><span className="text-[10px] text-ink/60">High compatibility (80%+)</span></div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-ink border-2 border-white shadow-sm" /><span className="text-[10px] text-ink/60">Your location</span></div>
+        {!selectedItem && (
+          <div className="absolute bottom-4 left-3 z-[900] bg-white/90 backdrop-blur rounded-xl shadow-lg p-2.5 border border-border pointer-events-none max-w-[170px] sm:max-w-none">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-fire border border-white shadow-sm shrink-0" /><span className="text-[10px] text-ink/60 leading-none">Rooms available</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[#1E3A5F] border border-white shadow-sm shrink-0" /><span className="text-[10px] text-ink/60 leading-none">Seekers looking</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-teal border border-white shadow-sm shrink-0" /><span className="text-[10px] text-ink/60 leading-none">High compatibility (80%+)</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-ink border-2 border-white shadow-sm shrink-0" /><span className="text-[10px] text-ink/60 leading-none">Your location</span></div>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Mobile bottom controls */}
-        {isMobile && (
-          <div className="absolute bottom-4 right-4 z-[1000]">
+        {/* Mobile bottom list toggle button */}
+        {isMobile && !selectedItem && (
+          <div className="absolute bottom-4 right-3 z-[900]">
             <button onClick={() => setMobileListView(true)} className="bg-white rounded-full shadow-lg px-4 py-2.5 flex items-center gap-2 border border-border text-xs font-bold text-ink/70 hover:text-fire transition-colors">
               <ListIcon className="w-4 h-4" /> List ({sortedItems.length})
             </button>
+          </div>
+        )}
+
+        {/* Mobile floating selected item card */}
+        {isMobile && selectedItem && !mobileListView && (
+          <div className="absolute bottom-4 left-3 right-3 z-[1001] bg-white/95 backdrop-blur-md rounded-2xl p-3 shadow-xl border border-border flex flex-col gap-2.5 animate-in slide-in-from-bottom-3 duration-200">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="w-11 h-11 rounded-full bg-cream overflow-hidden border border-border shrink-0 flex items-center justify-center">
+                  {selectedItem.type === 'person' && selectedItem.avatar ? <img src={selectedItem.avatar} alt="" className="w-full h-full object-cover" /> :
+                   selectedItem.type === 'room' && selectedItem.image ? <img src={selectedItem.image} alt="" className="w-full h-full object-cover" /> :
+                   <MapPin className="w-4 h-4 text-ink/30" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-sm text-ink truncate">{selectedItem.type === 'person' ? selectedItem.name : selectedItem.title}</h4>
+                    {selectedItem.type === 'person' && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${selectedItem.compatibility >= 80 ? 'bg-teal/10 text-teal' : 'bg-ink/5 text-ink/60'}`}>{selectedItem.compatibility}% Match</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-ink/60 truncate mt-0.5">
+                    {selectedItem.type === 'person' ? selectedItem.profession || 'Seeker' : `₹${selectedItem.rent?.toLocaleString()}/mo · ${selectedItem.locality}, ${selectedItem.city}`}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedItem(null)} className="p-1 text-ink/40 hover:text-ink rounded-full shrink-0"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="flex items-center gap-2 pt-1 border-t border-border/60">
+              <button onClick={() => navigate(selectedItem.type === 'person' ? `/match/${selectedItem.uid}` : `/room/${selectedItem.id}`)} className="w-full py-2 bg-fire text-white rounded-xl text-xs font-bold shadow-xs hover:bg-fire-dark transition-all text-center">
+                View {selectedItem.type === 'person' ? 'Profile' : 'Room Listing'} →
+              </button>
+            </div>
           </div>
         )}
 
@@ -388,7 +468,19 @@ export default function MapView() {
         )}
 
         {/* THE MAP (Google Maps Tiles via Leaflet) */}
-        <MapContainer center={mapCenter} zoom={mapZoom} scrollWheelZoom={true} className="w-full h-full" zoomControl={false}>
+        <MapContainer
+          center={mapCenter}
+          zoom={mapZoom}
+          scrollWheelZoom={true}
+          touchZoom={true}
+          dragging={true}
+          doubleClickZoom={true}
+          bounceAtZoomLimits={true}
+          tap={false}
+          className="w-full h-full"
+          zoomControl={false}
+        >
+          <LeafletResizeHandler />
           <TileLayer
             key={mapStyle}
             attribution='&copy; <a href="https://maps.google.com">Google Maps</a>'
@@ -421,10 +513,31 @@ export default function MapView() {
           {items.map(item => {
             const key = item.type === 'person' ? item.uid : item.id;
             const color = getPinColor(item);
+            const isSelected = selectedItem && (selectedItem.type === 'person' ? selectedItem.uid : selectedItem.id) === key;
             return (
-              <CircleMarker key={key} center={[item.lat, item.lng]} radius={8}
-                pathOptions={{ color: 'white', weight: 2, fillColor: color, fillOpacity: 1 }}>
-                <Popup className="match-popup">
+              <CircleMarker
+                key={key}
+                center={[item.lat, item.lng]}
+                radius={isMobile ? 12 : 8}
+                pathOptions={{
+                  color: isSelected ? '#121217' : 'white',
+                  weight: isSelected ? 4 : (isMobile ? 3 : 2),
+                  fillColor: color,
+                  fillOpacity: 1
+                }}
+                eventHandlers={{
+                  click: () => {
+                    setSelectedItem(item);
+                    setMapCenter([item.lat, item.lng]);
+                  }
+                }}
+              >
+                <Popup
+                  className="match-popup"
+                  autoPan={true}
+                  autoPanPadding={isMobile ? [60, 20] : [20, 20]}
+                  keepInView={true}
+                >
                   <div className="flex flex-col gap-2 min-w-[160px] p-1">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full bg-cream overflow-hidden border border-border flex items-center justify-center shrink-0">

@@ -19,7 +19,30 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useMatches, calculateCompatibility, getActiveStatus } from '@/hooks/useMatches';
 import type { MatchedUser } from '@/hooks/useMatches';
 import { useGeocoding } from '@/hooks/useGeocoding';
-import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet';
+
+// Helper to handle dynamic container resizing for Leaflet maps
+function LeafletResizeHandler() {
+  const map = useMap();
+  useEffect(() => {
+    if (!map) return;
+    const invalidate = () => map.invalidateSize();
+    invalidate();
+    const timers = [setTimeout(invalidate, 50), setTimeout(invalidate, 300), setTimeout(invalidate, 600)];
+    const container = map.getContainer();
+    let observer: ResizeObserver | null = null;
+    if (container && typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => invalidate());
+      observer.observe(container);
+    }
+    return () => {
+      timers.forEach(clearTimeout);
+      if (observer) observer.disconnect();
+    };
+  }, [map]);
+  return null;
+}
+
 import { quizQuestions } from '@/lib/staticData';
 import { useStore } from '@/store/useStore';
 import { toast } from 'sonner';
@@ -617,6 +640,7 @@ export default function MatchDetail() {
               <div className="h-60 rounded-2xl overflow-hidden border border-border bg-parchment relative">
                 {mapLoc ? (
                   <MapContainer center={[mapLoc.lat, mapLoc.lng]} zoom={13} className="w-full h-full" zoomControl={false} dragging={false} scrollWheelZoom={false}>
+                    <LeafletResizeHandler />
                     <TileLayer
                       attribution='&copy; <a href="https://maps.google.com">Google Maps</a>'
                       url="https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"

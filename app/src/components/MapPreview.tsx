@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Tooltip, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Tooltip, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Loader2 } from 'lucide-react';
@@ -7,6 +7,29 @@ import { useGeocoding } from '@/hooks/useGeocoding';
 import type { MatchedUser } from '@/hooks/useMatches';
 import type { UserProfile } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/use-mobile';
+
+// Helper to handle dynamic container resizing for Leaflet maps
+function LeafletResizeHandler() {
+  const map = useMap();
+  useEffect(() => {
+    if (!map) return;
+    const invalidate = () => map.invalidateSize();
+    invalidate();
+    const timers = [setTimeout(invalidate, 50), setTimeout(invalidate, 300), setTimeout(invalidate, 600)];
+    const container = map.getContainer();
+    let observer: ResizeObserver | null = null;
+    if (container && typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => invalidate());
+      observer.observe(container);
+    }
+    return () => {
+      timers.forEach(clearTimeout);
+      if (observer) observer.disconnect();
+    };
+  }, [map]);
+  return null;
+}
+
 
 // Fix leaflet icon
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
@@ -153,6 +176,7 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
                 <div key={match.profile.uid} className="snap-center shrink-0 w-[280px] bg-parchment rounded-[16px] overflow-hidden border border-border">
                   <div className="h-[180px] bg-ink/5 relative pointer-events-none">
                     <MapContainer center={[loc.lat, loc.lng]} zoom={13} zoomControl={false} dragging={false} scrollWheelZoom={false} className="w-full h-full">
+                      <LeafletResizeHandler />
                       <TileLayer
                         attribution='&copy; <a href="https://maps.google.com">Google Maps</a>'
                         url="https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
@@ -191,6 +215,7 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
         // Desktop Map
         <div className="w-full h-[320px] rounded-[16px] overflow-hidden border border-border relative z-0">
           <MapContainer center={[userLocation.lat, userLocation.lng]} zoom={12} className="w-full h-full">
+            <LeafletResizeHandler />
             <TileLayer
               attribution='&copy; <a href="https://maps.google.com">Google Maps</a>'
               url="https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"

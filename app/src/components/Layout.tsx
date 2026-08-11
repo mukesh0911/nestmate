@@ -359,9 +359,13 @@ export default function Layout() {
       {/* Main Content — extra bottom pad on mobile for bottom nav + safe area */}
       <main
         id="main-content"
-        className="pt-[60px] pb-[calc(68px+env(safe-area-inset-bottom,0px))] md:pb-0 min-h-screen overflow-x-hidden"
+        className={`pt-[60px] ${
+          location.pathname === '/map'
+            ? 'pb-0 h-[calc(100dvh-60px-68px-env(safe-area-inset-bottom,0px))] md:h-[calc(100dvh-60px)] overflow-hidden'
+            : 'pb-[calc(68px+env(safe-area-inset-bottom,0px))] md:pb-0 min-h-screen overflow-x-hidden'
+        }`}
       >
-        <div key={location.pathname} className="page-transition">
+        <div key={location.pathname} className={`page-transition ${location.pathname === '/map' ? 'h-full w-full flex flex-col' : ''}`}>
           <Outlet />
         </div>
       </main>

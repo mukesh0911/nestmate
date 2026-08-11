@@ -214,3 +214,12 @@
   0%, 100% { opacity: 0.3; }
   50% { opacity: 1; }
 }
+
+/* Ensure Leaflet map containers fill parent dimensions dynamically without clipping */
+.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 0;
+  background-color: #f4f3ef !important;
+}
+
