@@ -385,7 +385,11 @@ export default function SeekerDashboard() {
         if (activeTab === 'all' && filters.gender && filters.gender !== 'any') {
           if (!p.gender || p.gender.toLowerCase() !== filters.gender.toLowerCase()) return false;
         }
-        if (activeTab === 'all' && p.budget && (p.budget < filters.budgetMin || p.budget > filters.budgetMax)) return false;
+        const effectiveBudget = (p as any)._listing?.partnerShare || (p as any)._listing?.totalRent || p.budget || 0;
+        if (activeTab === 'all' && effectiveBudget > 0) {
+          if (filters.budgetMin > 0 && effectiveBudget < filters.budgetMin) return false;
+          if (filters.budgetMax < 100000 && effectiveBudget > filters.budgetMax) return false;
+        }
         if (activeTab === 'all' && filters.localities.length > 0 && p.localities && !p.localities.some((l: string) => filters.localities.includes(l))) return false;
         if (searchQuery) {
           const q = searchQuery.toLowerCase();
