@@ -147,23 +147,37 @@ function SeekersView() {
     async function fetchAllSeekers() {
       setLoading(true);
       setError(null);
-      try {
-        const q = query(
-          collection(db, 'users'),
-          where('role', '==', 'seeker'),
-          where('onboardingComplete', '==', true),
-          limit(200)
-        );
-        const snap = await getDocs(q);
-
-        if (cancelled) return;
-
-        const results = snap.docs
-          .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
-          .filter(u =>
-            u.uid !== user?.uid &&
-            !viewerProfile.blockedUserIds?.includes(u.uid || '')
+        let results: UserProfile[] = [];
+        try {
+          const q = query(
+            collection(db, 'users'),
+            limit(200)
           );
+          const snap = await getDocs(q);
+          if (cancelled) return;
+          results = snap.docs
+            .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
+            .filter(u => {
+              const r = (u.role || '').toLowerCase();
+              return r === 'seeker' && u.uid !== user?.uid && !viewerProfile.blockedUserIds?.includes(u.uid || '');
+            });
+        } catch (err) {
+          console.warn('Firestore seekers query error:', err);
+        }
+
+        if (results.length === 0 && !cancelled) {
+          try {
+            const rawSnap = await getDocs(collection(db, 'users'));
+            results = rawSnap.docs
+              .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
+              .filter(u => {
+                const r = (u.role || '').toLowerCase();
+                return r === 'seeker' && u.uid !== user?.uid && !viewerProfile.blockedUserIds?.includes(u.uid || '');
+              });
+          } catch (err) {
+            console.error('Fallback seekers fetch error:', err);
+          }
+        }
 
         const scored: SeekerWithScore[] = results.map(u => ({
           profile: u,

@@ -72,22 +72,44 @@ export function useMatches() {
       }
       constraints.push(limit(20));
 
-      const q = query(collection(db, 'users'), ...constraints);
-      const snap = await getDocs(q);
-      
-      const newLastDoc = snap.docs[snap.docs.length - 1];
-      lastDocRef.current = newLastDoc || null;
-      
-      if (!isLoadMore) {
-        setPage(1);
-      } else {
-        setPage(p => p + 1);
-      }
-      setHasMore(snap.docs.length === 20);
+      let candidateDocs: UserProfile[] = [];
+      try {
+        const q = query(collection(db, 'users'), ...constraints);
+        const snap = await getDocs(q);
+        
+        const newLastDoc = snap.docs[snap.docs.length - 1];
+        lastDocRef.current = newLastDoc || null;
+        
+        if (!isLoadMore) {
+          setPage(1);
+        } else {
+          setPage(p => p + 1);
+        }
+        setHasMore(snap.docs.length === 20);
 
-      const candidates = snap.docs
-        .map((d) => ({ uid: d.id, ...d.data() } as UserProfile))
-        .filter((u) => u.uid !== currentUser.uid && !skippedIds.has(u.uid || '') && !blockedIds.has(u.uid || ''));
+        candidateDocs = snap.docs.map((d) => ({ uid: d.id, ...d.data() } as UserProfile));
+      } catch (err) {
+        console.warn('Constrained findMatches query failed, using unconstrained fallback:', err);
+      }
+
+      if (candidateDocs.length === 0 && !isLoadMore) {
+        try {
+          const rawSnap = await getDocs(collection(db, 'users'));
+          candidateDocs = rawSnap.docs
+            .map((d) => ({ uid: d.id, ...d.data() } as UserProfile))
+            .filter((u) => {
+              if (oppositeRole) {
+                const r = (u.role || '').toLowerCase();
+                return r === oppositeRole.toLowerCase();
+              }
+              return true;
+            });
+        } catch (err) {
+          console.error('Fallback findMatches query failed:', err);
+        }
+      }
+
+      const candidates = candidateDocs.filter((u) => u.uid !== currentUser.uid && !skippedIds.has(u.uid || '') && !blockedIds.has(u.uid || ''));
 
       // If the seeker is looking for owners, eagerly fetch active listings to attach to profiles
       const listingMap = new Map<string, any>();

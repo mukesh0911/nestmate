@@ -55,16 +55,31 @@ export default function BrowseSeekers() {
         try {
           const q = query(
             collection(db, 'users'),
-            where('role', '==', 'seeker'),
-            where('onboardingComplete', '==', true),
-            limit(50)
+            limit(100)
           );
           const snap = await getDocs(q);
           fetched = snap.docs
             .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
-            .filter(u => u.uid !== user?.uid && !currentUser?.blockedUserIds?.includes(u.uid || ''));
+            .filter(u => {
+              const r = (u.role || '').toLowerCase();
+              return r === 'seeker' && u.uid !== user?.uid && !currentUser?.blockedUserIds?.includes(u.uid || '');
+            });
         } catch (err) {
           console.warn('Firestore seekers query error:', err);
+        }
+
+        if (fetched.length === 0) {
+          try {
+            const rawSnap = await getDocs(collection(db, 'users'));
+            fetched = rawSnap.docs
+              .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
+              .filter(u => {
+                const r = (u.role || '').toLowerCase();
+                return r === 'seeker' && u.uid !== user?.uid && !currentUser?.blockedUserIds?.includes(u.uid || '');
+              });
+          } catch (err) {
+            console.error('Fallback seekers fetch error:', err);
+          }
         }
 
         const filtered = searchCity
