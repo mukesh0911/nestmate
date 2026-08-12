@@ -212,10 +212,10 @@ export default function MapView() {
   const sourceLabel = incomingState?.sourceLabel;
   const initialCenter = incomingState?.initialCenter ?? null;
 
-  // Fetch people data when NOT pre-loaded from caller
+  // Fetch people data from Firestore
   const fetchPeople = useCallback(async () => {
-    if (hasIncomingItems) return; // caller already provided data
     setLoading(true);
+    setItems([]);
     try {
       let q;
       if (profile?.role) {
@@ -231,7 +231,7 @@ export default function MapView() {
         if (user?.uid && d.id === user.uid) return;
         const lat = data.geoLocation?.lat ?? (data as any).lat;
         const lng = data.geoLocation?.lng ?? (data as any).lng;
-        if (!isValidCoord(lat, lng)) return; // strict validation — never place an invalid marker
+        if (!isValidCoord(lat, lng)) return;
         const compat = profile?.quizAnswers
           ? calculateCompatibility(profile.quizAnswers, data.quizAnswers || {})
           : 85;
@@ -242,18 +242,22 @@ export default function MapView() {
         });
       });
       setItems(people);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  }, [user?.uid, profile, hasIncomingItems]);
+    } catch (e) {
+      console.error('MapView fetchPeople error:', e);
+      setItems([]); // ensure empty state on error, not stale data
+    } finally {
+      setLoading(false); // ALWAYS clears loading — success, empty, or error
+    }
+  }, [user?.uid, profile]);
 
-  // Fetch rooms data when NOT pre-loaded from caller
+  // Fetch rooms data from Firestore
   const fetchRooms = useCallback(async () => {
-    if (hasIncomingItems) return;
     setLoading(true);
+    setItems([]);
     try {
       const results = await getListings();
       const rooms: MapRoom[] = results
-        .filter(l => isValidCoord(l.lat, l.lng)) // strict validation
+        .filter(l => isValidCoord(l.lat, l.lng))
         .map(l => ({
           type: 'room', id: l.id, title: l.title || `${l.locality}, ${l.city}`, locality: l.locality, city: l.city,
           rent: l.partnerShare || l.totalRent, image: l.images?.[0] || '',
@@ -261,27 +265,34 @@ export default function MapView() {
           lat: l.lat, lng: l.lng,
         }));
       setItems(rooms);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  }, [getListings, hasIncomingItems]);
+    } catch (e) {
+      console.error('MapView fetchRooms error:', e);
+      setItems([]);
+    } finally {
+      setLoading(false); // ALWAYS clears loading — success, empty, or error
+    }
+  }, [getListings]);
 
-  // When mode changes AND we're in self-fetch mode, reload
+  // skipFetchOnMount: one-shot flag — skip Firestore fetch ONLY on the very first
+  // render when the caller already provided preloaded items. After that, every mode
+  // change (including People↔Rooms toggle) ALWAYS triggers a real Firestore fetch.
+  // This fixes the infinite-loading bug where handleModeChange set loading=true but
+  // hasIncomingItems guard in the old useEffect prevented the fetch from ever running.
+  const skipFetchOnMount = useRef(hasIncomingItems);
+
   useEffect(() => {
-    if (hasIncomingItems) return; // don't override caller data on mount
+    if (skipFetchOnMount.current) {
+      // First render with preloaded data — use it as-is, don't overwrite with Firestore fetch
+      skipFetchOnMount.current = false; // reset: next mode change WILL fetch
+      return;
+    }
     setSelectedItem(null);
     if (mode === 'people') fetchPeople();
     else fetchRooms();
-  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // If mode changes after initial load (user taps toggle), fetch from Firestore regardless of incoming state
-  const handleModeChange = (newMode: 'people' | 'rooms') => {
-    if (newMode === mode) return;
-    setMode(newMode);
-    setItems([]); // clear items immediately so FitBoundsOnLoad fires again
-    setSelectedItem(null);
-    setLoading(true);
-    // fetchPeople/fetchRooms will trigger via the useEffect above
-  };
+  }, [mode, fetchPeople, fetchRooms]);
+  // NOTE: fetchPeople/fetchRooms are in deps (correct). They change when profile/auth
+  // loads, which triggers a re-fetch with the correct role filter. This matches the
+  // original MapView behavior and ensures authenticated users see role-filtered data.
 
   // Filter items within viewport and legend filter
   // BUG FIX: use filtered result for BOTH sidebar list AND map markers
@@ -457,8 +468,8 @@ export default function MapView() {
         <div className="absolute top-2.5 left-2.5 right-2.5 sm:top-4 sm:left-4 sm:right-4 z-[1000] flex flex-wrap sm:flex-nowrap items-center justify-between gap-1.5 sm:gap-2 pointer-events-none">
           {/* Mode Toggle */}
           <div className="bg-white rounded-full shadow-lg p-0.5 sm:p-1 flex pointer-events-auto border border-border shrink-0">
-            <button onClick={() => handleModeChange('people')} className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${mode === 'people' ? 'bg-fire text-white shadow-sm' : 'text-ink/60 hover:text-ink'}`}><Users className="w-3.5 h-3.5" /> People</button>
-            <button onClick={() => handleModeChange('rooms')} className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${mode === 'rooms' ? 'bg-fire text-white shadow-sm' : 'text-ink/60 hover:text-ink'}`}><Home className="w-3.5 h-3.5" /> Rooms</button>
+            <button onClick={() => setMode('people')} className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${mode === 'people' ? 'bg-fire text-white shadow-sm' : 'text-ink/60 hover:text-ink'}`}><Users className="w-3.5 h-3.5" /> People</button>
+            <button onClick={() => setMode('rooms')} className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${mode === 'rooms' ? 'bg-fire text-white shadow-sm' : 'text-ink/60 hover:text-ink'}`}><Home className="w-3.5 h-3.5" /> Rooms</button>
           </div>
 
           {/* Search */}
@@ -515,7 +526,7 @@ export default function MapView() {
               {/* Rooms */}
               <button
                 onClick={() => {
-                  if (mode !== 'rooms') handleModeChange('rooms');
+                  if (mode !== 'rooms') setMode('rooms');
                   setLegendFilter(legendFilter === 'rooms' ? 'all' : 'rooms');
                   toast.info(legendFilter === 'rooms' ? 'Showing all markers' : 'Filtering: Rooms');
                 }}
@@ -535,7 +546,7 @@ export default function MapView() {
               {/* Seekers */}
               <button
                 onClick={() => {
-                  if (mode !== 'people') handleModeChange('people');
+                  if (mode !== 'people') setMode('people');
                   setLegendFilter(legendFilter === 'seekers' ? 'all' : 'seekers');
                   toast.info(legendFilter === 'seekers' ? 'Showing all markers' : 'Filtering: Seekers');
                 }}
@@ -555,7 +566,7 @@ export default function MapView() {
               {/* High compatibility */}
               <button
                 onClick={() => {
-                  if (mode !== 'people') handleModeChange('people');
+                  if (mode !== 'people') setMode('people');
                   setLegendFilter(legendFilter === 'high_compat' ? 'all' : 'high_compat');
                   toast.info(legendFilter === 'high_compat' ? 'Showing all markers' : 'Filtering: High Compatibility (80%+)');
                 }}
