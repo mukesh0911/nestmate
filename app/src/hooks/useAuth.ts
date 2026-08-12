@@ -113,45 +113,29 @@ export function useAuth() {
 
           if (profileSnap.exists()) {
             const data = profileSnap.data() as UserProfile;
-            const hasQuiz = data.quizAnswers && Object.keys(data.quizAnswers).length > 0;
-            if (!data.onboardingComplete || !hasQuiz) {
-              const defaultAnswers = { q1: '1', q2: '2', q3: '1', q4: '3', q5: '2', q6: '1', q7: '4', q8: '2', q9: '1', q10: '3' };
-              const updated = {
-                ...data,
-                onboardingComplete: true,
-                role: data.role || 'seeker',
-                city: data.city || 'Chennai',
-                quizAnswers: hasQuiz ? data.quizAnswers : defaultAnswers,
-                isVerified: false,
-                isPremium: false,
-              };
-              await persistPublicUser(firebaseUser.uid, updated as unknown as Record<string, unknown>);
-              setProfile(await hydrateOwnProfile({ ...updated, uid: firebaseUser.uid } as UserProfile));
-            } else {
-              setProfile(await hydrateOwnProfile({ ...data, uid: firebaseUser.uid }));
-            }
+            setProfile(await hydrateOwnProfile({ ...data, uid: firebaseUser.uid }));
           } else {
             const defaultName = firebaseUser.displayName || (firebaseUser.email ? firebaseUser.email.split('@')[0] : 'User');
             const phone = firebaseUser.phoneNumber || '';
             const email = firebaseUser.email || '';
-            const fallbackProfile: UserProfile = {
+            const newProfile: UserProfile = {
               uid: firebaseUser.uid,
               phone: '',
               name: defaultName,
               email: '',
-              role: 'seeker',
-              city: 'Chennai',
-              localities: ['Velachery'],
+              role: null,
+              city: '',
+              localities: [],
               budget: 10000,
-              moveInDate: '2026-08-01',
-              profession: 'Software Professional',
-              company: 'Tech Hub',
-              bio: 'Passionate professional looking for clean, friendly roommate in Chennai.',
+              moveInDate: '',
+              profession: '',
+              company: '',
+              bio: '',
               age: 24,
               gender: 'Male',
-              avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&q=80',
-              quizAnswers: { q1: '1', q2: '2', q3: '1', q4: '3', q5: '2', q6: '1', q7: '4', q8: '2', q9: '1', q10: '3' },
-              onboardingComplete: true,
+              avatar: firebaseUser.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${defaultName}`,
+              quizAnswers: {},
+              onboardingComplete: false,
               isPremium: false,
               connectsUsed: 0,
               connectsLimit: 5,
@@ -164,6 +148,9 @@ export function useAuth() {
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
             };
+            await persistPublicUser(firebaseUser.uid, newProfile as unknown as Record<string, unknown>, { phone, email });
+            setProfile(await hydrateOwnProfile({ ...newProfile, uid: firebaseUser.uid, phone, email }));
+          }
             try {
               await persistPublicUser(
                 firebaseUser.uid,
@@ -303,19 +290,19 @@ export function useAuth() {
             phone: '',
             name: defaultName,
             email: '',
-            role: 'seeker',
-            city: 'Chennai',
-            localities: ['Velachery'],
+            role: null,
+            city: '',
+            localities: [],
             budget: 10000,
-            moveInDate: '2026-08-01',
-            profession: 'Software Professional',
-            company: 'Tech Hub',
-            bio: 'Passionate professional looking for clean, friendly roommate in Chennai.',
+            moveInDate: '',
+            profession: '',
+            company: '',
+            bio: '',
             age: 25,
             gender: 'Male',
-            avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&q=80',
-            quizAnswers: { q1: '1', q2: '2', q3: '1', q4: '3', q5: '2', q6: '1', q7: '4', q8: '2', q9: '1', q10: '3' },
-            onboardingComplete: true,
+            avatar: firebaseUser.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${defaultName}`,
+            quizAnswers: {},
+            onboardingComplete: false,
             isPremium: false,
             connectsUsed: 0,
             connectsLimit: 5,
@@ -335,19 +322,12 @@ export function useAuth() {
           );
           setProfile(await hydrateOwnProfile({ ...newProfile, phone, email: userEmail }));
           setUser(firebaseUser);
-          return { isNew: true, role: 'seeker', onboardingComplete: true };
+          return { isNew: true, role: null, onboardingComplete: false };
         } else {
           const data = userSnap.data() as UserProfile;
-          const updated = {
-            ...data,
-            onboardingComplete: true,
-            role: data.role || 'seeker',
-            city: data.city || 'Chennai',
-          };
-          await persistPublicUser(firebaseUser.uid, updated as unknown as Record<string, unknown>);
-          setProfile(await hydrateOwnProfile({ ...updated, uid: firebaseUser.uid }));
+          setProfile(await hydrateOwnProfile({ ...data, uid: firebaseUser.uid }));
           setUser(firebaseUser);
-          return { isNew: false, role: updated.role, onboardingComplete: true };
+          return { isNew: false, role: data.role || null, onboardingComplete: !!data.onboardingComplete };
         }
       } catch (err: any) {
         let msg = err.message || 'Sign in failed';
@@ -532,19 +512,19 @@ export function useAuth() {
           phone: '',
           name: defaultName,
           email: '',
-          role: 'seeker',
-          city: 'Chennai',
-          localities: ['Velachery'],
+          role: null,
+          city: '',
+          localities: [],
           budget: 10000,
-          moveInDate: '2026-08-01',
-          profession: 'Software Professional',
-          company: 'Tech Hub',
-          bio: 'Passionate professional looking for clean, friendly roommate in Chennai.',
+          moveInDate: '',
+          profession: '',
+          company: '',
+          bio: '',
           age: 25,
           gender: 'Male',
-          avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&q=80',
-          quizAnswers: { q1: '1', q2: '2', q3: '1', q4: '3', q5: '2', q6: '1', q7: '4', q8: '2', q9: '1', q10: '3' },
-          onboardingComplete: true,
+          avatar: firebaseUser.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${defaultName}`,
+          quizAnswers: {},
+          onboardingComplete: false,
           isPremium: false,
           connectsUsed: 0,
           connectsLimit: 5,
@@ -564,14 +544,13 @@ export function useAuth() {
         );
         setProfile(await hydrateOwnProfile({ ...newProfile, phone, email }));
         setUser(firebaseUser);
-        return { isNew: true, role: 'seeker' };
+        return { isNew: true, role: null, onboardingComplete: false };
       } else {
         const existingProfile = userSnap.data() as UserProfile;
-        const profileUpdates: Partial<UserProfile> = {
-          onboardingComplete: true,
-          role: existingProfile.role || 'seeker',
-          city: existingProfile.city || 'Chennai',
-        };
+        setProfile(await hydrateOwnProfile({ ...existingProfile, uid: firebaseUser.uid }));
+        setUser(firebaseUser);
+        return { isNew: false, role: existingProfile.role || null, onboardingComplete: !!existingProfile.onboardingComplete };
+      }
 
         if (firebaseUser.displayName && firebaseUser.displayName !== existingProfile.name) {
           profileUpdates.name = firebaseUser.displayName;

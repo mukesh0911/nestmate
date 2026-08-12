@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useListings } from '@/hooks/useListings';
 import type { Listing } from '@/hooks/useListings';
 import { useStorage } from '@/hooks/useStorage';
+import { resolveEntityCoordinates } from '@/lib/locationResolver';
 import { cities, localitiesByCity, flatTypes, furnishingTypes, amenitiesList } from '@/lib/staticData';
 import { ArrowLeft, Save, Trash2, ToggleLeft, ToggleRight, Loader2, AlertTriangle, Upload, X, Image as ImageIcon, GripVertical } from 'lucide-react';
 
@@ -95,11 +96,18 @@ export default function EditListing() {
       const { monthlyRent, ...restForm } = form;
       const share = Math.round(monthlyRent / (form.partnersNeeded + 1));
 
+      const coords = resolveEntityCoordinates({
+        id,
+        city: form.city,
+        locality: form.locality,
+      });
+
       await updateListing(id, {
         ...restForm,
         totalRent: monthlyRent,
         partnerShare: share,
-        images: finalImages
+        images: finalImages,
+        ...(coords && { lat: coords.lat, lng: coords.lng }),
       } as any);
       setSuccess('Listing updated successfully!');
       setTimeout(() => navigate('/owner-dashboard'), 1500);

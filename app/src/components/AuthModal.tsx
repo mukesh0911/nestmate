@@ -54,11 +54,9 @@ export default function AuthModal({
               quizAnswers: { q1: '1', q2: '2', q3: '1', q4: '3', q5: '2', q6: '1', q7: '4', q8: '2', q9: '1', q10: '3' },
             }
           : { savedRoomIds: [] }),
-        city: 'Chennai',
-        bio: role === 'seeker'
-          ? 'Friendly software engineer looking for a clean room and a like-minded flatmate.'
-          : 'Property owner offering rooms to verified flatmates.',
-        onboardingComplete: true,
+        city: '',
+        bio: '',
+        onboardingComplete: false,
         isPremium: false,
         isVerified: false,
         verificationLevel: 1,

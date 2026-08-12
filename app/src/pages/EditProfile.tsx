@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { resolveEntityCoordinates } from '@/lib/locationResolver';
 import { ArrowLeft, Save, RefreshCw, Loader2, Linkedin, Instagram, Shield, ShieldCheck, CheckCircle2, XCircle, AlertCircle, Upload, Clock, FileText } from 'lucide-react';
 import { cities, localitiesByCity, professions } from '@/lib/staticData';
 import { collection, getDocs, query, where, addDoc } from 'firebase/firestore';
@@ -135,6 +136,12 @@ export default function EditProfile() {
     if (!validate() || !user?.uid) return;
     setSaving(true);
     try {
+      const coords = resolveEntityCoordinates({
+        uid: user.uid,
+        city: formData.city,
+        locality: formData.locality,
+      });
+
       await updateProfile(user.uid, {
         name: formData.name,
         age: parseInt(formData.age),
@@ -150,6 +157,7 @@ export default function EditProfile() {
           linkedin: formData.linkedin,
           instagram: formData.instagram,
         },
+        ...(coords && { geoLocation: { lat: coords.lat, lng: coords.lng, formattedAddress: `${formData.locality || formData.city}, ${formData.city}` } }),
       });
       await refreshProfile();
       toast.success('Profile updated successfully!');

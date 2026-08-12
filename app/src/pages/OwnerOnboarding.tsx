@@ -214,7 +214,7 @@ export default function OwnerOnboarding() {
       const listingCoords = resolveEntityCoordinates({
         city,
         locality,
-      }) || { lat: 13.0827, lng: 80.2707 };
+      }) || resolvedGeo || { lat: 20.5937, lng: 78.9629 };
 
       let listingId = '';
       const listingData = {

@@ -50,7 +50,7 @@ export default function ProfilePage() {
         setAcceptedConnections(list);
       }).catch(() => {});
       if (profile) {
-        findMatches(profile, profile.city || 'Chennai').then(matches => {
+        findMatches(profile, profile.city).then(matches => {
           if (matches && matches.length > 0) {
             const top = Math.max(...matches.map(m => m.compatibilityScore || 0));
             setTopMatchScore(top);
