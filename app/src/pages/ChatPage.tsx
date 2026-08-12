@@ -484,9 +484,21 @@ export default function ChatPage() {
                   </div>
                 )}
                 {activeOtherProfile?.role === 'owner' && activeListingId ? (
-                  <button onClick={() => navigate(`/room/${activeListingId}`)} className="flex items-center justify-center p-2 sm:px-3 sm:py-1.5 bg-fire/10 text-fire rounded-full sm:rounded-lg hover:bg-fire/20 transition-all text-xs font-bold" title="View Flat" aria-label="View flat">
-                    <Home className="w-4 h-4" />
-                    <span className="hidden sm:inline ml-1.5">View Flat</span>
+                  <>
+                    <button onClick={() => navigate(`/room/${activeListingId}`)} className="flex items-center justify-center p-2 sm:px-3 sm:py-1.5 bg-fire/10 text-fire rounded-full sm:rounded-lg hover:bg-fire/20 transition-all text-xs font-bold" title="View Flat" aria-label="View flat">
+                      <Home className="w-4 h-4" />
+                      <span className="hidden sm:inline ml-1.5">View Flat</span>
+                    </button>
+                    <button onClick={() => navigate(`/match/${activeOtherId}`)} className="flex items-center justify-center p-2 sm:px-3 sm:py-1.5 bg-ink/5 text-ink/80 rounded-full sm:rounded-lg hover:bg-ink/10 transition-all text-xs font-bold" title="View Profile" aria-label="View owner profile">
+                      <UserIcon className="w-4 h-4" />
+                      <span className="hidden sm:inline ml-1.5">Profile</span>
+                    </button>
+                  </>
+                ) : activeOtherProfile?.role === 'owner' ? (
+                  // Owner with no active listing — still show profile link
+                  <button onClick={() => navigate(`/match/${activeOtherId}`)} className="flex items-center justify-center p-2 sm:px-3 sm:py-1.5 bg-ink/5 text-ink/80 rounded-full sm:rounded-lg hover:bg-ink/10 transition-all text-xs font-bold" title="View Profile" aria-label="View owner profile">
+                    <UserIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline ml-1.5">Profile</span>
                   </button>
                 ) : activeOtherProfile?.role === 'seeker' ? (
                   <button onClick={() => navigate(`/match/${activeOtherId}`)} className="flex items-center justify-center p-2 sm:px-3 sm:py-1.5 bg-ink/5 text-ink/80 rounded-full sm:rounded-lg hover:bg-ink/10 transition-all text-xs font-bold" title="View Profile" aria-label="View profile">

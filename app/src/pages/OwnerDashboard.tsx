@@ -9,6 +9,7 @@ import type { Listing } from '@/hooks/useListings';
 import type { Connection } from '@/hooks/useConnections';
 import type { UserProfile } from '@/hooks/useAuth';
 import { doc, getDoc } from 'firebase/firestore';
+import { User as UserIcon } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -91,12 +92,29 @@ export default function OwnerDashboard() {
       for (const conn of connections) {
         const snap = await getDoc(doc(db, 'users', conn.fromUserId));
         if (snap.exists()) {
-          applicants.push({ connection: conn, profile: snap.data() as UserProfile });
+          // FIX: include snap.id (the Firestore doc ID = uid) so profile.uid is always populated
+          applicants.push({ connection: conn, profile: { uid: snap.id, ...snap.data() } as UserProfile });
         }
       }
       setPendingApplicants(applicants);
     });
     return () => unsub();
+  }, [user?.uid]);
+
+  // Load accepted connections for the owner so they can be displayed and navigated to
+  useEffect(() => {
+    if (!user?.uid) return;
+    getMyConnections(user.uid, 'accepted').then(async conns => {
+      const list: PendingApplicant[] = [];
+      for (const conn of conns) {
+        const otherId = conn.fromUserId === user.uid ? conn.toUserId : conn.fromUserId;
+        const snap = await getDoc(doc(db, 'users', otherId));
+        if (snap.exists()) {
+          list.push({ connection: conn, profile: { uid: snap.id, ...snap.data() } as UserProfile });
+        }
+      }
+      setAcceptedConnections(list);
+    }).catch(() => {});
   }, [user?.uid]);
 
   const handleAccept = async (applicant: PendingApplicant) => {
@@ -394,6 +412,14 @@ export default function OwnerDashboard() {
                         <span className="text-[10px] text-ink/40">Move-in: {p.moveInDate || 'Flexible'}</span>
                       </div>
                       <div className="flex gap-2">
+                        <button
+                          onClick={() => navigate(`/match/${p.uid || applicant.connection.fromUserId}`)}
+                          className="p-2 border border-border rounded-lg text-ink/50 hover:bg-ink/5 transition-all"
+                          title="View Profile"
+                          aria-label={`View ${p.name}'s profile`}
+                        >
+                          <UserIcon className="w-4 h-4" />
+                        </button>
                         <button onClick={() => handleReject(applicant)} className="p-2 border border-red-200 rounded-lg text-red-400 hover:bg-red-50 transition-all" title="Reject" aria-label={`Reject ${p.name}`}>
                           <X className="w-4 h-4" />
                         </button>
@@ -444,16 +470,26 @@ export default function OwnerDashboard() {
                           </div>
                           <p className="text-xs text-ink/50">{p.profession} · {p.city}</p>
                         </div>
-                        <button
-                          onClick={async () => {
-                            const targetId = p.uid || conn.connection.fromUserId;
-                            const roomId = await getOrCreateChatRoom(user.uid, targetId);
-                            navigate(`/chat/${roomId}`);
-                          }}
-                          className="px-4 py-2 bg-fire text-white rounded-xl text-xs font-bold hover:bg-fire-dark transition-all flex items-center gap-1.5"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" /> Message
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => navigate(`/match/${p.uid || conn.connection.fromUserId}`)}
+                            className="px-3 py-2 border border-border text-ink/60 rounded-xl text-xs font-semibold hover:bg-ink/5 transition-all flex items-center gap-1.5"
+                            title="View Profile"
+                            aria-label={`View ${p.name}'s profile`}
+                          >
+                            <UserIcon className="w-3.5 h-3.5" /> Profile
+                          </button>
+                          <button
+                            onClick={async () => {
+                              const targetId = p.uid || conn.connection.fromUserId;
+                              const roomId = await getOrCreateChatRoom(user.uid, targetId);
+                              navigate(`/chat/${roomId}`);
+                            }}
+                            className="px-4 py-2 bg-fire text-white rounded-xl text-xs font-bold hover:bg-fire-dark transition-all flex items-center gap-1.5"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" /> Message
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
