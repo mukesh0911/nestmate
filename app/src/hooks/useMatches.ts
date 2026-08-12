@@ -111,21 +111,56 @@ export function useMatches() {
 
       const candidates = candidateDocs.filter((u) => u.uid !== currentUser.uid && !skippedIds.has(u.uid || '') && !blockedIds.has(u.uid || ''));
 
-      // If the seeker is looking for owners, eagerly fetch active listings to attach to profiles
+      // If the seeker is looking for owners, fetch active listings and combine with owner profiles
       const listingMap = new Map<string, any>();
       if (oppositeRole === 'owner' || !oppositeRole) {
         const lqConstraints: any[] = [where('status', '==', 'active')];
         if (targetCity) lqConstraints.push(where('city', '==', targetCity));
         try {
-          const lq = query(collection(db, 'listings'), ...lqConstraints);
-          const lsnap = await getDocs(lq);
-          lsnap.docs.forEach(d => {
-            if (d.data().ownerId) {
-              listingMap.set(d.data().ownerId, { id: d.id, ...d.data() });
+          let lsnap = await getDocs(query(collection(db, 'listings'), ...lqConstraints));
+          if (lsnap.docs.length === 0 && targetCity) {
+            // Fallback unconstrained listing query across all cities
+            lsnap = await getDocs(query(collection(db, 'listings'), where('status', '==', 'active')));
+          }
+
+          const existingOwnerIds = new Set(candidates.map(c => c.uid));
+
+          for (const d of lsnap.docs) {
+            const ldata = { id: d.id, ...d.data() } as any;
+            const ownerId = ldata.ownerId;
+            if (!ownerId) continue;
+
+            listingMap.set(ownerId, ldata);
+
+            // If this owner is not already in candidates array, fetch or generate their profile
+            if (!existingOwnerIds.has(ownerId)) {
+              existingOwnerIds.add(ownerId);
+              try {
+                const ownerSnap = await getDoc(doc(db, 'users', ownerId));
+                if (ownerSnap.exists()) {
+                  candidates.push({ uid: ownerSnap.id, ...ownerSnap.data() } as UserProfile);
+                } else {
+                  // Construct synthetic owner profile from listing metadata
+                  candidates.push({
+                    uid: ownerId,
+                    name: ldata.ownerName || 'Property Owner',
+                    avatar: ldata.ownerAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${ownerId}`,
+                    role: 'owner',
+                    city: ldata.city,
+                    locality: ldata.locality,
+                    localities: [ldata.locality],
+                    budget: ldata.partnerShare || ldata.totalRent || 10000,
+                    bio: ldata.description || 'Property owner offering rooms.',
+                    onboardingComplete: true,
+                  } as UserProfile);
+                }
+              } catch (err) {
+                console.warn('Failed to fetch owner profile for listing:', ownerId, err);
+              }
             }
-          });
+          }
         } catch (err) {
-          console.error('Failed to pre-fetch listings for candidates:', err);
+          console.warn('Listing pre-fetch failed:', err);
         }
       }
 
