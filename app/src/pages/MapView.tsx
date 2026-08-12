@@ -359,8 +359,6 @@ export default function MapView() {
     return arr;
   }, [visibleItems, sortBy, searchCenter, profile]);
 
-  const handleBoundsChange = useCallback((b: L.LatLngBounds) => { boundsRef.current = b; }, []);
-
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
@@ -692,7 +690,6 @@ export default function MapView() {
           dragging={true}
           doubleClickZoom={true}
           bounceAtZoomLimits={true}
-          tap={false}
           className="w-full h-full"
           zoomControl={false}
         >
