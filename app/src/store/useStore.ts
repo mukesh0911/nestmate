@@ -41,8 +41,8 @@ interface AppState {
 
 const initialFilters = {
   city: '',
-  budgetMin: 1000,
-  budgetMax: 25000,
+  budgetMin: 0,
+  budgetMax: 100000,
   localities: [],
   gender: 'any',
   verifiedOnly: false,

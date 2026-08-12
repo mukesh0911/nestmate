@@ -209,6 +209,10 @@ export function useMatches() {
         });
       }
 
+      if (scored.length === 0 && targetCity && !isLoadMore) {
+        return findMatches(currentUser, '', filters ? { ...filters, city: '' } : undefined, false);
+      }
+
       // Sort by Premium, Verified, then compatibility
       return scored.sort((a, b) => {
         const aPrem = a.profile.isPremium ? 1 : 0;
