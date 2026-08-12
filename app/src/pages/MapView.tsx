@@ -206,7 +206,7 @@ export default function MapView() {
   const [mobileListView, setMobileListView] = useState(false);
   const [sortBy, setSortBy] = useState<'match' | 'distance' | 'newest'>('match');
   const boundsRef = useRef<L.LatLngBounds | null>(null);
-  const mapMountedRef = useRef(false);
+  const [boundsKey, setBoundsKey] = useState(0); // increments when map viewport changes, triggers visibleItems recompute
 
   // Source label from caller (e.g. "Matches Near You")
   const sourceLabel = incomingState?.sourceLabel;
@@ -295,7 +295,18 @@ export default function MapView() {
   // original MapView behavior and ensures authenticated users see role-filtered data.
 
   // Filter items within viewport and legend filter
-  // BUG FIX: use filtered result for BOTH sidebar list AND map markers
+  const handleBoundsChange = useCallback((b: L.LatLngBounds) => {
+    boundsRef.current = b;
+    setBoundsKey(k => k + 1); // trigger visibleItems recompute
+  }, []);
+
+  // visibleItems: applies legend filter then viewport clip.
+  // legendFilter values:
+  //   'all'         — show everything currently loaded (people OR rooms depending on mode)
+  //   'rooms'       — keep only MapRoom items
+  //   'seekers'     — keep only MapPerson items
+  //   'high_compat' — keep only MapPerson items with compatibility >= 80
+  // boundsKey dep ensures this recomputes when the map viewport moves.
   const visibleItems = useMemo(() => {
     let filtered = items;
     if (legendFilter === 'high_compat') {
@@ -305,10 +316,14 @@ export default function MapView() {
     } else if (legendFilter === 'rooms') {
       filtered = filtered.filter(i => i.type === 'room');
     }
+    // Viewport clip: only show items inside current map bounds
     if (!boundsRef.current) return filtered;
     const b = boundsRef.current;
-    return filtered.filter(i => i.lat >= b.getSouth() && i.lat <= b.getNorth() && i.lng >= b.getWest() && i.lng <= b.getEast());
-  }, [items, boundsRef.current, legendFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+    return filtered.filter(i =>
+      i.lat >= b.getSouth() && i.lat <= b.getNorth() &&
+      i.lng >= b.getWest() && i.lng <= b.getEast()
+    );
+  }, [items, legendFilter, boundsKey]); // boundsKey (not boundsRef.current) is the correct dep/exhaustive-deps
 
   // Sort sidebar items
   const sortedItems = useMemo(() => {
@@ -523,15 +538,15 @@ export default function MapView() {
               )}
             </div>
             <div className="space-y-1">
-              {/* Rooms */}
+              {/* Rooms available — pure filter on current items, no re-fetch */}
               <button
                 onClick={() => {
-                  if (mode !== 'rooms') setMode('rooms');
-                  setLegendFilter(legendFilter === 'rooms' ? 'all' : 'rooms');
-                  toast.info(legendFilter === 'rooms' ? 'Showing all markers' : 'Filtering: Rooms');
+                  const next = legendFilter === 'rooms' ? 'all' : 'rooms';
+                  setLegendFilter(next);
+                  toast.info(next === 'all' ? 'Showing all markers' : 'Showing: Rooms only');
                 }}
                 className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left transition-all ${
-                  legendFilter === 'rooms' || (mode === 'rooms' && legendFilter === 'all')
+                  legendFilter === 'rooms'
                     ? 'bg-fire/10 text-fire font-bold ring-1 ring-fire/30'
                     : 'hover:bg-cream/60 text-ink/80'
                 }`}
@@ -540,18 +555,18 @@ export default function MapView() {
                   <div className="w-3 h-3 rounded-full bg-fire border border-white shadow-sm shrink-0" />
                   <span className="text-[11px] truncate">Rooms available</span>
                 </div>
-                {(legendFilter === 'rooms' || mode === 'rooms') && <span className="text-[10px] font-bold text-fire">✓</span>}
+                {legendFilter === 'rooms' && <span className="text-[10px] font-bold text-fire">✓</span>}
               </button>
 
-              {/* Seekers */}
+              {/* Seekers looking — pure filter on current items, no re-fetch */}
               <button
                 onClick={() => {
-                  if (mode !== 'people') setMode('people');
-                  setLegendFilter(legendFilter === 'seekers' ? 'all' : 'seekers');
-                  toast.info(legendFilter === 'seekers' ? 'Showing all markers' : 'Filtering: Seekers');
+                  const next = legendFilter === 'seekers' ? 'all' : 'seekers';
+                  setLegendFilter(next);
+                  toast.info(next === 'all' ? 'Showing all markers' : 'Showing: Seekers only');
                 }}
                 className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left transition-all ${
-                  legendFilter === 'seekers' || (mode === 'people' && legendFilter === 'all')
+                  legendFilter === 'seekers'
                     ? 'bg-navy/10 text-navy font-bold ring-1 ring-navy/30'
                     : 'hover:bg-cream/60 text-ink/80'
                 }`}
@@ -560,15 +575,15 @@ export default function MapView() {
                   <div className="w-3 h-3 rounded-full bg-[#1E3A5F] border border-white shadow-sm shrink-0" />
                   <span className="text-[11px] truncate">Seekers looking</span>
                 </div>
-                {(legendFilter === 'seekers' || (mode === 'people' && legendFilter === 'all')) && <span className="text-[10px] font-bold text-navy">✓</span>}
+                {legendFilter === 'seekers' && <span className="text-[10px] font-bold text-navy">✓</span>}
               </button>
 
-              {/* High compatibility */}
+              {/* High compatibility — pure filter on current people items, no re-fetch */}
               <button
                 onClick={() => {
-                  if (mode !== 'people') setMode('people');
-                  setLegendFilter(legendFilter === 'high_compat' ? 'all' : 'high_compat');
-                  toast.info(legendFilter === 'high_compat' ? 'Showing all markers' : 'Filtering: High Compatibility (80%+)');
+                  const next = legendFilter === 'high_compat' ? 'all' : 'high_compat';
+                  setLegendFilter(next);
+                  toast.info(next === 'all' ? 'Showing all markers' : 'Showing: High compatibility (80%+)');
                 }}
                 className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left transition-all ${
                   legendFilter === 'high_compat'
