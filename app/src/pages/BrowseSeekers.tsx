@@ -176,6 +176,21 @@ export default function BrowseSeekers() {
 
         let fetched = Array.from(profileMap.values());
 
+        // Sort candidates based on current user role:
+        // Seekers prioritize Room Owners & listings; Owners prioritize Room Seekers
+        const isOwnerRole = currentUser?.role === 'owner';
+        fetched.sort((a, b) => {
+          if (isOwnerRole) {
+            const aIsSeeker = a.role === 'seeker' ? 1 : 0;
+            const bIsSeeker = b.role === 'seeker' ? 1 : 0;
+            return bIsSeeker - aIsSeeker;
+          } else {
+            const aIsOwner = a.role === 'owner' ? 1 : 0;
+            const bIsOwner = b.role === 'owner' ? 1 : 0;
+            return bIsOwner - aIsOwner;
+          }
+        });
+
         let filtered = searchCity
           ? fetched.filter(r => r.city?.toLowerCase().includes(searchCity.toLowerCase()))
           : fetched;
@@ -191,7 +206,7 @@ export default function BrowseSeekers() {
             : 85,
         }));
 
-        setSeekers(scored.sort((a, b) => b.score - a.score));
+        setSeekers(scored);
       } catch (err) {
         console.error('Failed to fetch flatmates', err);
       } finally {
@@ -235,14 +250,20 @@ export default function BrowseSeekers() {
     }
   };
 
+  const isOwner = currentUser?.role === 'owner';
+  const pageTitle = isOwner ? 'Find Room Seekers' : 'Find Flatmates & Rooms';
+  const pageSubtitle = isOwner
+    ? 'Browse verified seekers looking for accommodation'
+    : 'Explore verified room owners and flatmates with available rooms';
+
   return (
     <div className="min-h-screen bg-parchment pb-4 overflow-x-hidden">
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-md sticky top-[60px] z-30 border-b border-border px-4 py-4">
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-display italic">Find Flatmates</h1>
-            <p className="text-sm text-ink/60">Browse verified flatmates looking for rooms</p>
+            <h1 className="text-2xl font-display italic">{pageTitle}</h1>
+            <p className="text-sm text-ink/60">{pageSubtitle}</p>
           </div>
           <div className="relative w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
@@ -260,12 +281,12 @@ export default function BrowseSeekers() {
 
       <div className="max-w-4xl mx-auto px-4 py-6">
         {loading ? (
-          <StateLoading label="Finding flatmates..." />
+          <StateLoading label={isOwner ? "Finding room seekers..." : "Finding flatmates & room owners..."} />
         ) : seekers.length === 0 ? (
           <StateEmpty
             icon={Users}
-            title="No flatmates found"
-            description="We couldn't find flatmates matching this exact search filter. Try searching another city."
+            title={isOwner ? "No room seekers found" : "No flatmates or room owners found"}
+            description="We couldn't find results matching this exact search filter. Try searching another city."
             className="bg-cream/30 rounded-2xl border border-dashed border-border"
           />
         ) : (
