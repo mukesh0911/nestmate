@@ -144,8 +144,8 @@ export default function BrowseSeekers() {
       <div className="bg-white/80 backdrop-blur-md sticky top-[60px] z-30 border-b border-border px-4 py-4">
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-display italic">Browse Seekers</h1>
-            <p className="text-sm text-ink/60">Find potential roommates</p>
+            <h1 className="text-2xl font-display italic">Find Flatmates</h1>
+            <p className="text-sm text-ink/60">Browse verified flatmates looking for rooms</p>
           </div>
           <div className="relative w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
