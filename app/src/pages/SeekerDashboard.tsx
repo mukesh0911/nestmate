@@ -71,6 +71,11 @@ export default function SeekerDashboard() {
   const [compatModal, setCompatModal] = useState<MatchedUser | null>(null);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks whether we've already applied the profile's default city once on mount.
+  // Without this guard, the effect re-fires every time the user selects "All Cities"
+  // (which sets filters.city = ""), immediately overwriting their selection back to
+  // the profile city (e.g. Chennai). The flag ensures it only runs on first load.
+  const cityInitializedRef = useRef(false);
 
   // Report & Block State
   const [reportingUser, setReportingUser] = useState<MatchedUser | null>(null);
@@ -118,12 +123,19 @@ export default function SeekerDashboard() {
     }
   };
 
-  // Auto-set city filter on mount
+  // Auto-set city filter on mount — runs only ONCE per profile load.
+  // Using a ref guard prevents this from re-firing when the user explicitly
+  // selects "All Cities" (which sets filters.city to ""), which previously
+  // caused Chennai to be immediately re-applied, breaking the All Cities filter.
   useEffect(() => {
-    if (profile?.city && !filters.city) {
-      updateFilters({ city: profile.city });
+    if (profile?.city && !cityInitializedRef.current) {
+      cityInitializedRef.current = true;
+      // Only set the default city if no city is currently selected
+      if (!filters.city) {
+        updateFilters({ city: profile.city });
+      }
     }
-  }, [profile?.city, filters.city, updateFilters]);
+  }, [profile?.city]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load matches
   useEffect(() => {
@@ -272,7 +284,7 @@ export default function SeekerDashboard() {
         }
       }
     }, 5500);
-  }, [user?.uid, profile, filters.city, addSkippedUser, findMatches, refreshProfile]);
+  }, [user?.uid, profile, filters, addSkippedUser, findMatches, refreshProfile]);
 
   // Full connection state machine with 4 states
   const getConnectState = useCallback(
