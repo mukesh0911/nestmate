@@ -35,27 +35,9 @@ export default function BrowseDashboard() {
   // Owners default to "seekers" tab, seekers default to "rooms" tab
   const [activeTab, setActiveTab] = useState<'seekers' | 'rooms'>(() => (isOwner ? 'seekers' : 'rooms'));
 
-  useEffect(() => {
-    if (isOwner && activeTab !== 'seekers') {
-      setActiveTab('seekers');
-    }
-    if (!isOwner && activeTab !== 'rooms') {
-      setActiveTab('rooms');
-    }
-  }, [isOwner, activeTab]);
-
-  if (activeTab === 'rooms') {
-    return (
-      <div>
-        {isOwner && <TabSwitcher active={activeTab} onChange={setActiveTab} />}
-        <BrowseRooms />
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col min-h-screen">
-      {isOwner && <TabSwitcher active={activeTab} onChange={setActiveTab} />}
+      <TabSwitcher active={activeTab} onChange={setActiveTab} isOwner={isOwner} />
       <div className="flex-1">
         {activeTab === 'seekers' ? <SeekersView /> : <BrowseRooms />}
       </div>
@@ -63,32 +45,32 @@ export default function BrowseDashboard() {
   );
 }
 
-/* ── Tab Switcher (only for owners) ── */
-function TabSwitcher({ active, onChange }: { active: 'seekers' | 'rooms'; onChange: (t: 'seekers' | 'rooms') => void }) {
+/* ── Tab Switcher (for both seekers and owners) ── */
+function TabSwitcher({ active, onChange, isOwner }: { active: 'seekers' | 'rooms'; onChange: (t: 'seekers' | 'rooms') => void; isOwner: boolean }) {
   return (
     <div className="bg-white/90 backdrop-blur-md sticky top-[60px] z-40 border-b border-border py-3 px-4 sm:px-6">
       <div className="max-w-md mx-auto flex p-1 bg-cream/80 rounded-[14px] border border-border shadow-sm">
         <button
-          onClick={() => onChange('seekers')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold transition-all ${
-            active === 'seekers'
-              ? 'bg-white text-fire shadow-sm ring-1 ring-border'
-              : 'text-ink/60 hover:text-ink hover:bg-white/40'
-          }`}
-        >
-          <Users className="w-4 h-4 hidden sm:block" />
-          <span className="whitespace-nowrap">Find Seekers</span>
-        </button>
-        <button
           onClick={() => onChange('rooms')}
           className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold transition-all ${
             active === 'rooms'
-              ? 'bg-white text-fire shadow-sm ring-1 ring-border'
+              ? 'bg-white text-fire shadow-sm ring-1 ring-border font-bold'
               : 'text-ink/60 hover:text-ink hover:bg-white/40'
           }`}
         >
           <Building2 className="w-4 h-4 hidden sm:block" />
-          <span className="whitespace-nowrap">Browse Rooms</span>
+          <span className="whitespace-nowrap">Find Rooms</span>
+        </button>
+        <button
+          onClick={() => onChange('seekers')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold transition-all ${
+            active === 'seekers'
+              ? 'bg-white text-fire shadow-sm ring-1 ring-border font-bold'
+              : 'text-ink/60 hover:text-ink hover:bg-white/40'
+          }`}
+        >
+          <Users className="w-4 h-4 hidden sm:block" />
+          <span className="whitespace-nowrap">{isOwner ? 'Find Seekers' : 'Find Flatmates'}</span>
         </button>
       </div>
     </div>
@@ -211,9 +193,12 @@ function SeekersView() {
     let list = [...allSeekers];
 
     if (filterCity) {
-      list = list.filter(s =>
+      const cityMatches = list.filter(s =>
         s.profile.city?.toLowerCase() === filterCity.toLowerCase()
       );
+      if (cityMatches.length > 0) {
+        list = cityMatches;
+      }
     }
 
     if (searchQuery) {
