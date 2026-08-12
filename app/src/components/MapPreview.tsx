@@ -8,6 +8,7 @@ import type { MatchedUser } from '@/hooks/useMatches';
 import type { UserProfile } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { MapItem } from '@/pages/MapView';
+import { resolveEntityCoordinates } from '@/lib/locationResolver';
 
 // Helper to handle dynamic container resizing for Leaflet maps
 function LeafletResizeHandler() {
@@ -54,7 +55,13 @@ function toLatLng(location: { lat: number; lng: number } | { lat: number; lng: n
 export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
   const navigate = useNavigate();
   const { geocodeAndSave, isGeocoding } = useGeocoding();
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(toLatLng(currentUser.geoLocation));
+  const initialResolvedUser = resolveEntityCoordinates({
+    uid: currentUser.uid,
+    geoLocation: currentUser.geoLocation,
+    city: currentUser.city,
+    locality: currentUser.locality || currentUser.localities?.[0],
+  });
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(initialResolvedUser);
   const [matchLocations, setMatchLocations] = useState<Record<string, { lat: number; lng: number }>>({});
   const [isIntersecting, setIsIntersecting] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -151,7 +158,15 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
     );
   }
 
-  const activeMatches = topMatches.slice(0, 5).filter(m => matchLocations[m.profile.uid!] || m.profile.geoLocation);
+  const activeMatches = topMatches.slice(0, 5).map(m => {
+    const loc = matchLocations[m.profile.uid!] || resolveEntityCoordinates({
+      uid: m.profile.uid,
+      geoLocation: m.profile.geoLocation,
+      city: m.profile.city,
+      locality: m.profile.locality || m.profile.localities?.[0],
+    });
+    return loc ? { match: m, loc } : null;
+  }).filter(Boolean) as { match: MatchedUser; loc: { lat: number; lng: number } }[];
 
   return (
     <div ref={containerRef} className="card-nestmate p-6 mt-5 mb-5 bg-white rounded-[22px]">
@@ -165,9 +180,7 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
             onClick={() => {
               // Build normalized MapItem[] for MapView — passes current match dataset so /map shows exactly these users
               const mapItems: MapItem[] = activeMatches
-                .map(match => {
-                  const loc = matchLocations[match.profile.uid!] || match.profile.geoLocation;
-                  if (!loc) return null;
+                .map(({ match, loc }) => {
                   return {
                     type: 'person' as const,
                     uid: match.profile.uid!,
@@ -180,8 +193,7 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
                     lng: loc.lng,
                     city: match.profile.city || '',
                   };
-                })
-                .filter(Boolean) as MapItem[];
+                });
               navigate('/map', {
                 state: {
                   mode: 'people',
@@ -201,9 +213,7 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
       {isMobile ? (
         <>
           <div className="flex overflow-x-auto gap-4 pb-4 scrollbar-hide snap-x -mx-6 px-6">
-            {activeMatches.map(match => {
-              const loc = matchLocations[match.profile.uid!] || match.profile.geoLocation;
-              if (!loc) return null;
+            {activeMatches.map(({ match, loc }) => {
               return (
                 <div key={match.profile.uid} className="snap-center shrink-0 w-[280px] bg-parchment rounded-[16px] overflow-hidden border border-border">
                   <div className="h-[180px] bg-ink/5 relative pointer-events-none">
@@ -242,9 +252,7 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
           <button
             onClick={() => {
               const mapItems: MapItem[] = activeMatches
-                .map(match => {
-                  const loc = matchLocations[match.profile.uid!] || match.profile.geoLocation;
-                  if (!loc) return null;
+                .map(({ match, loc }) => {
                   return {
                     type: 'person' as const,
                     uid: match.profile.uid!,
@@ -257,8 +265,7 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
                     lng: loc.lng,
                     city: match.profile.city || '',
                   };
-                })
-                .filter(Boolean) as MapItem[];
+                });
               navigate('/map', {
                 state: {
                   mode: 'people',
@@ -301,10 +308,8 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
             </CircleMarker>
 
             {/* Match Pins */}
-            {activeMatches.map(match => {
+            {activeMatches.map(({ match, loc }) => {
               const p = match.profile;
-              const loc = matchLocations[p.uid!] || p.geoLocation;
-              if (!loc) return null;
 
               const fillColor = match.compatibilityScore >= 80 
                 ? '#0D9488' // teal

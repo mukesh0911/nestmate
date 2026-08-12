@@ -21,6 +21,7 @@ import StateEmpty from '@/components/StateEmpty';
 // Fix leaflet icons
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
+import { resolveEntityCoordinates, isValidCoord } from '@/lib/locationResolver';
 L.Icon.Default.mergeOptions({ iconUrl, shadowUrl });
 
 export interface MapPerson {
@@ -60,14 +61,8 @@ export interface MapViewState {
   sourceLabel?: string; // e.g. "Matches Near You", "Browse Rooms"
 }
 
-// Validate a coordinate pair
-function isValidCoord(lat: unknown, lng: unknown): boolean {
-  if (typeof lat !== 'number' || typeof lng !== 'number') return false;
-  if (isNaN(lat) || isNaN(lng)) return false;
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return false;
-  if (lat === 0 && lng === 0) return false; // null island
-  return true;
-}
+// Validate a coordinate pair (re-exported from locationResolver)
+export { isValidCoord };
 
 // Helper to calculate distance in km
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -229,16 +224,28 @@ export default function MapView() {
       snap.docs.forEach(d => {
         const data = d.data() as UserProfile;
         if (user?.uid && d.id === user.uid) return;
-        const lat = data.geoLocation?.lat ?? (data as any).lat;
-        const lng = data.geoLocation?.lng ?? (data as any).lng;
-        if (!isValidCoord(lat, lng)) return;
+        
+        // Resolve coordinates from geoLocation, lat/lng, or city/locality fallback
+        const coords = resolveEntityCoordinates({
+          id: d.id,
+          uid: d.id,
+          geoLocation: data.geoLocation,
+          lat: (data as any).lat,
+          lng: (data as any).lng,
+          city: data.city,
+          locality: data.locality,
+          localities: data.localities,
+        });
+
+        if (!coords || !isValidCoord(coords.lat, coords.lng)) return;
+
         const compat = profile?.quizAnswers
           ? calculateCompatibility(profile.quizAnswers, data.quizAnswers || {})
           : 85;
         people.push({
           type: 'person', uid: d.id, name: data.name || 'User', avatar: data.avatar || '',
           profession: data.profession || '', role: data.role, compatibility: compat,
-          lat, lng, city: data.city || '',
+          lat: coords.lat, lng: coords.lng, city: data.city || '',
         });
       });
       setItems(people);
@@ -256,14 +263,25 @@ export default function MapView() {
     setItems([]);
     try {
       const results = await getListings();
-      const rooms: MapRoom[] = results
-        .filter(l => isValidCoord(l.lat, l.lng))
-        .map(l => ({
+      const rooms: MapRoom[] = [];
+      results.forEach(l => {
+        const coords = resolveEntityCoordinates({
+          id: l.id,
+          lat: l.lat,
+          lng: l.lng,
+          city: l.city,
+          locality: l.locality,
+        });
+
+        if (!coords || !isValidCoord(coords.lat, coords.lng)) return;
+
+        rooms.push({
           type: 'room', id: l.id, title: l.title || `${l.locality}, ${l.city}`, locality: l.locality, city: l.city,
           rent: l.partnerShare || l.totalRent, image: l.images?.[0] || '',
           ownerId: l.ownerId, ownerName: l.ownerName || 'Owner',
-          lat: l.lat, lng: l.lng,
-        }));
+          lat: coords.lat, lng: coords.lng,
+        });
+      });
       setItems(rooms);
     } catch (e) {
       console.error('MapView fetchRooms error:', e);
@@ -707,11 +725,31 @@ export default function MapView() {
             </>
           )}
 
-          {/* User's own location pin */}
-          {profile?.geoLocation && isValidCoord(profile.geoLocation.lat, profile.geoLocation.lng) && (
-            <CircleMarker center={[profile.geoLocation.lat, profile.geoLocation.lng]} radius={10}
-              pathOptions={{ color: 'white', weight: 3, fillColor: '#121217', fillOpacity: 1 }} />
-          )}
+          {/* User's own location pin with clear styling and popup */}
+          {(() => {
+            const userCoords = profile ? resolveEntityCoordinates({
+              uid: profile.uid,
+              geoLocation: profile.geoLocation,
+              city: profile.city,
+              locality: profile.localities?.[0] || profile.locality,
+            }) : null;
+
+            if (!userCoords || !isValidCoord(userCoords.lat, userCoords.lng)) return null;
+
+            return (
+              <CircleMarker
+                center={[userCoords.lat, userCoords.lng]}
+                radius={10}
+                pathOptions={{ color: '#E5501A', weight: 3, fillColor: '#1E3A5F', fillOpacity: 1 }}
+              >
+                <Popup className="match-popup">
+                  <div className="p-1 text-center font-bold text-xs">
+                    📍 Your Location ({profile?.city || 'Current User'})
+                  </div>
+                </Popup>
+              </CircleMarker>
+            );
+          })()}
 
           {/* BUG FIX: Render visibleItems (respects legend filter) — NOT items (which ignores filter) */}
           {visibleItems.map(item => {

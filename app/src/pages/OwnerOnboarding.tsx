@@ -6,6 +6,7 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { useListings } from '@/hooks/useListings';
 import { useStore } from '@/store/useStore';
 import { useStorage } from '@/hooks/useStorage';
+import { resolveEntityCoordinates } from '@/lib/locationResolver';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
@@ -181,6 +182,12 @@ export default function OwnerOnboarding() {
       const total = parseInt(totalRent || '0');
       const share = Math.round(total / (partnersNeeded + 1));
 
+      const resolvedGeo = resolveEntityCoordinates({
+        uid: user.uid,
+        city,
+        locality,
+      });
+
       await updateProfile(user.uid, {
         role: 'owner',
         name: name.trim(),
@@ -194,7 +201,8 @@ export default function OwnerOnboarding() {
         budget: share,
         moveInDate: availableFrom,
         onboardingComplete: true,
-        ...(avatarUrl && { avatar: avatarUrl })
+        ...(avatarUrl && { avatar: avatarUrl }),
+        ...(resolvedGeo && { geoLocation: { lat: resolvedGeo.lat, lng: resolvedGeo.lng, formattedAddress: `${locality}, ${city}` } }),
       });
 
       // Check if owner already has a listing for this locality and flatType
@@ -202,6 +210,11 @@ export default function OwnerOnboarding() {
       const matchingListing = existingListings.find(
         l => l.locality.toLowerCase().trim() === locality.toLowerCase().trim() && l.flatType === flatType
       );
+
+      const listingCoords = resolveEntityCoordinates({
+        city,
+        locality,
+      }) || { lat: 13.0827, lng: 80.2707 };
 
       let listingId = '';
       const listingData = {
@@ -221,8 +234,8 @@ export default function OwnerOnboarding() {
         amenities,
         houseRules: [...selectedRules, ...customRules],
         availableFrom,
-        lat: 0,
-        lng: 0,
+        lat: listingCoords.lat,
+        lng: listingCoords.lng,
         status: 'active' as const,
       };
 

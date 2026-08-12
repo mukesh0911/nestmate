@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { quizQuestions, cities, localitiesByCity, professions } from '@/lib/staticData';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { calculateCompatibility } from '@/hooks/useMatches';
+import { resolveEntityCoordinates } from '@/lib/locationResolver';
 import { useStorage } from '@/hooks/useStorage';
 import { useMatches } from '@/hooks/useMatches';
 import {
@@ -125,6 +127,13 @@ export default function SeekerOnboarding() {
     setSaving(true);
     setError('');
     try {
+      const resolvedGeo = resolveEntityCoordinates({
+        uid: user.uid,
+        city,
+        locality: localities?.[0],
+        localities,
+      });
+
       await updateProfile(user.uid, {
         name: name.trim(),
         age: parseInt(age),
@@ -137,6 +146,7 @@ export default function SeekerOnboarding() {
         quizAnswers,
         onboardingComplete: true,
         role: 'seeker',
+        ...(resolvedGeo && { geoLocation: { lat: resolvedGeo.lat, lng: resolvedGeo.lng, formattedAddress: `${localities?.[0] || city}, ${city}` } }),
       });
 
       if (avatarFile) {
