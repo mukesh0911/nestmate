@@ -48,7 +48,7 @@ export default function BrowseSeekers() {
   }, [user?.uid]);
 
   useEffect(() => {
-    async function fetchSeekers() {
+    async function fetchFlatmates() {
       setLoading(true);
       try {
         let fetched: UserProfile[] = [];
@@ -60,12 +60,9 @@ export default function BrowseSeekers() {
           const snap = await getDocs(q);
           fetched = snap.docs
             .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
-            .filter(u => {
-              const r = (u.role || '').toLowerCase();
-              return r === 'seeker' && u.uid !== user?.uid && !currentUser?.blockedUserIds?.includes(u.uid || '');
-            });
+            .filter(u => u.uid !== user?.uid && !currentUser?.blockedUserIds?.includes(u.uid || ''));
         } catch (err) {
-          console.warn('Firestore seekers query error:', err);
+          console.warn('Firestore users query error:', err);
         }
 
         if (fetched.length === 0) {
@@ -73,18 +70,19 @@ export default function BrowseSeekers() {
             const rawSnap = await getDocs(collection(db, 'users'));
             fetched = rawSnap.docs
               .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
-              .filter(u => {
-                const r = (u.role || '').toLowerCase();
-                return r === 'seeker' && u.uid !== user?.uid && !currentUser?.blockedUserIds?.includes(u.uid || '');
-              });
+              .filter(u => u.uid !== user?.uid && !currentUser?.blockedUserIds?.includes(u.uid || ''));
           } catch (err) {
-            console.error('Fallback seekers fetch error:', err);
+            console.error('Fallback users fetch error:', err);
           }
         }
 
-        const filtered = searchCity
+        let filtered = searchCity
           ? fetched.filter(r => r.city?.toLowerCase().includes(searchCity.toLowerCase()))
           : fetched;
+
+        if (filtered.length === 0 && searchCity) {
+          filtered = fetched;
+        }
 
         const scored = filtered.map(u => ({
           profile: u,
@@ -95,13 +93,13 @@ export default function BrowseSeekers() {
 
         setSeekers(scored.sort((a, b) => b.score - a.score));
       } catch (err) {
-        console.error('Failed to fetch seekers', err);
+        console.error('Failed to fetch flatmates', err);
         setSeekers([]);
       } finally {
         setLoading(false);
       }
     }
-    fetchSeekers();
+    fetchFlatmates();
   }, [currentUser?.uid, searchCity, user?.uid]);
 
   const handleConnect = async (seekerId: string) => {
@@ -163,12 +161,12 @@ export default function BrowseSeekers() {
 
       <div className="max-w-4xl mx-auto px-4 py-6">
         {loading ? (
-          <StateLoading label="Finding seekers..." />
+          <StateLoading label="Finding flatmates..." />
         ) : seekers.length === 0 ? (
           <StateEmpty
             icon={Users}
-            title="No seekers found"
-            description="Try changing your city filter"
+            title="No flatmates found"
+            description="We couldn't find flatmates matching this exact search filter. Try searching another city."
             className="bg-cream/30 rounded-2xl border border-dashed border-border"
           />
         ) : (
@@ -195,8 +193,17 @@ export default function BrowseSeekers() {
                   <div className="pt-12 px-4 pb-4 flex-1 flex flex-col">
                     <h3 className="font-semibold text-lg">{profile.name}, {profile.age}</h3>
                     <div className="flex flex-col gap-1 mt-2 mb-4 flex-1">
-                      <div className="flex items-center gap-1.5 text-xs text-ink/60">
-                        <MapPin className="w-3.5 h-3.5" /> {profile.city || 'Any City'}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs text-ink/60">
+                          <MapPin className="w-3.5 h-3.5 text-fire" /> {profile.city || 'Any City'}
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                          profile.role === 'owner'
+                            ? 'bg-teal-50 text-teal-700 border border-teal-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          {profile.role === 'owner' ? 'Room Owner' : 'Flat Seeker'}
+                        </span>
                       </div>
                       {profile.profession && (
                         <div className="flex items-center gap-1.5 text-xs text-ink/60">
