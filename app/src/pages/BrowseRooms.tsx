@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { MapItem } from '@/pages/MapView';
 import { useStore } from '@/store/useStore';
 import { useListings } from '@/hooks/useListings';
 import { useAuth } from '@/hooks/useAuth';
@@ -332,7 +333,31 @@ export default function BrowseRooms() {
       <div className="fixed bottom-above-nav md:bottom-6 left-1/2 -translate-x-1/2 z-40 px-4">
         <button
           type="button"
-          onClick={() => navigate('/map')}
+          onClick={() => {
+            // Build normalized MapRoom[] from current filtered results
+            const mapItems: MapItem[] = filtered
+              .filter(l => typeof l.lat === 'number' && typeof l.lng === 'number' && !isNaN(l.lat) && !isNaN(l.lng) && l.lat !== 0 && l.lng !== 0)
+              .map(l => ({
+                type: 'room' as const,
+                id: l.id,
+                title: l.title || `${l.locality}, ${l.city}`,
+                locality: l.locality,
+                city: l.city,
+                rent: l.partnerShare || l.totalRent,
+                image: l.images?.[0] || '',
+                ownerId: l.ownerId,
+                ownerName: l.ownerName || 'Owner',
+                lat: l.lat,
+                lng: l.lng,
+              }));
+            navigate('/map', {
+              state: {
+                mode: 'rooms',
+                items: mapItems,
+                sourceLabel: filters.city ? `Rooms in ${filters.city}` : 'Browse Rooms',
+              },
+            });
+          }}
           aria-label="Show map"
           className="bg-ink hover:bg-ink/90 text-white rounded-full py-3.5 px-6 min-h-[48px] shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2.5 text-xs font-bold tracking-wide"
         >

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Tooltip, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useNavigate } from 'react-router-dom';
@@ -7,6 +7,7 @@ import { useGeocoding } from '@/hooks/useGeocoding';
 import type { MatchedUser } from '@/hooks/useMatches';
 import type { UserProfile } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/use-mobile';
+import type { MapItem } from '@/pages/MapView';
 
 // Helper to handle dynamic container resizing for Leaflet maps
 function LeafletResizeHandler() {
@@ -160,7 +161,38 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
           <h2 className="text-xl font-bold">Matches Near You</h2>
         </div>
         {!isMobile && (
-          <button onClick={() => navigate('/map')} className="text-sm font-semibold text-fire border border-fire px-4 py-2 rounded-xl hover:bg-fire/5 transition-colors shrink-0">
+          <button
+            onClick={() => {
+              // Build normalized MapItem[] for MapView — passes current match dataset so /map shows exactly these users
+              const mapItems: MapItem[] = activeMatches
+                .map(match => {
+                  const loc = matchLocations[match.profile.uid!] || match.profile.geoLocation;
+                  if (!loc) return null;
+                  return {
+                    type: 'person' as const,
+                    uid: match.profile.uid!,
+                    name: match.profile.name || 'User',
+                    avatar: match.profile.avatar || '',
+                    profession: match.profile.profession || '',
+                    role: match.profile.role,
+                    compatibility: match.compatibilityScore,
+                    lat: loc.lat,
+                    lng: loc.lng,
+                    city: match.profile.city || '',
+                  };
+                })
+                .filter(Boolean) as MapItem[];
+              navigate('/map', {
+                state: {
+                  mode: 'people',
+                  items: mapItems,
+                  initialCenter: userLocation ? [userLocation.lat, userLocation.lng] as [number, number] : undefined,
+                  sourceLabel: 'Matches Near You',
+                },
+              });
+            }}
+            className="text-sm font-semibold text-fire border border-fire px-4 py-2 rounded-xl hover:bg-fire/5 transition-colors shrink-0"
+          >
             View Full Map &rarr;
           </button>
         )}
@@ -207,7 +239,37 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
                </div>
             )}
           </div>
-          <button onClick={() => navigate('/map')} className="mt-4 w-full text-sm font-semibold text-fire border border-fire px-4 py-3 rounded-xl hover:bg-fire/5 transition-colors">
+          <button
+            onClick={() => {
+              const mapItems: MapItem[] = activeMatches
+                .map(match => {
+                  const loc = matchLocations[match.profile.uid!] || match.profile.geoLocation;
+                  if (!loc) return null;
+                  return {
+                    type: 'person' as const,
+                    uid: match.profile.uid!,
+                    name: match.profile.name || 'User',
+                    avatar: match.profile.avatar || '',
+                    profession: match.profile.profession || '',
+                    role: match.profile.role,
+                    compatibility: match.compatibilityScore,
+                    lat: loc.lat,
+                    lng: loc.lng,
+                    city: match.profile.city || '',
+                  };
+                })
+                .filter(Boolean) as MapItem[];
+              navigate('/map', {
+                state: {
+                  mode: 'people',
+                  items: mapItems,
+                  initialCenter: userLocation ? [userLocation.lat, userLocation.lng] as [number, number] : undefined,
+                  sourceLabel: 'Matches Near You',
+                },
+              });
+            }}
+            className="mt-4 w-full text-sm font-semibold text-fire border border-fire px-4 py-3 rounded-xl hover:bg-fire/5 transition-colors"
+          >
             View Full Map &rarr;
           </button>
         </>

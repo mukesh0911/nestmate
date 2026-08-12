@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, CircleMarker, Popup, Circle, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,7 +23,7 @@ import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 L.Icon.Default.mergeOptions({ iconUrl, shadowUrl });
 
-interface MapPerson {
+export interface MapPerson {
   type: 'person';
   uid: string;
   name: string;
@@ -36,7 +36,7 @@ interface MapPerson {
   city: string;
 }
 
-interface MapRoom {
+export interface MapRoom {
   type: 'room';
   id: string;
   title: string;
@@ -50,7 +50,24 @@ interface MapRoom {
   lng: number;
 }
 
-type MapItem = MapPerson | MapRoom;
+export type MapItem = MapPerson | MapRoom;
+
+/** Location state that callers pass via navigate('/map', { state }) */
+export interface MapViewState {
+  mode?: 'people' | 'rooms';
+  items?: MapItem[];
+  initialCenter?: [number, number];
+  sourceLabel?: string; // e.g. "Matches Near You", "Browse Rooms"
+}
+
+// Validate a coordinate pair
+function isValidCoord(lat: unknown, lng: unknown): boolean {
+  if (typeof lat !== 'number' || typeof lng !== 'number') return false;
+  if (isNaN(lat) || isNaN(lng)) return false;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return false;
+  if (lat === 0 && lng === 0) return false; // null island
+  return true;
+}
 
 // Helper to calculate distance in km
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -61,10 +78,52 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Map panner component
-function MapPanner({ center, zoom }: { center: [number, number]; zoom: number }) {
+// Fit map to an array of items after they load
+function FitBoundsOnLoad({ items, initialCenter }: { items: MapItem[]; initialCenter?: [number, number] | null }) {
   const map = useMap();
-  useEffect(() => { map.flyTo(center, zoom, { duration: 1 }); }, [center, zoom, map]);
+  const fittedRef = useRef(false);
+
+  useEffect(() => {
+    if (fittedRef.current) return;
+
+    const validItems = items.filter(i => isValidCoord(i.lat, i.lng));
+
+    if (validItems.length === 0) {
+      // If caller provided a specific center, use it; otherwise don't move
+      if (initialCenter && isValidCoord(initialCenter[0], initialCenter[1])) {
+        map.setView(initialCenter, 12, { animate: false });
+        fittedRef.current = true;
+      }
+      return;
+    }
+
+    if (validItems.length === 1) {
+      map.setView([validItems[0].lat, validItems[0].lng], 14, { animate: false });
+      fittedRef.current = true;
+      return;
+    }
+
+    const latlngs = validItems.map(i => [i.lat, i.lng] as [number, number]);
+    const bounds = L.latLngBounds(latlngs);
+    try {
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14, animate: false });
+    } catch {
+      // fitBounds can fail if bounds are degenerate — fall back to first item
+      map.setView([validItems[0].lat, validItems[0].lng], 12, { animate: false });
+    }
+    fittedRef.current = true;
+  }, [items, initialCenter, map]);
+
+  return null;
+}
+
+// Map panner component (for user-driven panning, not initial fit)
+function MapPanner({ center, zoom }: { center: [number, number] | null; zoom: number }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!center || !isValidCoord(center[0], center[1])) return;
+    map.flyTo(center, zoom, { duration: 1 });
+  }, [center, zoom, map]);
   return null;
 }
 
@@ -78,17 +137,14 @@ function ViewportTracker({ onBoundsChange }: { onBoundsChange: (b: L.LatLngBound
   return null;
 }
 
-// Leaflet resize invalidator helper for dynamic mobile layouts & window resizes
+// Leaflet resize invalidator — fixes mobile grey area and orientation changes
 function LeafletResizeHandler() {
   const map = useMap();
 
   useEffect(() => {
     if (!map) return;
 
-    const invalidate = () => {
-      map.invalidateSize();
-    };
-
+    const invalidate = () => { map.invalidateSize(); };
     invalidate();
 
     const timers = [
@@ -101,9 +157,7 @@ function LeafletResizeHandler() {
     const container = map.getContainer();
     let observer: ResizeObserver | null = null;
     if (container && typeof ResizeObserver !== 'undefined') {
-      observer = new ResizeObserver(() => {
-        invalidate();
-      });
+      observer = new ResizeObserver(() => { invalidate(); });
       observer.observe(container);
     }
 
@@ -123,42 +177,44 @@ function LeafletResizeHandler() {
 
 export default function MapView() {
   const navigate = useNavigate();
+  const routerLocation = useLocation();
   const { profile, user } = useAuth();
   const { getListings } = useListings();
   const { geocode } = useGeocoding();
   const isMobile = useIsMobile();
 
-  const [mode, setMode] = useState<'people' | 'rooms'>('people');
-  const [items, setItems] = useState<MapItem[]>([]);
+  // Read caller-provided context from location.state
+  const incomingState = routerLocation.state as MapViewState | null;
+  const hasIncomingItems = !!incomingState?.items && incomingState.items.length >= 0;
+
+  const [mode, setMode] = useState<'people' | 'rooms'>(incomingState?.mode || 'people');
+  const [items, setItems] = useState<MapItem[]>(
+    // If caller passed items, use them immediately — skip Firestore fetch
+    hasIncomingItems ? (incomingState!.items!.filter(i => isValidCoord(i.lat, i.lng))) : []
+  );
   const [selectedItem, setSelectedItem] = useState<MapItem | null>(null);
   const [legendFilter, setLegendFilter] = useState<'all' | 'rooms' | 'seekers' | 'high_compat'>('all');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!hasIncomingItems);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchCenter, setSearchCenter] = useState<[number, number] | null>(null);
-  const [mapCenter, setMapCenter] = useState<[number, number]>([19.076, 72.8777]);
-  const [mapZoom, setMapZoom] = useState(12);
-  const [mapStyle, setMapStyle] = useState<'roadmap' | 'satellite' | 'terrain'>('roadmap');
+  // panTarget is only set when user explicitly clicks an item or searches; not on initial load
+  const [panTarget, setPanTarget] = useState<{ center: [number, number]; zoom: number } | null>(null);
+  const [mapStyle, setMapStyle] = useState<'roadmap' | 'satellite'>('roadmap');
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [mobileListView, setMobileListView] = useState(false);
   const [sortBy, setSortBy] = useState<'match' | 'distance' | 'newest'>('match');
   const boundsRef = useRef<L.LatLngBounds | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mapMountedRef = useRef(false);
 
-  // Center map on user location on mount
-  useEffect(() => {
-    if (profile?.geoLocation) {
-      setMapCenter([profile.geoLocation.lat, profile.geoLocation.lng]);
-    } else if (profile?.city) {
-      geocode(profile.city, profile.localities?.[0]).then(loc => {
-        if (loc) setMapCenter([loc.lat, loc.lng]);
-      });
-    }
-  }, [profile]);
+  // Source label from caller (e.g. "Matches Near You")
+  const sourceLabel = incomingState?.sourceLabel;
+  const initialCenter = incomingState?.initialCenter ?? null;
 
-  // Fetch people data (works for both logged-in and guest users)
+  // Fetch people data when NOT pre-loaded from caller
   const fetchPeople = useCallback(async () => {
+    if (hasIncomingItems) return; // caller already provided data
     setLoading(true);
     try {
       let q;
@@ -173,9 +229,9 @@ export default function MapView() {
       snap.docs.forEach(d => {
         const data = d.data() as UserProfile;
         if (user?.uid && d.id === user.uid) return;
-        const lat = data.geoLocation?.lat || (data as any).lat;
-        const lng = data.geoLocation?.lng || (data as any).lng;
-        if (!lat || !lng) return;
+        const lat = data.geoLocation?.lat ?? (data as any).lat;
+        const lng = data.geoLocation?.lng ?? (data as any).lng;
+        if (!isValidCoord(lat, lng)) return; // strict validation — never place an invalid marker
         const compat = profile?.quizAnswers
           ? calculateCompatibility(profile.quizAnswers, data.quizAnswers || {})
           : 85;
@@ -188,34 +244,47 @@ export default function MapView() {
       setItems(people);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [user?.uid, profile]);
+  }, [user?.uid, profile, hasIncomingItems]);
 
-  // Fetch rooms data
+  // Fetch rooms data when NOT pre-loaded from caller
   const fetchRooms = useCallback(async () => {
+    if (hasIncomingItems) return;
     setLoading(true);
     try {
       const results = await getListings();
-      const rooms: MapRoom[] = results.filter(l => l.lat && l.lng).map(l => ({
-        type: 'room', id: l.id, title: l.title, locality: l.locality, city: l.city,
-        rent: l.partnerShare || l.totalRent, image: l.images?.[0] || '',
-        ownerId: l.ownerId, ownerName: l.ownerName || 'Owner',
-        lat: l.lat, lng: l.lng,
-      }));
+      const rooms: MapRoom[] = results
+        .filter(l => isValidCoord(l.lat, l.lng)) // strict validation
+        .map(l => ({
+          type: 'room', id: l.id, title: l.title || `${l.locality}, ${l.city}`, locality: l.locality, city: l.city,
+          rent: l.partnerShare || l.totalRent, image: l.images?.[0] || '',
+          ownerId: l.ownerId, ownerName: l.ownerName || 'Owner',
+          lat: l.lat, lng: l.lng,
+        }));
       setItems(rooms);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [getListings]);
+  }, [getListings, hasIncomingItems]);
 
+  // When mode changes AND we're in self-fetch mode, reload
   useEffect(() => {
+    if (hasIncomingItems) return; // don't override caller data on mount
     setSelectedItem(null);
-    if (mode === 'people') {
-      fetchPeople();
-      return;
-    }
-    fetchRooms();
-  }, [mode, fetchPeople, fetchRooms]);
+    if (mode === 'people') fetchPeople();
+    else fetchRooms();
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // If mode changes after initial load (user taps toggle), fetch from Firestore regardless of incoming state
+  const handleModeChange = (newMode: 'people' | 'rooms') => {
+    if (newMode === mode) return;
+    setMode(newMode);
+    setItems([]); // clear items immediately so FitBoundsOnLoad fires again
+    setSelectedItem(null);
+    setLoading(true);
+    // fetchPeople/fetchRooms will trigger via the useEffect above
+  };
 
   // Filter items within viewport and legend filter
+  // BUG FIX: use filtered result for BOTH sidebar list AND map markers
   const visibleItems = useMemo(() => {
     let filtered = items;
     if (legendFilter === 'high_compat') {
@@ -228,7 +297,7 @@ export default function MapView() {
     if (!boundsRef.current) return filtered;
     const b = boundsRef.current;
     return filtered.filter(i => i.lat >= b.getSouth() && i.lat <= b.getNorth() && i.lng >= b.getWest() && i.lng <= b.getEast());
-  }, [items, boundsRef.current, legendFilter]);
+  }, [items, boundsRef.current, legendFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sort sidebar items
   const sortedItems = useMemo(() => {
@@ -255,8 +324,7 @@ export default function MapView() {
       const loc = await geocode(searchQuery.trim());
       if (loc) {
         setSearchCenter([loc.lat, loc.lng]);
-        setMapCenter([loc.lat, loc.lng]);
-        setMapZoom(14);
+        setPanTarget({ center: [loc.lat, loc.lng], zoom: 14 });
       } else { toast.error('Location not found'); }
     } catch { toast.error('Search failed'); }
     finally { setSearching(false); }
@@ -265,15 +333,18 @@ export default function MapView() {
   const handleLocateMe = () => {
     if (!navigator.geolocation) { toast.error('Geolocation not supported'); return; }
     navigator.geolocation.getCurrentPosition(
-      pos => { setMapCenter([pos.coords.latitude, pos.coords.longitude]); setMapZoom(14); setSearchCenter([pos.coords.latitude, pos.coords.longitude]); },
+      pos => {
+        const c: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+        setPanTarget({ center: c, zoom: 14 });
+        setSearchCenter(c);
+      },
       () => toast.error('Location access denied')
     );
   };
 
   const panToItem = (item: MapItem) => {
     setSelectedItem(item);
-    setMapCenter([item.lat, item.lng]);
-    setMapZoom(15);
+    setPanTarget({ center: [item.lat, item.lng], zoom: 15 });
     if (isMobile) setMobileListView(false);
   };
 
@@ -320,7 +391,9 @@ export default function MapView() {
     return (
       <div className="min-h-screen bg-parchment pt-[60px]">
         <div className="sticky top-[60px] z-20 bg-white border-b border-border p-3 flex items-center justify-between">
-          <h2 className="font-semibold text-sm">{mode === 'people' ? 'People Near You' : 'Rooms Near You'} · {sortedItems.length}</h2>
+          <h2 className="font-semibold text-sm">
+            {sourceLabel || (mode === 'people' ? 'People Near You' : 'Rooms Near You')} · {sortedItems.length}
+          </h2>
           <button onClick={() => setMobileListView(false)} className="flex items-center gap-1 text-xs font-bold text-fire"><MapIcon className="w-4 h-4" /> Map</button>
         </div>
         <div className="p-3 space-y-1">
@@ -329,7 +402,7 @@ export default function MapView() {
              <StateEmpty
                compact
                icon={MapPin}
-               title={`No ${mode} in this area`}
+               title={`No ${mode} with valid locations`}
                description="Try another location or switch mode"
              />
            ) :
@@ -346,7 +419,14 @@ export default function MapView() {
         <div className="w-[320px] bg-white border-r border-border flex flex-col shrink-0 z-10">
           <div className="p-4 border-b border-border">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="font-display italic text-lg">{mode === 'people' ? 'People Near You' : 'Rooms Near You'}</h2>
+              <div>
+                <h2 className="font-display italic text-lg">
+                  {sourceLabel || (mode === 'people' ? 'People Near You' : 'Rooms Near You')}
+                </h2>
+                {sourceLabel && (
+                  <p className="text-[10px] text-ink/40 mt-0.5">Showing results from {sourceLabel}</p>
+                )}
+              </div>
               <span className="text-xs font-bold text-ink/40">{sortedItems.length} found</span>
             </div>
             <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)} className="w-full bg-cream/50 border border-border rounded-lg px-3 py-1.5 text-xs outline-none focus:border-fire">
@@ -358,12 +438,14 @@ export default function MapView() {
           <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
             {loading ? Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 skeleton-shimmer rounded-xl" />) :
              sortedItems.length === 0 ? (
-              <StateEmpty
-                compact
-                icon={MapPin}
-                title={`No ${mode} in this area`}
-                description="Try expanding your search radius"
-              />
+              <div className="p-4">
+                <StateEmpty
+                  compact
+                  icon={MapPin}
+                  title={`No ${mode} with location data`}
+                  description="Try the search bar to explore a specific area"
+                />
+              </div>
              ) : sortedItems.map(item => <SidebarCard key={item.type === 'person' ? item.uid : item.id} item={item} />)}
           </div>
         </div>
@@ -373,10 +455,10 @@ export default function MapView() {
       <div className="flex-1 relative z-0 w-full h-full min-w-0">
         {/* Top Controls */}
         <div className="absolute top-2.5 left-2.5 right-2.5 sm:top-4 sm:left-4 sm:right-4 z-[1000] flex flex-wrap sm:flex-nowrap items-center justify-between gap-1.5 sm:gap-2 pointer-events-none">
-          {/* Toggle */}
+          {/* Mode Toggle */}
           <div className="bg-white rounded-full shadow-lg p-0.5 sm:p-1 flex pointer-events-auto border border-border shrink-0">
-            <button onClick={() => setMode('people')} className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${mode === 'people' ? 'bg-fire text-white shadow-sm' : 'text-ink/60 hover:text-ink'}`}><Users className="w-3.5 h-3.5" /> People</button>
-            <button onClick={() => setMode('rooms')} className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${mode === 'rooms' ? 'bg-fire text-white shadow-sm' : 'text-ink/60 hover:text-ink'}`}><Home className="w-3.5 h-3.5" /> Rooms</button>
+            <button onClick={() => handleModeChange('people')} className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${mode === 'people' ? 'bg-fire text-white shadow-sm' : 'text-ink/60 hover:text-ink'}`}><Users className="w-3.5 h-3.5" /> People</button>
+            <button onClick={() => handleModeChange('rooms')} className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${mode === 'rooms' ? 'bg-fire text-white shadow-sm' : 'text-ink/60 hover:text-ink'}`}><Home className="w-3.5 h-3.5" /> Rooms</button>
           </div>
 
           {/* Search */}
@@ -395,16 +477,15 @@ export default function MapView() {
             </div>
           )}
 
-          {/* Map Layer Switcher (Google Roadmap vs Google Satellite) */}
+          {/* Map Layer Switcher */}
           <div className="bg-white rounded-full shadow-lg p-0.5 sm:p-1 flex pointer-events-auto border border-border shrink-0">
             <button
               onClick={() => setMapStyle(mapStyle === 'satellite' ? 'roadmap' : 'satellite')}
               className={`px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${
                 mapStyle === 'satellite' ? 'bg-navy text-white shadow-sm' : 'text-ink/70 hover:text-ink'
               }`}
-              title="Toggle Google Maps Satellite View"
             >
-              {mapStyle === 'satellite' ? '🗺️ Google Map' : '🛰️ Satellite'}
+              {mapStyle === 'satellite' ? '🗺️ Map' : '🛰️ Satellite'}
             </button>
           </div>
 
@@ -431,12 +512,12 @@ export default function MapView() {
               )}
             </div>
             <div className="space-y-1">
-              {/* Rooms available */}
+              {/* Rooms */}
               <button
                 onClick={() => {
-                  if (mode !== 'rooms') setMode('rooms');
+                  if (mode !== 'rooms') handleModeChange('rooms');
                   setLegendFilter(legendFilter === 'rooms' ? 'all' : 'rooms');
-                  toast.info(legendFilter === 'rooms' ? 'Showing all map markers' : 'Filtering: Rooms Available');
+                  toast.info(legendFilter === 'rooms' ? 'Showing all markers' : 'Filtering: Rooms');
                 }}
                 className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left transition-all ${
                   legendFilter === 'rooms' || (mode === 'rooms' && legendFilter === 'all')
@@ -451,12 +532,12 @@ export default function MapView() {
                 {(legendFilter === 'rooms' || mode === 'rooms') && <span className="text-[10px] font-bold text-fire">✓</span>}
               </button>
 
-              {/* Seekers looking */}
+              {/* Seekers */}
               <button
                 onClick={() => {
-                  if (mode !== 'people') setMode('people');
+                  if (mode !== 'people') handleModeChange('people');
                   setLegendFilter(legendFilter === 'seekers' ? 'all' : 'seekers');
-                  toast.info(legendFilter === 'seekers' ? 'Showing all map markers' : 'Filtering: Seekers Looking');
+                  toast.info(legendFilter === 'seekers' ? 'Showing all markers' : 'Filtering: Seekers');
                 }}
                 className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left transition-all ${
                   legendFilter === 'seekers' || (mode === 'people' && legendFilter === 'all')
@@ -474,9 +555,9 @@ export default function MapView() {
               {/* High compatibility */}
               <button
                 onClick={() => {
-                  if (mode !== 'people') setMode('people');
+                  if (mode !== 'people') handleModeChange('people');
                   setLegendFilter(legendFilter === 'high_compat' ? 'all' : 'high_compat');
-                  toast.info(legendFilter === 'high_compat' ? 'Showing all map markers' : 'Filtering: High Compatibility (80%+)');
+                  toast.info(legendFilter === 'high_compat' ? 'Showing all markers' : 'Filtering: High Compatibility (80%+)');
                 }}
                 className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left transition-all ${
                   legendFilter === 'high_compat'
@@ -486,7 +567,7 @@ export default function MapView() {
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-3 h-3 rounded-full bg-teal border border-white shadow-sm shrink-0" />
-                  <span className="text-[11px] truncate">High compatibility (80%+)</span>
+                  <span className="text-[11px] truncate">High compat (80%+)</span>
                 </div>
                 {legendFilter === 'high_compat' && <span className="text-[10px] font-bold text-teal">✓</span>}
               </button>
@@ -495,7 +576,6 @@ export default function MapView() {
               <button
                 onClick={() => handleLocateMe()}
                 className="w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left hover:bg-cream/60 transition-all text-ink/80"
-                title="Click to center map on your location"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-3 h-3 rounded-full bg-ink border-2 border-white shadow-sm shrink-0" />
@@ -507,7 +587,7 @@ export default function MapView() {
           </div>
         )}
 
-        {/* Mobile bottom list toggle button */}
+        {/* Mobile bottom list toggle */}
         {isMobile && !selectedItem && (
           <div className="absolute bottom-4 right-3 z-[900]">
             <button onClick={() => setMobileListView(true)} className="bg-white rounded-full shadow-lg px-4 py-2.5 flex items-center gap-2 border border-border text-xs font-bold text-ink/70 hover:text-fire transition-colors">
@@ -541,7 +621,10 @@ export default function MapView() {
               <button onClick={() => setSelectedItem(null)} className="p-1 text-ink/40 hover:text-ink rounded-full shrink-0"><X className="w-4 h-4" /></button>
             </div>
             <div className="flex items-center gap-2 pt-1 border-t border-border/60">
-              <button onClick={() => navigate(selectedItem.type === 'person' ? `/match/${selectedItem.uid}` : `/room/${selectedItem.id}`)} className="w-full py-2 bg-fire text-white rounded-xl text-xs font-bold shadow-xs hover:bg-fire-dark transition-all text-center">
+              <button
+                onClick={() => navigate(selectedItem.type === 'person' ? `/match/${selectedItem.uid}` : `/room/${selectedItem.id}`)}
+                className="w-full py-2 bg-fire text-white rounded-xl text-xs font-bold shadow-xs hover:bg-fire-dark transition-all text-center"
+              >
                 View {selectedItem.type === 'person' ? 'Profile' : 'Room Listing'} →
               </button>
             </div>
@@ -552,14 +635,14 @@ export default function MapView() {
         {loading && (
           <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1000] bg-white/90 backdrop-blur rounded-full shadow-lg px-4 py-2 flex items-center gap-2 border border-border">
             <Loader2 className="w-4 h-4 animate-spin text-fire" />
-            <span className="text-xs font-medium text-ink/60">Loading...</span>
+            <span className="text-xs font-medium text-ink/60">Loading map data...</span>
           </div>
         )}
 
-        {/* THE MAP (Google Maps Tiles via Leaflet) */}
+        {/* THE MAP */}
         <MapContainer
-          center={mapCenter}
-          zoom={mapZoom}
+          center={[20.5937, 78.9629]} // India center — immediately replaced by FitBoundsOnLoad
+          zoom={5}
           scrollWheelZoom={true}
           touchZoom={true}
           dragging={true}
@@ -581,10 +664,16 @@ export default function MapView() {
             subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
             maxZoom={20}
           />
-          <MapPanner center={mapCenter} zoom={mapZoom} />
+
+          {/* FIT BOUNDS — fires once when items load, auto-centers map on real data */}
+          <FitBoundsOnLoad items={items} initialCenter={initialCenter} />
+
+          {/* User-driven panning (search / item click) */}
+          {panTarget && <MapPanner center={panTarget.center} zoom={panTarget.zoom} />}
+
           <ViewportTracker onBoundsChange={handleBoundsChange} />
 
-          {/* Distance rings */}
+          {/* Distance rings around search center */}
           {searchCenter && (
             <>
               <Circle center={searchCenter} radius={2000} pathOptions={{ color: '#E5501A', weight: 1, dashArray: '6 4', fillColor: '#E5501A', fillOpacity: 0.04 }} />
@@ -592,14 +681,14 @@ export default function MapView() {
             </>
           )}
 
-          {/* User location pin */}
-          {profile?.geoLocation && (
+          {/* User's own location pin */}
+          {profile?.geoLocation && isValidCoord(profile.geoLocation.lat, profile.geoLocation.lng) && (
             <CircleMarker center={[profile.geoLocation.lat, profile.geoLocation.lng]} radius={10}
               pathOptions={{ color: 'white', weight: 3, fillColor: '#121217', fillOpacity: 1 }} />
           )}
 
-          {/* Item pins */}
-          {items.map(item => {
+          {/* BUG FIX: Render visibleItems (respects legend filter) — NOT items (which ignores filter) */}
+          {visibleItems.map(item => {
             const key = item.type === 'person' ? item.uid : item.id;
             const color = getPinColor(item);
             const isSelected = selectedItem && (selectedItem.type === 'person' ? selectedItem.uid : selectedItem.id) === key;
@@ -617,7 +706,7 @@ export default function MapView() {
                 eventHandlers={{
                   click: () => {
                     setSelectedItem(item);
-                    setMapCenter([item.lat, item.lng]);
+                    setPanTarget({ center: [item.lat, item.lng], zoom: 15 });
                   }
                 }}
               >
@@ -642,8 +731,13 @@ export default function MapView() {
                     <div className="flex items-center justify-between">
                       {item.type === 'person' ? <span className="badge-teal text-[10px]">{item.compatibility}% match</span> :
                        <span className="text-xs font-bold text-fire">₹{item.rent?.toLocaleString()}/mo</span>}
-                      <button onClick={() => navigate(item.type === 'person' ? `/match/${item.uid}` : `/room/${item.id}`)}
-                        className="text-xs text-fire font-medium hover:underline">View →</button>
+                      {/* Marker → entity navigation uses canonical uid / listing id */}
+                      <button
+                        onClick={() => navigate(item.type === 'person' ? `/match/${item.uid}` : `/room/${item.id}`)}
+                        className="text-xs text-fire font-medium hover:underline"
+                      >
+                        View →
+                      </button>
                     </div>
                   </div>
                 </Popup>
