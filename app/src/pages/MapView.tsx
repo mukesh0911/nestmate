@@ -240,7 +240,7 @@ export default function MapView() {
         if (!coords || !isValidCoord(coords.lat, coords.lng)) return;
 
         const compat = profile?.quizAnswers
-          ? calculateCompatibility(profile.quizAnswers, data.quizAnswers || {})
+          ? calculateCompatibility(profile.quizAnswers, data.quizAnswers || {}, profile.city, data.city)
           : 85;
         people.push({
           type: 'person', uid: d.id, name: data.name || 'User', avatar: data.avatar || '',

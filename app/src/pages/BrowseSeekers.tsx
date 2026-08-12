@@ -74,7 +74,7 @@ export default function BrowseSeekers() {
         const scored = filtered.map(u => ({
           profile: u,
           score: currentUser?.quizAnswers
-            ? calculateCompatibility(currentUser.quizAnswers, u.quizAnswers || {})
+            ? calculateCompatibility(currentUser.quizAnswers, u.quizAnswers || {}, currentUser.city, u.city)
             : 0,
         }));
 

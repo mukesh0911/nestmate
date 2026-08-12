@@ -415,7 +415,7 @@ export default function SeekerDashboard() {
 
   // Compatibility modal breakdown
   const getCompatBreakdown = (match: MatchedUser) => {
-    const lifestyle = calculateCompatibility(profile?.quizAnswers || {}, match.profile.quizAnswers || {});
+    const lifestyle = calculateCompatibility(profile?.quizAnswers || {}, match.profile.quizAnswers || {}, profile?.city, match.profile.city);
     const myBudget = profile?.budget || 0;
     const theirBudget = match.profile.budget || 0;
     const budgetMatch = myBudget && theirBudget

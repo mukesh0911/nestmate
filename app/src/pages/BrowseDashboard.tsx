@@ -167,7 +167,7 @@ function SeekersView() {
 
         const scored: SeekerWithScore[] = results.map(u => ({
           profile: u,
-          score: calculateCompatibility(viewerProfile.quizAnswers || {}, u.quizAnswers || {}),
+          score: calculateCompatibility(viewerProfile.quizAnswers || {}, u.quizAnswers || {}, viewerProfile.city, u.city),
         }));
 
         setAllSeekers(scored);

@@ -8,11 +8,14 @@
  */
 export function calculateCompatibility(
   answersA: Record<string, string> = {},
-  answersB: Record<string, string> = {}
+  answersB: Record<string, string> = {},
+  cityA?: string,
+  cityB?: string
 ): number {
   const keysA = Object.keys(answersA || {});
   const keysB = Object.keys(answersB || {});
 
+  let score = 0;
   const commonKeys = keysA.filter((k) => keysB.includes(k));
 
   if (commonKeys.length > 0) {
@@ -28,21 +31,32 @@ export function calculateCompatibility(
         totalSimilarity += 1.0;
       }
     });
-    return Math.round((totalSimilarity / commonKeys.length) * 100);
+    score = Math.round((totalSimilarity / commonKeys.length) * 100);
+  } else {
+    const unionKeys = Array.from(new Set([...keysA, ...keysB]));
+    if (unionKeys.length > 0) {
+      let matches = 0;
+      unionKeys.forEach((k) => {
+        if (answersA[k] && answersB[k] && answersA[k] === answersB[k]) {
+          matches += 1;
+        }
+      });
+      score = Math.round((matches / unionKeys.length) * 100);
+    }
   }
 
-  const unionKeys = Array.from(new Set([...keysA, ...keysB]));
-  if (unionKeys.length > 0) {
-    let matches = 0;
-    unionKeys.forEach((k) => {
-      if (answersA[k] && answersB[k] && answersA[k] === answersB[k]) {
-        matches += 1;
-      }
-    });
-    return Math.round((matches / unionKeys.length) * 100);
+  // City Mismatch Adjustment:
+  // If both cities are specified and they do NOT match (e.g. Chennai vs Hyderabad),
+  // cap cross-city compatibility at 60% so users in Chennai are never misled by a 100% score for a Hyderabad profile.
+  if (cityA && cityB) {
+    const normA = cityA.toLowerCase().trim();
+    const normB = cityB.toLowerCase().trim();
+    if (normA && normB && normA !== normB) {
+      score = Math.min(60, Math.round(score * 0.6));
+    }
   }
 
-  return 0;
+  return score;
 }
 
 /**

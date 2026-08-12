@@ -64,7 +64,8 @@ export interface ListingFilters {
 function applyClientFilters(results: Listing[], filters?: ListingFilters): Listing[] {
   if (!filters) return results;
   if (filters.city) {
-    results = results.filter(l => l.city?.toLowerCase().includes(filters.city!.toLowerCase()));
+    const target = filters.city.toLowerCase().trim();
+    results = results.filter(l => (l.city || '').toLowerCase().trim() === target || (l.city || '').toLowerCase().includes(target));
   }
   if (filters.budgetMin !== undefined) {
     results = results.filter(l => (l.partnerShare || l.totalRent || 0) >= (filters.budgetMin ?? 0));
@@ -103,9 +104,13 @@ export function useListings() {
         let ownersMap = new Map<string, any>();
         if (ownerIds.length > 0) {
           try {
-            const ownersSnap = await getDocs(query(collection(db, 'users'), where('uid', 'in', ownerIds)));
-            ownersSnap.docs.forEach(d => {
-              ownersMap.set(d.id, d.data());
+            const ownerSnaps = await Promise.all(
+              ownerIds.map(id => getDoc(doc(db, 'users', id)))
+            );
+            ownerSnaps.forEach(d => {
+              if (d.exists()) {
+                ownersMap.set(d.id, d.data());
+              }
             });
           } catch (err) {
             console.error('Failed to pre-fetch owners profile details for listings:', err);
@@ -138,7 +143,7 @@ export function useListings() {
         const constraints: any[] = [
           where('status', '==', 'active'),
           orderBy('createdAt', 'desc'),
-          limit(PAGE_SIZE),
+          limit(100),
         ];
 
         if (filters?.city) {
@@ -146,7 +151,7 @@ export function useListings() {
             where('status', '==', 'active'),
             where('city', '==', filters.city),
             orderBy('createdAt', 'desc'),
-            limit(PAGE_SIZE),
+            limit(100),
           ];
           if (!reset && lastDocRef.current) {
             newConstraints.push(startAfter(lastDocRef.current));
@@ -154,7 +159,7 @@ export function useListings() {
           const q = query(collection(db, 'listings'), ...newConstraints);
           const snap = await getDocs(q);
           lastDocRef.current = snap.docs[snap.docs.length - 1] || null;
-          setHasMore(snap.docs.length === PAGE_SIZE);
+          setHasMore(snap.docs.length === 100);
           fetchedResults = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Listing));
         } else {
           if (!reset && lastDocRef.current) {
@@ -163,11 +168,23 @@ export function useListings() {
           const q = query(collection(db, 'listings'), ...constraints);
           const snap = await getDocs(q);
           lastDocRef.current = snap.docs[snap.docs.length - 1] || null;
-          setHasMore(snap.docs.length === PAGE_SIZE);
+          setHasMore(snap.docs.length === 100);
           fetchedResults = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Listing));
         }
       } catch (e) {
-        console.warn('Firestore listings fetch warning:', e);
+        console.warn('Firestore constrained listings fetch failed, executing fallback all-listings query:', e);
+      }
+
+      // Robust fallback query if constrained query returned no results or failed
+      if (fetchedResults.length === 0) {
+        try {
+          const rawSnap = await getDocs(collection(db, 'listings'));
+          fetchedResults = rawSnap.docs
+            .map((d) => ({ id: d.id, ...d.data() } as Listing))
+            .filter((l) => l.status === 'active' || !l.status);
+        } catch (err) {
+          console.error('Fallback listings query failed:', err);
+        }
       }
 
 

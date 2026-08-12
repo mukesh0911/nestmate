@@ -130,7 +130,9 @@ export function useMatches() {
           listingId: listingData?.id,
           compatibilityScore: calculateCompatibility(
             currentUser.quizAnswers || {},
-            u.quizAnswers || {}
+            u.quizAnswers || {},
+            currentUser.city,
+            listingData?.city || u.city
           ),
         };
       });
