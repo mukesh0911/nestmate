@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Heart, MessageCircle, ShieldCheck, Check, AlertCircle, 
-  Star, Loader2, Home as HomeIcon, MoreVertical, Flag, Ban, MapPin, 
+  Star, Loader2, Home as HomeIcon, MoreVertical, Flag, Ban, MapPin, X,
   Moon, Sun, Utensils, Wind, Wine, Users, Sparkles, Briefcase, Dog, User, 
   CheckCircle2, Linkedin, Instagram, Calendar, Shield, ExternalLink,
   MessageSquare, CheckCircle, HelpCircle, UserCheck
@@ -857,7 +857,7 @@ export default function MatchDetail() {
           <MessageCircle className="w-4.5 h-4.5" />
           {connectState === 'pending_sent' ? 'Request Sent' :
            connectState === 'pending_received' ? 'Accept Request' :
-           connectState === 'chat' ? 'Chat Now' : 'Connect & Chat'}
+           connectState === 'connected' ? 'Chat Now' : 'Connect & Chat'}
         </button>
       </div>
 

@@ -151,17 +151,6 @@ export function useAuth() {
             await persistPublicUser(firebaseUser.uid, newProfile as unknown as Record<string, unknown>, { phone, email });
             setProfile(await hydrateOwnProfile({ ...newProfile, uid: firebaseUser.uid, phone, email }));
           }
-            try {
-              await persistPublicUser(
-                firebaseUser.uid,
-                fallbackProfile as unknown as Record<string, unknown>,
-                { phone, email }
-              );
-            } catch (e) {
-              console.warn('Failed to save default fallback profile:', e);
-            }
-            setProfile(await hydrateOwnProfile({ ...fallbackProfile, phone, email }));
-          }
         } catch (err: any) {
           console.error('Unable to read user profile during auth load:', err);
           setError('Unable to load profile data. Please refresh or contact support.');
@@ -492,7 +481,7 @@ export function useAuth() {
    * Google Sign-in flow
    * Continues seamlessly, creates profile if new.
    */
-  const signInWithGoogle = useCallback(async (): Promise<{ isNew: boolean; role?: string | null }> => {
+  const signInWithGoogle = useCallback(async (): Promise<{ isNew: boolean; role?: string | null; onboardingComplete?: boolean }> => {
     setError(null);
     try {
       const provider = new GoogleAuthProvider();
@@ -550,29 +539,6 @@ export function useAuth() {
         setProfile(await hydrateOwnProfile({ ...existingProfile, uid: firebaseUser.uid }));
         setUser(firebaseUser);
         return { isNew: false, role: existingProfile.role || null, onboardingComplete: !!existingProfile.onboardingComplete };
-      }
-
-        if (firebaseUser.displayName && firebaseUser.displayName !== existingProfile.name) {
-          profileUpdates.name = firebaseUser.displayName;
-        }
-        if (firebaseUser.photoURL && firebaseUser.photoURL !== existingProfile.avatar) {
-          profileUpdates.avatar = firebaseUser.photoURL;
-        }
-
-        await persistPublicUser(
-          firebaseUser.uid,
-          { ...existingProfile, ...profileUpdates } as unknown as Record<string, unknown>,
-          firebaseUser.email ? { email: firebaseUser.email } : undefined
-        );
-
-        const merged = await hydrateOwnProfile({
-          ...existingProfile,
-          ...profileUpdates,
-          uid: firebaseUser.uid,
-        });
-        setProfile(merged);
-        setUser(firebaseUser);
-        return { isNew: false, role: merged.role };
       }
     } catch (err: any) {
       let msg = err.message || 'Google Sign-in failed';

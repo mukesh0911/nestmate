@@ -116,66 +116,92 @@ function SeekersView() {
   const [filterVerifiedOnly, setFilterVerifiedOnly] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>('match');
 
-  // Fetch ALL seekers once — all filtering happens client-side
+  // Fetch ALL people matching targetRole (owners see seekers, seekers see owners)
   useEffect(() => {
     if (!currentUser?.uid) return;
     const viewerProfile = currentUser;
+    const isOwnerRole = viewerProfile.role === 'owner';
+    const targetRole = isOwnerRole ? 'seeker' : 'owner';
 
     if (!filterCity && viewerProfile.city) {
       setFilterCity(viewerProfile.city);
     }
 
     let cancelled = false;
-    async function fetchAllSeekers() {
+    async function fetchAllPeople() {
       setLoading(true);
       setError(null);
-        let results: UserProfile[] = [];
-        try {
-          const q = query(
-            collection(db, 'users'),
-            limit(200)
-          );
-          const snap = await getDocs(q);
-          if (cancelled) return;
-          results = snap.docs
-            .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
-            .filter(u => {
-              const r = (u.role || '').toLowerCase();
-              return r === 'seeker' && u.uid !== user?.uid && !viewerProfile.blockedUserIds?.includes(u.uid || '');
-            });
-        } catch (err) {
-          console.warn('Firestore seekers query error:', err);
-        }
+      const profileMap = new Map<string, UserProfile>();
 
-        if (results.length === 0 && !cancelled) {
-          try {
-            const rawSnap = await getDocs(collection(db, 'users'));
-            results = rawSnap.docs
-              .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
-              .filter(u => {
-                const r = (u.role || '').toLowerCase();
-                return r === 'seeker' && u.uid !== user?.uid && !viewerProfile.blockedUserIds?.includes(u.uid || '');
-              });
-          } catch (err) {
-            console.error('Fallback seekers fetch error:', err);
+      try {
+        const q = query(
+          collection(db, 'users'),
+          limit(200)
+        );
+        const snap = await getDocs(q);
+        if (cancelled) return;
+        snap.docs.forEach(d => {
+          const u = { uid: d.id, ...d.data() } as UserProfile;
+          const r = (u.role || '').toLowerCase();
+          if (r === targetRole && u.uid !== user?.uid && !viewerProfile.blockedUserIds?.includes(u.uid || '')) {
+            profileMap.set(u.uid, u);
           }
+        });
+      } catch (err) {
+        console.warn('Firestore users query error:', err);
+      }
+
+      // If looking for owners, also check listings collection for room owners
+      if (targetRole === 'owner') {
+        try {
+          const lsnap = await getDocs(collection(db, 'listings'));
+          if (!cancelled) {
+            lsnap.docs.forEach(d => {
+              const ldata = d.data();
+              const ownerId = ldata.ownerId || d.id;
+              if (ownerId && ownerId !== user?.uid && !viewerProfile.blockedUserIds?.includes(ownerId)) {
+                if (!profileMap.has(ownerId)) {
+                  profileMap.set(ownerId, {
+                    uid: ownerId,
+                    name: ldata.ownerName || 'Property Owner',
+                    avatar: ldata.ownerAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${ownerId}`,
+                    role: 'owner',
+                    city: ldata.city || 'Hyderabad',
+                    locality: ldata.locality || 'Gachibowli',
+                    localities: [ldata.locality || 'Gachibowli'],
+                    budget: ldata.partnerShare || ldata.totalRent || 12000,
+                    profession: 'Property Host',
+                    bio: ldata.description || `Offering ${ldata.flatType || 'room'} in ${ldata.locality || ldata.city}`,
+                    onboardingComplete: true,
+                    isVerified: true,
+                  } as UserProfile);
+                }
+              }
+            });
+          }
+        } catch (err) {
+          console.warn('Firestore listings query error:', err);
         }
+      }
 
-        const scored: SeekerWithScore[] = results.map(u => ({
-          profile: u,
-          score: calculateCompatibility(viewerProfile.quizAnswers || {}, u.quizAnswers || {}, viewerProfile.city, u.city),
-        }));
+      const results = Array.from(profileMap.values());
+      const scored: SeekerWithScore[] = results.map(u => ({
+        profile: u,
+        score: calculateCompatibility(viewerProfile.quizAnswers || {}, u.quizAnswers || {}, viewerProfile.city, u.city),
+      }));
 
+      if (!cancelled) {
         setAllSeekers(scored);
-      } catch (err: any) {
-        console.error('Failed to fetch seekers:', err);
-        if (!cancelled) setError(err.message || 'Failed to load seekers');
-      } finally {
-        if (!cancelled) setLoading(false);
       }
     }
 
-    fetchAllSeekers();
+    fetchAllPeople().catch((err: any) => {
+      console.error('Failed to fetch profiles:', err);
+      if (!cancelled) setError(err.message || 'Failed to load profiles');
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+
     return () => { cancelled = true; };
   }, [currentUser, filterCity, user?.uid]);
 
@@ -297,14 +323,20 @@ function SeekersView() {
     setShowFilters(false);
   };
 
+  const isOwner = currentUser?.role === 'owner';
+
   return (
     <div className="min-h-screen bg-parchment pb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-display italic">Find Roommate Seekers</h1>
-            <p className="text-sm text-ink/50">{filtered.length} seekers available{filterCity ? ` in ${filterCity}` : ''}</p>
+            <h1 className="text-2xl font-display italic">
+              {isOwner ? 'Find Roommate Seekers' : 'Find Flatmates & Room Owners'}
+            </h1>
+            <p className="text-sm text-ink/50">
+              {filtered.length} {isOwner ? 'seekers' : 'room owners'} available{filterCity ? ` in ${filterCity}` : ''}
+            </p>
           </div>
           <div className="flex gap-2">
             <div className="relative flex-1 sm:w-64">
@@ -332,7 +364,7 @@ function SeekersView() {
         </div>
 
         {/* Loading State */}
-        {loading && <StateLoading label="Finding active room seekers..." />}
+        {loading && <StateLoading label={isOwner ? "Finding active room seekers..." : "Finding active room owners..."} />}
 
         {/* Error Banner */}
         {error && (
@@ -597,7 +629,7 @@ function SeekersView() {
         {!loading && filtered.length === 0 && (
           <StateEmpty
             icon={Users}
-            title="No seekers found"
+            title={isOwner ? "No seekers found" : "No flatmates or room owners found"}
             description="Try adjusting your filters or city"
             action={
               <button onClick={clearFilters} className="btn-outline text-sm">Clear All Filters</button>
@@ -611,7 +643,7 @@ function SeekersView() {
         <div className="fixed inset-0 z-50 bg-ink/40 backdrop-blur-sm flex justify-end">
           <div className="w-full max-w-sm bg-white h-full shadow-2xl flex flex-col">
             <div className="p-4 border-b border-border flex items-center justify-between">
-              <h2 className="font-display italic text-lg">Filter Seekers</h2>
+              <h2 className="font-display italic text-lg">{isOwner ? "Filter Seekers" : "Filter Room Owners"}</h2>
               <button onClick={() => setShowFilters(false)} className="p-2 hover:bg-cream rounded-full transition-colors"><X className="w-5 h-5" /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -675,7 +707,7 @@ function SeekersView() {
                 />
                 <div>
                   <p className="text-sm font-medium">Verified Only</p>
-                  <p className="text-xs text-ink/40">Show only ID-verified seekers</p>
+                  <p className="text-xs text-ink/40">{isOwner ? "Show only ID-verified seekers" : "Show only ID-verified room owners"}</p>
                 </div>
               </label>
             </div>

@@ -85,7 +85,7 @@ export default function Layout() {
 
   const ownerLinks = [
     { path: '/owner-dashboard', label: t('dashboard'), icon: Home },
-    { path: '/browse-seekers', label: 'Find Flatmates', icon: User },
+    { path: '/browse-seekers', label: 'Find Seekers', icon: User },
     { path: '/browse-rooms', label: 'Find Rooms', icon: Search },
     { path: '/chat', label: t('messages'), icon: MessageCircle },
   ];

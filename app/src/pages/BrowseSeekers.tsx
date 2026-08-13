@@ -97,7 +97,7 @@ export default function BrowseSeekers() {
 
         // Layer 3: Fallback verified flatmates across Indian cities if database has no other profiles
         if (profileMap.size === 0) {
-          const fallbackProfiles: UserProfile[] = [
+          const fallbackProfiles: UserProfile[] = ([
             {
               uid: 'demo_flatmate_1',
               name: 'Priya Sharma',
@@ -170,25 +170,15 @@ export default function BrowseSeekers() {
               isVerified: true,
               quizAnswers: { q1: '3', q2: '2', q3: '1', q4: '2', q5: '3' },
             },
-          ];
+          ] as unknown[]) as UserProfile[];
           fallbackProfiles.forEach(p => profileMap.set(p.uid, p));
         }
 
-        let fetched = Array.from(profileMap.values());
-
-        // Sort candidates based on current user role:
-        // Seekers prioritize Room Owners & listings; Owners prioritize Room Seekers
-        const isOwnerRole = currentUser?.role === 'owner';
-        fetched.sort((a, b) => {
-          if (isOwnerRole) {
-            const aIsSeeker = a.role === 'seeker' ? 1 : 0;
-            const bIsSeeker = b.role === 'seeker' ? 1 : 0;
-            return bIsSeeker - aIsSeeker;
-          } else {
-            const aIsOwner = a.role === 'owner' ? 1 : 0;
-            const bIsOwner = b.role === 'owner' ? 1 : 0;
-            return bIsOwner - aIsOwner;
-          }
+        const targetRole = currentUser?.role === 'owner' ? 'seeker' : 'owner';
+        let fetched = Array.from(profileMap.values()).filter(p => {
+          if (!p.uid || p.uid === user?.uid) return false;
+          const r = (p.role || '').toLowerCase();
+          return r === targetRole;
         });
 
         let filtered = searchCity

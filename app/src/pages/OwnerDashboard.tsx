@@ -481,6 +481,7 @@ export default function OwnerDashboard() {
                           </button>
                           <button
                             onClick={async () => {
+                              if (!user?.uid) return;
                               const targetId = p.uid || conn.connection.fromUserId;
                               const roomId = await getOrCreateChatRoom(user.uid, targetId);
                               navigate(`/chat/${roomId}`);

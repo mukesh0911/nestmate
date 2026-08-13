@@ -184,7 +184,7 @@ export function useMatches() {
             onboardingComplete: true,
             isVerified: true,
             quizAnswers: { q1: '2', q2: '1', q3: '3', q4: '2', q5: '1' },
-          } as UserProfile,
+          } as unknown as UserProfile,
           {
             uid: 'owner_fallback_2',
             name: 'Karthik Iyer',
@@ -202,7 +202,7 @@ export function useMatches() {
             onboardingComplete: true,
             isVerified: true,
             quizAnswers: { q1: '3', q2: '2', q3: '1', q4: '2', q5: '3' },
-          } as UserProfile
+          } as unknown as UserProfile
         );
       }
 
