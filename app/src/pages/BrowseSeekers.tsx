@@ -8,7 +8,7 @@ import { calculateCompatibility } from '@/hooks/useMatches';
 import { useChat } from '@/hooks/useChat';
 import { useConnections, getRelationshipState } from '@/hooks/useConnections';
 import type { Connection } from '@/hooks/useConnections';
-import { Search, MapPin, Briefcase, ChevronRight, Loader2, MessageCircle, Sparkles, Users } from 'lucide-react';
+import { Search, MapPin, Briefcase, ChevronRight, Loader2, MessageCircle, Sparkles, Users, X } from 'lucide-react';
 import StateEmpty from '@/components/StateEmpty';
 import StateLoading from '@/components/StateLoading';
 import { useStore } from '@/store/useStore';
@@ -247,29 +247,37 @@ export default function BrowseSeekers() {
     : 'Explore verified room owners and flatmates with available rooms';
 
   return (
-    <div className="min-h-screen bg-parchment pb-4 overflow-x-hidden">
-      {/* Header */}
-      <div className="bg-white/80 backdrop-blur-md sticky top-[60px] z-30 border-b border-border px-4 py-4">
-        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+    <div className="min-h-screen bg-parchment pb-12 overflow-x-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6">
+        {/* Header Bar */}
+        <div className="frosted-glass rounded-2xl p-4 sm:p-5 border border-border/60 shadow-2xs mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-display italic">{pageTitle}</h1>
-            <p className="text-sm text-ink/60">{pageSubtitle}</p>
+            <h1 className="text-2xl font-display italic text-ink tracking-tight">{pageTitle}</h1>
+            <p className="text-sm text-ink/60 mt-1">{pageSubtitle}</p>
           </div>
-          <div className="relative w-full sm:w-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
+          <div className="relative w-full md:w-72">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
             <input
               type="text"
               placeholder="Filter by city..."
               value={searchCity}
               onChange={(e) => setSearchCity(e.target.value)}
               aria-label="Filter by city"
-              className="w-full sm:w-64 pl-9 pr-4 py-2.5 min-h-[44px] bg-cream/50 rounded-xl text-sm outline-none focus:border-fire border border-border"
+              className="w-full pl-9 pr-9 py-2.5 min-h-[44px] bg-white/70 rounded-xl text-sm outline-none focus:border-fire border border-border transition-colors"
             />
+            {searchCity && (
+              <button
+                onClick={() => setSearchCity('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/40 hover:text-ink/70 p-1"
+                aria-label="Clear city filter"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
-      </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
+        {/* Results Content */}
         {loading ? (
           <StateLoading label={isOwner ? "Finding room seekers..." : "Finding flatmates & room owners..."} />
         ) : seekers.length === 0 ? (
@@ -277,16 +285,17 @@ export default function BrowseSeekers() {
             icon={Users}
             title={isOwner ? "No room seekers found" : "No flatmates or room owners found"}
             description="We couldn't find results matching this exact search filter. Try searching another city."
-            className="bg-cream/30 rounded-2xl border border-dashed border-border"
+            className="bg-cream/30 rounded-2xl border border-dashed border-border py-12"
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
             {seekers.map(({ profile, score }) => {
               const state = getRelationshipState(user?.uid, profile.uid || '', myConnections, chatRoomMap);
               return (
-                <div key={profile.uid} className="card-nestmate overflow-hidden flex flex-col">
+                <div key={profile.uid} className="card-nestmate overflow-hidden flex flex-col hover:-translate-y-1 hover:shadow-md transition-all duration-300 border border-border/60">
+                  {/* Banner */}
                   <div className="h-24 bg-gradient-to-br from-fire/10 to-navy/10 relative">
-                    <div className="absolute -bottom-10 left-4 w-20 h-20 rounded-full border-4 border-white bg-cream flex items-center justify-center overflow-hidden">
+                    <div className="absolute -bottom-10 left-4 w-20 h-20 rounded-full border-4 border-white bg-cream flex items-center justify-center overflow-hidden shadow-xs">
                       {profile.avatar ? (
                         <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
                       ) : (
@@ -294,20 +303,22 @@ export default function BrowseSeekers() {
                       )}
                     </div>
                     {score > 0 && (
-                      <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-2.5 py-1 rounded-lg text-xs font-bold text-fire shadow-sm flex items-center gap-1">
+                      <div className="absolute top-3 right-3 bg-white/95 backdrop-blur px-2.5 py-1 rounded-full text-xs font-bold text-fire shadow-2xs flex items-center gap-1">
                         <Sparkles className="w-3.5 h-3.5 text-fire" /> {score}% Match
                       </div>
                     )}
                   </div>
                   
+                  {/* Card Content */}
                   <div className="pt-12 px-4 pb-4 flex-1 flex flex-col">
-                    <h3 className="font-semibold text-lg">{profile.name}, {profile.age}</h3>
-                    <div className="flex flex-col gap-1 mt-2 mb-4 flex-1">
+                    <h3 className="font-bold text-base text-ink leading-tight">{profile.name}{profile.age ? `, ${profile.age}` : ''}</h3>
+                    <div className="flex flex-col gap-1.5 mt-2 mb-4 flex-1">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-xs text-ink/60">
-                          <MapPin className="w-3.5 h-3.5 text-fire" /> {profile.city || 'Any City'}
+                        <div className="flex items-center gap-1.5 text-xs text-ink/60 min-w-0">
+                          <MapPin className="w-3.5 h-3.5 text-fire flex-shrink-0" />
+                          <span className="truncate">{profile.city || 'Any City'}</span>
                         </div>
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${
                           profile.role === 'owner'
                             ? 'bg-teal-50 text-teal-700 border border-teal-200'
                             : 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -317,22 +328,23 @@ export default function BrowseSeekers() {
                       </div>
                       {profile.profession && (
                         <div className="flex items-center gap-1.5 text-xs text-ink/60">
-                          <Briefcase className="w-3.5 h-3.5" /> {profile.profession}
+                          <Briefcase className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className="truncate">{profile.profession}</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="flex gap-2 mt-auto">
+                    <div className="flex gap-2 mt-auto pt-2">
                       <button 
                         onClick={() => navigate(`/match/${profile.uid}`)}
-                        className="flex-1 btn-outline py-2 text-sm font-semibold"
+                        className="flex-1 btn-outline py-2 min-h-[42px] text-xs font-bold"
                       >
                         View Profile
                       </button>
                       <button 
                         onClick={() => handleConnect(profile.uid || '')}
                         disabled={connectingTo === profile.uid || state === 'pending_sent'}
-                        className={`flex-1 py-2 text-sm font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all ${
+                        className={`flex-1 py-2 min-h-[42px] text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all ${
                           state === 'connected' ? 'bg-emerald-600 text-white hover:bg-emerald-700' :
                           state === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
                           state === 'pending_received' ? 'bg-teal text-white hover:opacity-90' :
