@@ -8,7 +8,7 @@ import { calculateCompatibility } from '@/hooks/useMatches';
 import { useChat } from '@/hooks/useChat';
 import { useConnections, getRelationshipState } from '@/hooks/useConnections';
 import type { Connection } from '@/hooks/useConnections';
-import { Search, MapPin, Briefcase, ChevronRight, Loader2, MessageCircle, Sparkles, Users, X } from 'lucide-react';
+import { Search, MapPin, Briefcase, ChevronRight, Loader2, MessageCircle, Sparkles, Users, X, CheckCircle2 } from 'lucide-react';
 import StateEmpty from '@/components/StateEmpty';
 import StateLoading from '@/components/StateLoading';
 import { useStore } from '@/store/useStore';
@@ -247,23 +247,28 @@ export default function BrowseSeekers() {
     : 'Explore verified room owners and flatmates with available rooms';
 
   return (
-    <div className="min-h-screen bg-parchment pb-12 overflow-x-hidden">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6">
-        {/* Header Bar */}
-        <div className="frosted-glass rounded-2xl p-4 sm:p-5 border border-border/60 shadow-2xs mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="min-h-screen bg-parchment pb-16 overflow-x-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {/* ── Page Header Section ── */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 pb-6 border-b border-border/50">
           <div className="min-w-0">
-            <h1 className="text-2xl font-display italic text-ink tracking-tight">{pageTitle}</h1>
-            <p className="text-sm text-ink/60 mt-1">{pageSubtitle}</p>
+            <h1 className="text-2xl sm:text-3xl font-display italic text-ink tracking-tight">
+              {pageTitle}
+            </h1>
+            <p className="text-sm text-ink/60 mt-1.5 font-sans">
+              {pageSubtitle}
+            </p>
           </div>
-          <div className="relative w-full md:w-72">
+
+          <div className="relative w-full md:w-80 shrink-0">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
             <input
               type="text"
-              placeholder="Filter by city..."
+              placeholder="Filter by city (e.g. Hyderabad)..."
               value={searchCity}
               onChange={(e) => setSearchCity(e.target.value)}
               aria-label="Filter by city"
-              className="w-full pl-9 pr-9 py-2.5 min-h-[44px] bg-white/70 rounded-xl text-sm outline-none focus:border-fire border border-border transition-colors"
+              className="w-full pl-10 pr-9 py-2.5 min-h-[44px] bg-white rounded-xl text-sm border border-border shadow-2xs outline-none focus:border-fire focus:ring-2 focus:ring-fire/10 transition-all font-sans"
             />
             {searchCity && (
               <button
@@ -277,7 +282,7 @@ export default function BrowseSeekers() {
           </div>
         </div>
 
-        {/* Results Content */}
+        {/* ── Listing Section & Card Grid ── */}
         {loading ? (
           <StateLoading label={isOwner ? "Finding room seekers..." : "Finding flatmates & room owners..."} />
         ) : seekers.length === 0 ? (
@@ -288,63 +293,91 @@ export default function BrowseSeekers() {
             className="bg-cream/30 rounded-2xl border border-dashed border-border py-12"
           />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {seekers.map(({ profile, score }) => {
               const state = getRelationshipState(user?.uid, profile.uid || '', myConnections, chatRoomMap);
               return (
-                <div key={profile.uid} className="card-nestmate overflow-hidden flex flex-col hover:-translate-y-1 hover:shadow-md transition-all duration-300 border border-border/60">
+                <div
+                  key={profile.uid}
+                  className="bg-white rounded-2xl overflow-hidden flex flex-col shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_rgba(238,77,45,0.12)] transition-all duration-300 hover:-translate-y-1 border border-border/60 group"
+                >
                   {/* Banner */}
-                  <div className="h-24 bg-gradient-to-br from-fire/10 to-navy/10 relative">
-                    <div className="absolute -bottom-10 left-4 w-20 h-20 rounded-full border-4 border-white bg-cream flex items-center justify-center overflow-hidden shadow-xs">
-                      {profile.avatar ? (
-                        <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-2xl font-display italic text-ink/40">{profile.name?.[0]?.toUpperCase()}</span>
-                      )}
-                    </div>
+                  <div className="relative h-20 bg-gradient-to-r from-fire/10 via-cream to-teal/10 p-3.5 flex items-start justify-between border-b border-border/30">
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-2xs ${
+                      profile.role === 'owner'
+                        ? 'bg-teal-50 text-teal-700 border border-teal-200'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'
+                    }`}>
+                      {profile.role === 'owner' ? 'Room Owner' : 'Flat Seeker'}
+                    </span>
+
                     {score > 0 && (
-                      <div className="absolute top-3 right-3 bg-white/95 backdrop-blur px-2.5 py-1 rounded-full text-xs font-bold text-fire shadow-2xs flex items-center gap-1">
+                      <div className="bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-extrabold text-fire shadow-2xs flex items-center gap-1 border border-fire/20">
                         <Sparkles className="w-3.5 h-3.5 text-fire" /> {score}% Match
                       </div>
                     )}
                   </div>
-                  
-                  {/* Card Content */}
-                  <div className="pt-12 px-4 pb-4 flex-1 flex flex-col">
-                    <h3 className="font-bold text-base text-ink leading-tight">{profile.name}{profile.age ? `, ${profile.age}` : ''}</h3>
-                    <div className="flex flex-col gap-1.5 mt-2 mb-4 flex-1">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-xs text-ink/60 min-w-0">
-                          <MapPin className="w-3.5 h-3.5 text-fire flex-shrink-0" />
-                          <span className="truncate">{profile.city || 'Any City'}</span>
+
+                  {/* Body */}
+                  <div className="p-5 pt-0 flex-1 flex flex-col justify-between">
+                    <div>
+                      {/* Avatar Row */}
+                      <div className="-mt-8 mb-3 flex items-end justify-between">
+                        <div className="w-16 h-16 rounded-full border-4 border-white bg-cream flex items-center justify-center overflow-hidden shadow-md shrink-0">
+                          {profile.avatar ? (
+                            <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xl font-display italic text-fire/70">{profile.name?.[0]?.toUpperCase()}</span>
+                          )}
                         </div>
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${
-                          profile.role === 'owner'
-                            ? 'bg-teal-50 text-teal-700 border border-teal-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}>
-                          {profile.role === 'owner' ? 'Room Owner' : 'Flat Seeker'}
-                        </span>
+
+                        {profile.isVerified && (
+                          <div className="mb-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-bold flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Verified
+                          </div>
+                        )}
                       </div>
-                      {profile.profession && (
-                        <div className="flex items-center gap-1.5 text-xs text-ink/60">
-                          <Briefcase className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span className="truncate">{profile.profession}</span>
+
+                      {/* Name & Age */}
+                      <h3 className="font-bold text-base text-ink group-hover:text-fire transition-colors line-clamp-1 leading-snug">
+                        {profile.name}{profile.age ? `, ${profile.age}` : ''}
+                      </h3>
+
+                      {/* Location & Profession */}
+                      <div className="space-y-1.5 mt-2 mb-4">
+                        <div className="flex items-center gap-1.5 text-xs text-ink/60 min-w-0">
+                          <MapPin className="w-3.5 h-3.5 text-fire shrink-0" />
+                          <span className="truncate">{profile.city || 'Any City'}{profile.locality ? ` · ${profile.locality}` : ''}</span>
+                        </div>
+                        {profile.profession && (
+                          <div className="flex items-center gap-1.5 text-xs text-ink/60 min-w-0">
+                            <Briefcase className="w-3.5 h-3.5 text-ink/40 shrink-0" />
+                            <span className="truncate">{profile.profession}{profile.company ? ` at ${profile.company}` : ''}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Budget */}
+                      {profile.budget && profile.budget > 0 && (
+                        <div className="mb-4 py-2 px-3 bg-cream/50 rounded-xl border border-border/40 text-xs flex items-center justify-between">
+                          <span className="text-ink/50 font-medium">Budget:</span>
+                          <span className="font-bold text-ink">₹{profile.budget.toLocaleString()}/mo</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="flex gap-2 mt-auto pt-2">
+                    {/* Action Buttons */}
+                    <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border/40 mt-auto">
                       <button 
                         onClick={() => navigate(`/match/${profile.uid}`)}
-                        className="flex-1 btn-outline py-2 min-h-[42px] text-xs font-bold"
+                        className="w-full py-2.5 min-h-[42px] rounded-xl text-xs font-bold border border-border text-ink/80 hover:bg-cream hover:border-fire/40 transition-all flex items-center justify-center"
                       >
                         View Profile
                       </button>
                       <button 
                         onClick={() => handleConnect(profile.uid || '')}
                         disabled={connectingTo === profile.uid || state === 'pending_sent'}
-                        className={`flex-1 py-2 min-h-[42px] text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all ${
+                        className={`w-full py-2.5 min-h-[42px] text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-2xs ${
                           state === 'connected' ? 'bg-emerald-600 text-white hover:bg-emerald-700' :
                           state === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
                           state === 'pending_received' ? 'bg-teal text-white hover:opacity-90' :
@@ -357,7 +390,7 @@ export default function BrowseSeekers() {
                           <MessageCircle className="w-3.5 h-3.5" />
                         )}
                         {state === 'connected' ? 'Message' :
-                         state === 'pending_sent' ? 'Request Sent' :
+                         state === 'pending_sent' ? 'Sent' :
                          state === 'pending_received' ? 'Accept' : 'Connect'}
                       </button>
                     </div>
