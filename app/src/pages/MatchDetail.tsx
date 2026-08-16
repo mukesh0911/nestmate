@@ -4,7 +4,7 @@ import {
   ArrowLeft, Heart, MessageCircle, ShieldCheck, Check, 
   Star, Loader2, Home as HomeIcon, MoreVertical, Flag, Ban, MapPin, X,
   Moon, Sun, Utensils, Wind, Wine, Users, Sparkles, Briefcase, Dog, User, 
-  CheckCircle2, Calendar, MessageSquare, ChevronRight
+  CheckCircle2, Calendar, MessageSquare, ChevronRight, Zap, Award, ExternalLink
 } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -15,7 +15,7 @@ import { useConnections, getRelationshipState } from '@/hooks/useConnections';
 import { useReviews } from '@/hooks/useReviews';
 import type { Connection } from '@/hooks/useConnections';
 import { useNotifications } from '@/hooks/useNotifications';
-import { useMatches, calculateCompatibility, getActiveStatus } from '@/hooks/useMatches';
+import { calculateCompatibility, getActiveStatus } from '@/hooks/useMatches';
 import type { MatchedUser } from '@/hooks/useMatches';
 import { useGeocoding } from '@/hooks/useGeocoding';
 import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet';
@@ -376,13 +376,13 @@ export default function MatchDetail() {
   if (isLoading) return <StateLoading label="Loading profile..." fullScreen />;
 
   if (!matchedUser) return (
-    <div className="min-h-screen bg-parchment flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#F8F7F4] flex items-center justify-center px-4">
       <StateEmpty
         icon={Star}
         title="Profile not found"
         description="This user may have deactivated their account."
         action={
-          <button onClick={() => navigate(-1)} className="btn-fire text-sm">Go Back</button>
+          <button onClick={() => navigate(-1)} className="btn-fire text-sm cursor-pointer">Go Back</button>
         }
       />
     </div>
@@ -424,169 +424,222 @@ export default function MatchDetail() {
   const isSelf = Boolean(user?.uid && user.uid === id);
 
   return (
-    <div className="min-h-screen bg-parchment pb-24 md:pb-12 text-ink font-sans page-transition overflow-x-hidden">
-      <div className="max-w-6xl mx-auto py-4 sm:py-6 px-4 sm:px-6 flex flex-col lg:flex-row gap-8">
+    <div className="min-h-screen bg-[#F8F7F4] pb-28 lg:pb-12 text-ink font-sans page-transition overflow-x-hidden">
+      
+      {/* ── Page Container ─────────────────────────────────────────── */}
+      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 xl:px-8 py-4 sm:py-6">
         
-        {/* ── Left Main Detail Column ── */}
-        <div className="flex-1 space-y-8">
+        {/* Navigation Breadcrumb & Context Menu */}
+        <div className="flex items-center justify-between mb-6">
+          <button 
+            onClick={() => navigate(-1)}
+            aria-label="Go back"
+            className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink/55 hover:text-ink transition-colors cursor-pointer group"
+          >
+            <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+            <span>Back to discovery</span>
+          </button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-2 text-ink/40 hover:text-ink rounded-full transition-colors cursor-pointer" aria-label="More options">
+                <MoreVertical className="w-5 h-5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={() => setReportModalOpen(true)} className="cursor-pointer">
+                <Flag className="w-4 h-4 mr-2 text-amber-600" /> Report User
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleBlock} className="cursor-pointer text-red-600">
+                <Ban className="w-4 h-4 mr-2" /> Block User
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* ── Two-Column Editorial Details Grid ───────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 xl:gap-12 items-start">
           
-          {/* Back Navigation Bar */}
-          <div className="flex items-center justify-between">
-            <button 
-              onClick={() => navigate(-1)}
-              aria-label="Go back"
-              className="inline-flex items-center gap-2 text-xs font-bold text-ink/60 hover:text-ink transition-colors cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to discovery</span>
-            </button>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="p-2 text-ink/40 hover:text-ink rounded-full transition-colors cursor-pointer">
-                  <MoreVertical className="w-5 h-5" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setReportModalOpen(true)}>Report User</DropdownMenuItem>
-                <DropdownMenuItem onClick={handleBlock}>Block User</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          {/* ── 1. Profile Hero ── */}
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-border/60 shadow-2xs">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6">
-              
-              {/* Avatar + Primary Info */}
-              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 text-center sm:text-left flex-1 min-w-0">
-                <div className="relative shrink-0">
-                  <img 
-                    src={p.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} 
-                    alt={p.name} 
-                    className="w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-white bg-cream object-cover shadow-md" 
-                  />
-                  {p.isVerified && (
-                    <div className="absolute bottom-1 right-1 bg-white rounded-full p-1 shadow-2xs border border-emerald-200" title="Verified Identity">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600 fill-emerald-50" />
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
-                    <h1 className="text-2xl sm:text-3xl font-bold text-ink tracking-tight">
-                      {p.name}{p.age ? `, ${p.age}` : ''}
-                    </h1>
+          {/* ════ LEFT COLUMN: Main Detail Content ════════════════ */}
+          <div className="space-y-8 min-w-0">
+            
+            {/* ── 1. Editorial Profile Hero Card ────────────────── */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-150 shadow-xs relative overflow-hidden">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6">
+                
+                {/* Avatar + Main Identity Info */}
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 text-center sm:text-left flex-1 min-w-0">
+                  
+                  {/* Avatar Container */}
+                  <div className="relative shrink-0">
+                    <img 
+                      src={p.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} 
+                      alt={p.name} 
+                      className="w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-white bg-cream object-cover shadow-md" 
+                    />
                     {p.isVerified && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Verified Identity
-                      </span>
+                      <div className="absolute bottom-1 right-1 bg-white rounded-full p-1 shadow-sm border border-emerald-200" title="Verified Identity">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600 fill-emerald-50" />
+                      </div>
                     )}
                   </div>
 
-                  {p.profession && (
-                    <p className="text-sm font-semibold text-ink/70">
-                      {p.profession}{p.company ? ` at ${p.company}` : ''}
-                    </p>
-                  )}
-
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-ink/60 pt-1">
-                    {p.city && (
-                      <span className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-fire shrink-0" />
-                        <span>{p.city}{p.locality ? ` · ${p.locality}` : ''}</span>
+                  {/* Name, Role & Location Metadata */}
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
+                      <h1 className="text-2xl sm:text-3xl font-bold text-ink tracking-tight font-display">
+                        {p.name}{p.age ? `, ${p.age}` : ''}
+                      </h1>
+                      <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                        p.role === 'owner' ? 'bg-teal-50 text-teal-800 border-teal-200' : 'bg-amber-50 text-amber-800 border-amber-200'
+                      }`}>
+                        {p.role === 'owner' ? 'Room Owner' : 'Flat Seeker'}
                       </span>
-                    )}
-                    <span className="flex items-center gap-1.5 text-emerald-600 font-semibold">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span>{activeStatus.text || 'Active recently'}</span>
-                    </span>
-                  </div>
+                    </div>
 
-                  {p.bio && (
-                    <p className="text-xs sm:text-sm text-ink/70 leading-relaxed pt-2 line-clamp-3 font-normal">
-                      "{p.bio}"
-                    </p>
-                  )}
+                    {p.profession && (
+                      <p className="text-xs sm:text-sm font-semibold text-ink/75">
+                        {p.profession}{p.company ? ` at ${p.company}` : ''}
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs text-ink/60">
+                      {p.city && (
+                        <span className="flex items-center gap-1.5 font-medium">
+                          <MapPin className="w-3.5 h-3.5 text-fire shrink-0" />
+                          <span>{p.city}{p.locality ? ` · ${p.locality}` : ''}</span>
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1.5 text-emerald-600 font-semibold">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>{activeStatus.text || 'Active recently'}</span>
+                      </span>
+                    </div>
+
+                    {p.bio && (
+                      <p className="text-xs sm:text-sm text-ink/80 leading-relaxed pt-1 line-clamp-3 font-normal italic">
+                        "{p.bio}"
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Compatibility Score Radial Badge */}
+                <div className="bg-gradient-to-br from-cream/80 to-amber-50/50 rounded-2xl p-5 border border-border/50 text-center shrink-0 w-full sm:w-auto min-w-[140px] flex flex-col items-center justify-center shadow-2xs">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink/40 block mb-1">
+                    Match Score
+                  </span>
+                  <span className="text-3xl font-extrabold text-fire tracking-tight flex items-center justify-center gap-1">
+                    <Zap className="w-5 h-5 fill-fire text-fire" />
+                    {matchedUser.compatibilityScore}%
+                  </span>
+                  <span className="text-[11px] font-bold text-ink/70 mt-1 bg-white/80 px-2.5 py-0.5 rounded-full border border-border/40">
+                    {matchedUser.compatibilityScore >= 80 ? 'Ideal Match' : matchedUser.compatibilityScore >= 60 ? 'Good Match' : 'Potential Match'}
+                  </span>
+                </div>
+
+              </div>
+            </div>
+
+            {/* ── 2. "Why You Match" Feature Banner ────────────── */}
+            <div className="bg-gradient-to-br from-fire-light/60 via-amber-50/40 to-teal-light/40 rounded-2xl p-5 border border-fire/15 flex items-start gap-4 shadow-xs">
+              <div className="w-10 h-10 rounded-xl bg-white text-fire flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm sm:text-base text-ink mb-1">
+                  Why you and {p.name} match
+                </h3>
+                <p className="text-xs text-ink/70 leading-relaxed font-medium">
+                  You share compatible lifestyle expectations, work modes, and budget preferences{p.city ? ` in ${p.city}` : ''}.
+                </p>
+              </div>
+            </div>
+
+            {/* ── 3. Compatibility Breakdown Comparison ──────────── */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-gray-150">
+                <h2 className="text-lg font-bold text-ink tracking-tight font-display">
+                  Compatibility Breakdown
+                </h2>
+                <span className="text-xs font-semibold text-ink/50">
+                  10 key preferences
+                </span>
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden sm:block bg-white rounded-2xl border border-gray-150 overflow-hidden shadow-xs">
+                <div className="grid grid-cols-[1.5fr_1fr_1.2fr_60px] gap-4 px-5 py-3 bg-[#F8F7F4] border-b border-gray-150 text-[10px] font-extrabold text-ink/50 uppercase tracking-wider">
+                  <div>Category</div>
+                  <div>You</div>
+                  <div>{p.name}</div>
+                  <div className="text-center">Match</div>
+                </div>
+
+                <div className="divide-y divide-gray-100 text-xs">
+                  {breakdownRows.map((row) => {
+                    const IconComp = CATEGORY_ICONS[row.id] || Sparkles;
+                    return (
+                      <div key={row.id} className="grid grid-cols-[1.5fr_1fr_1.2fr_60px] gap-4 items-center px-5 py-3.5 hover:bg-gray-50/50 transition-colors">
+                        <div className="font-semibold text-ink flex items-center gap-2.5 min-w-0">
+                          <IconComp className="w-4 h-4 text-ink/40 shrink-0" />
+                          <span className="truncate">
+                            {row.question
+                              .replace('What time do you usually ', '')
+                              .replace('What is your ', '')
+                              .replace('How often do you ', '')
+                              .replace('How important is ', '')
+                              .replace('How do you feel about ', '')}
+                          </span>
+                        </div>
+                        <div className="text-ink/60 font-medium truncate">{row.myLabel}</div>
+                        <div className="font-bold text-ink truncate">{row.theirLabel}</div>
+                        <div className="flex justify-center">
+                          {row.isMatched ? (
+                            <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />
+                          ) : (
+                            <span className="text-ink/30 font-bold">•</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Dynamic Compatibility Box */}
-              <div className="bg-cream/60 rounded-2xl p-4 sm:p-5 border border-border/50 text-center shrink-0 w-full sm:w-auto min-w-[130px] flex flex-col items-center justify-center">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-ink/40 block mb-1">
-                  Compatibility
-                </span>
-                <span className="text-3xl font-extrabold text-fire tracking-tight">
-                  {matchedUser.compatibilityScore}%
-                </span>
-                <span className="text-[11px] font-semibold text-ink/60 mt-0.5">
-                  {matchedUser.compatibilityScore >= 80 ? 'Excellent Match' : matchedUser.compatibilityScore >= 60 ? 'Good Match' : 'Potential Match'}
-                </span>
-              </div>
-
-            </div>
-          </div>
-
-          {/* ── 2. "Why You Match" Section ── */}
-          <div className="bg-cream/40 rounded-2xl p-5 border border-border/50 flex items-start gap-4">
-            <div className="w-10 h-10 rounded-xl bg-fire/10 text-fire flex items-center justify-center shrink-0 mt-0.5">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm sm:text-base text-ink mb-1">
-                Why you and {p.name} match
-              </h3>
-              <p className="text-xs text-ink/70 leading-relaxed font-medium">
-                You share compatible lifestyle expectations, work modes, and budget preferences{p.city ? ` in ${p.city}` : ''}.
-              </p>
-            </div>
-          </div>
-
-          {/* ── 3. Compatibility Breakdown Comparison ── */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-border/40">
-              <h2 className="text-lg font-bold text-ink tracking-tight">
-                Compatibility Breakdown
-              </h2>
-              <span className="text-xs font-semibold text-ink/50">
-                10 key preferences
-              </span>
-            </div>
-
-            {/* Desktop Table View */}
-            <div className="hidden sm:block bg-white rounded-2xl border border-border/60 overflow-hidden shadow-2xs">
-              <div className="grid grid-cols-[1.5fr_1fr_1.2fr_60px] gap-4 px-5 py-3 bg-cream/40 border-b border-border/40 text-[10px] font-extrabold text-ink/50 uppercase tracking-wider">
-                <div>Category</div>
-                <div>You</div>
-                <div>{p.name}</div>
-                <div className="text-center">Match</div>
-              </div>
-
-              <div className="divide-y divide-border/30 text-xs">
+              {/* Mobile Stacked View */}
+              <div className="sm:hidden space-y-2.5">
                 {breakdownRows.map((row) => {
                   const IconComp = CATEGORY_ICONS[row.id] || Sparkles;
                   return (
-                    <div key={row.id} className="grid grid-cols-[1.5fr_1fr_1.2fr_60px] gap-4 items-center px-5 py-3.5">
-                      <div className="font-semibold text-ink flex items-center gap-2.5 min-w-0">
-                        <IconComp className="w-4 h-4 text-ink/40 shrink-0" />
-                        <span className="truncate">
-                          {row.question
-                            .replace('What time do you usually ', '')
-                            .replace('What is your ', '')
-                            .replace('How often do you ', '')
-                            .replace('How important is ', '')
-                            .replace('How do you feel about ', '')}
-                        </span>
-                      </div>
-                      <div className="text-ink/60 font-medium truncate">{row.myLabel}</div>
-                      <div className="font-bold text-ink truncate">{row.theirLabel}</div>
-                      <div className="flex justify-center">
+                    <div key={row.id} className="bg-white rounded-xl p-3.5 border border-gray-150 shadow-xs">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-semibold text-xs text-ink flex items-center gap-2 min-w-0">
+                          <IconComp className="w-4 h-4 text-ink/40 shrink-0" />
+                          <span className="truncate">
+                            {row.question
+                              .replace('What time do you usually ', '')
+                              .replace('What is your ', '')
+                              .replace('How often do you ', '')
+                              .replace('How important is ', '')
+                              .replace('How do you feel about ', '')}
+                          </span>
+                        </div>
                         {row.isMatched ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 ml-2" />
                         ) : (
-                          <span className="text-ink/30 font-bold">•</span>
+                          <span className="text-ink/30 font-bold text-xs shrink-0 ml-2">•</span>
                         )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] pt-1.5 border-t border-gray-100">
+                        <div>
+                          <span className="text-ink/40 block text-[9px] uppercase font-bold tracking-wider">You</span>
+                          <span className="text-ink/70 font-medium truncate block">{row.myLabel}</span>
+                        </div>
+                        <div>
+                          <span className="text-ink/40 block text-[9px] uppercase font-bold tracking-wider">{p.name}</span>
+                          <span className="text-ink font-bold truncate block">{row.theirLabel}</span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -594,351 +647,316 @@ export default function MatchDetail() {
               </div>
             </div>
 
-            {/* Mobile Stacked View */}
-            <div className="sm:hidden space-y-2.5">
-              {breakdownRows.map((row) => {
-                const IconComp = CATEGORY_ICONS[row.id] || Sparkles;
-                return (
-                  <div key={row.id} className="bg-white rounded-xl p-3.5 border border-border/50 shadow-2xs">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="font-semibold text-xs text-ink flex items-center gap-2 min-w-0">
-                        <IconComp className="w-4 h-4 text-ink/40 shrink-0" />
-                        <span className="truncate">
-                          {row.question
-                            .replace('What time do you usually ', '')
-                            .replace('What is your ', '')
-                            .replace('How often do you ', '')
-                            .replace('How important is ', '')
-                            .replace('How do you feel about ', '')}
+            {/* ── 4. Lifestyle & Preferences Grid ──────────────── */}
+            <div className="space-y-4 pt-2">
+              <div className="pb-2 border-b border-gray-150">
+                <h2 className="text-lg font-bold text-ink tracking-tight font-display">
+                  {p.name}'s Lifestyle & Preferences
+                </h2>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                {quizQuestions.slice(0, 10).map((q) => {
+                  const ansId = theirAnswers[q.id];
+                  const opt = q.options.find((o) => o.id === ansId);
+                  const IconComp = CATEGORY_ICONS[q.id] || Sparkles;
+
+                  return (
+                    <div 
+                      key={q.id} 
+                      className="bg-white border border-gray-150 rounded-xl p-3.5 flex flex-col justify-between gap-2 shadow-xs hover:border-fire/40 transition-all min-h-[95px]"
+                    >
+                      <div className="flex items-center gap-1.5 text-ink/40">
+                        <IconComp className="w-4 h-4 text-ink/60 shrink-0" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider truncate">
+                          {q.id.replace('_', ' ')}
                         </span>
                       </div>
-                      {row.isMatched ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 ml-2" />
-                      ) : (
-                        <span className="text-ink/30 font-bold text-xs shrink-0 ml-2">•</span>
-                      )}
+                      <p className="text-xs font-bold text-ink leading-snug line-clamp-2">
+                        {opt?.label || 'Not specified'}
+                      </p>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-border/30">
-                      <div>
-                        <span className="text-ink/40 block text-[9px] uppercase font-bold tracking-wider">You</span>
-                        <span className="text-ink/70 font-medium truncate block">{row.myLabel}</span>
-                      </div>
-                      <div>
-                        <span className="text-ink/40 block text-[9px] uppercase font-bold tracking-wider">{p.name}</span>
-                        <span className="text-ink font-bold truncate block">{row.theirLabel}</span>
-                      </div>
-                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── 5. Available Room Opportunity (If Owner) ──────── */}
+            {listing && (
+              <div className="bg-white border border-fire/30 rounded-2xl p-5 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <HomeIcon className="w-4 h-4 text-fire" />
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-fire">Active Room Available</span>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                  <span className="text-xs text-ink/50 font-semibold">{listing.flatType}</span>
+                </div>
 
-          {/* ── 4. Lifestyle & Preferences Grid ── */}
-          <div className="space-y-4 pt-2">
-            <div className="pb-2 border-b border-border/40">
-              <h2 className="text-lg font-bold text-ink tracking-tight">
-                {p.name}'s Lifestyle & Preferences
-              </h2>
-            </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-2 border-y border-gray-150">
+                  <div>
+                    <h4 className="font-bold text-base text-ink">{listing.title || `${listing.locality}, ${listing.city}`}</h4>
+                    <p className="text-xs text-ink/60 capitalize mt-0.5">{listing.furnishing || 'Semi-Furnished'} • Available {listing.availableFrom || 'Immediately'}</p>
+                  </div>
+                  <div className="text-left sm:text-right">
+                    <p className="text-[10px] font-bold text-ink/40 uppercase tracking-wider">Your Rent Share</p>
+                    <p className="text-xl font-extrabold text-fire">₹{(listing.partnerShare || listing.totalRent || 0).toLocaleString()} <span className="text-xs text-ink/50 font-normal">/ mo</span></p>
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-              {quizQuestions.slice(0, 10).map((q) => {
-                const ansId = theirAnswers[q.id];
-                const opt = q.options.find((o) => o.id === ansId);
-                const IconComp = CATEGORY_ICONS[q.id] || Sparkles;
+                <button 
+                  onClick={() => navigate(`/room/${listing.id}`)} 
+                  className="w-full py-3 bg-fire text-white font-bold text-xs rounded-xl shadow-xs hover:bg-fire-dark transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>View Full Room Details</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
-                return (
-                  <div 
-                    key={q.id} 
-                    className="bg-white border border-border/50 rounded-xl p-3.5 flex flex-col justify-between gap-2 shadow-2xs hover:border-fire/40 transition-all min-h-[90px]"
+            {/* ── 6. Location & Interactive Map ─────────────────── */}
+            {p.city && (
+              <div className="space-y-3 pt-2">
+                <div className="pb-2 border-b border-gray-150">
+                  <h2 className="text-lg font-bold text-ink tracking-tight font-display">Location</h2>
+                  <p className="text-xs text-ink/60 mt-0.5 font-medium flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-fire" /> 
+                    <span>{listing?.locality || p.locality || p.localities?.[0] || p.city}, {p.city}</span>
+                  </p>
+                </div>
+
+                <div className="h-56 rounded-2xl overflow-hidden border border-gray-150 bg-[#F8F7F4] relative shadow-xs">
+                  {mapLoc ? (
+                    <MapContainer center={[mapLoc.lat, mapLoc.lng]} zoom={13} className="w-full h-full" zoomControl={false} dragging={false} scrollWheelZoom={false}>
+                      <LeafletResizeHandler />
+                      <TileLayer
+                        attribution='&copy; <a href="https://maps.google.com">Google Maps</a>'
+                        url="https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+                        subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
+                        maxZoom={20}
+                      />
+                      <CircleMarker center={[mapLoc.lat, mapLoc.lng]} radius={14} pathOptions={{ color: 'white', weight: 3, fillColor: '#E05326', fillOpacity: 0.95 }} />
+                    </MapContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full bg-cream">
+                      <Loader2 className="w-6 h-6 animate-spin text-fire" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ── 7. Community Reviews & Vouches ─────────────────── */}
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center justify-between pb-2 border-b border-gray-150">
+                <h2 className="text-lg font-bold text-ink tracking-tight font-display">
+                  Community Reviews & Vouches {reviewCount > 0 ? `(${averageRating} · ${reviewCount})` : ''}
+                </h2>
+                {!isSelf && (
+                  <button
+                    onClick={() => {
+                      if (hasUserReviewed) {
+                        toast.info('You have already submitted a vouch for this user.');
+                      } else {
+                        setReviewModalOpen(true);
+                      }
+                    }}
+                    className={`text-xs font-bold cursor-pointer ${hasUserReviewed ? 'text-ink/40' : 'text-fire hover:underline'}`}
                   >
-                    <div className="flex items-center gap-2 text-ink/40">
-                      <IconComp className="w-4 h-4 text-ink/60" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider truncate">
-                        {q.id.replace('_', ' ')}
-                      </span>
-                    </div>
-                    <p className="text-xs font-bold text-ink leading-snug line-clamp-2">
-                      {opt?.label || 'Not specified'}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ── 5. Available Room Opportunity (If Owner) ── */}
-          {listing && (
-            <div className="bg-white border border-fire/30 rounded-2xl p-5 shadow-2xs space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <HomeIcon className="w-4 h-4 text-fire" />
-                  <span className="text-xs font-extrabold uppercase tracking-wider text-fire">Active Room Available</span>
-                </div>
-                <span className="text-xs text-ink/50 font-semibold">{listing.flatType}</span>
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-2 border-y border-border/30">
-                <div>
-                  <h4 className="font-bold text-base text-ink">{listing.title || `${listing.locality}, ${listing.city}`}</h4>
-                  <p className="text-xs text-ink/60 capitalize mt-0.5">{listing.furnishing || 'Semi-Furnished'} • Available {listing.availableFrom || 'Immediately'}</p>
-                </div>
-                <div className="text-left sm:text-right">
-                  <p className="text-[10px] font-bold text-ink/40 uppercase tracking-wider">Your Rent Share</p>
-                  <p className="text-xl font-extrabold text-fire">₹{(listing.partnerShare || listing.totalRent || 0).toLocaleString()} <span className="text-xs text-ink/50 font-normal">/ mo</span></p>
-                </div>
-              </div>
-
-              <button 
-                onClick={() => navigate(`/room/${listing.id}`)} 
-                className="w-full py-3 bg-fire text-white font-bold text-xs rounded-xl shadow-2xs hover:bg-fire-dark transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <span>View Full Room Details</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
-          {/* ── 6. Location & Map ── */}
-          {p.city && (
-            <div className="space-y-3 pt-2">
-              <div className="pb-2 border-b border-border/40">
-                <h2 className="text-lg font-bold text-ink tracking-tight">Location</h2>
-                <p className="text-xs text-ink/60 mt-0.5 font-medium flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-fire" /> 
-                  <span>{listing?.locality || p.locality || p.localities?.[0] || p.city}, {p.city}</span>
-                </p>
-              </div>
-
-              <div className="h-56 rounded-2xl overflow-hidden border border-border/60 bg-parchment relative shadow-2xs">
-                {mapLoc ? (
-                  <MapContainer center={[mapLoc.lat, mapLoc.lng]} zoom={13} className="w-full h-full" zoomControl={false} dragging={false} scrollWheelZoom={false}>
-                    <LeafletResizeHandler />
-                    <TileLayer
-                      attribution='&copy; <a href="https://maps.google.com">Google Maps</a>'
-                      url="https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
-                      subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
-                      maxZoom={20}
-                    />
-                    <CircleMarker center={[mapLoc.lat, mapLoc.lng]} radius={14} pathOptions={{ color: 'white', weight: 3, fillColor: '#E05326', fillOpacity: 0.95 }} />
-                  </MapContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full bg-cream">
-                    <Loader2 className="w-6 h-6 animate-spin text-fire" />
-                  </div>
+                    {hasUserReviewed ? 'Vouched ✓' : 'Write a Vouch'}
+                  </button>
                 )}
               </div>
-            </div>
-          )}
 
-          {/* ── 7. Community Reviews & Vouches ── */}
-          <div className="space-y-4 pt-2">
-            <div className="flex items-center justify-between pb-2 border-b border-border/40">
-              <h2 className="text-lg font-bold text-ink tracking-tight">
-                Community Reviews & Vouches {reviewCount > 0 ? `(${averageRating} · ${reviewCount})` : ''}
-              </h2>
-              {!isSelf && (
-                <button
-                  onClick={() => {
-                    if (hasUserReviewed) {
-                      toast.info('You have already submitted a vouch for this user.');
-                    } else {
-                      setReviewModalOpen(true);
-                    }
-                  }}
-                  className={`text-xs font-bold cursor-pointer ${hasUserReviewed ? 'text-ink/40' : 'text-fire hover:underline'}`}
-                >
-                  {hasUserReviewed ? 'Vouched ✓' : 'Write a Vouch'}
-                </button>
+              {reviews.length === 0 ? (
+                <div className="bg-white rounded-2xl p-6 border border-gray-150 text-center flex flex-col items-center justify-center shadow-xs">
+                  <MessageSquare className="w-8 h-8 text-ink/30 mb-2" />
+                  <p className="text-sm font-bold text-ink">No reviews yet</p>
+                  <p className="text-xs text-ink/50 mt-1 max-w-sm">Be the first person to share your experience or vouch for {p.name}'s character.</p>
+                  {!isSelf && (
+                    <button
+                      onClick={() => setReviewModalOpen(true)}
+                      className="mt-4 px-5 py-2.5 bg-fire text-white font-bold text-xs rounded-xl shadow-xs hover:bg-fire-dark transition-all cursor-pointer"
+                    >
+                      Write a Vouch
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {reviews.map((rev) => (
+                    <div key={rev.id} className="bg-white rounded-2xl p-4 border border-gray-150 shadow-xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-cream border border-gray-200 flex items-center justify-center overflow-hidden font-bold text-xs text-ink/70">
+                            {rev.reviewerAvatar ? (
+                              <img src={rev.reviewerAvatar} alt={rev.reviewerName} className="w-full h-full object-cover" />
+                            ) : (
+                              rev.reviewerName?.[0]?.toUpperCase()
+                            )}
+                          </div>
+                          <span className="font-bold text-xs text-ink">{rev.reviewerName}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: 5 }).map((_, idx) => (
+                            <Star
+                              key={idx}
+                              className={`w-3.5 h-3.5 ${idx < rev.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      {rev.text && <p className="text-xs text-ink/80 leading-relaxed font-medium">{rev.text}</p>}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 
-            {reviews.length === 0 ? (
-              <div className="bg-white rounded-2xl p-6 border border-border/60 text-center flex flex-col items-center justify-center">
-                <MessageSquare className="w-8 h-8 text-ink/30 mb-2" />
-                <p className="text-sm font-bold text-ink">No reviews yet</p>
-                <p className="text-xs text-ink/50 mt-1 max-w-sm">Be the first person to share your experience or vouch for {p.name}'s character.</p>
-                {!isSelf && (
-                  <button
-                    onClick={() => setReviewModalOpen(true)}
-                    className="mt-4 px-5 py-2.5 bg-fire text-white font-bold text-xs rounded-xl shadow-2xs hover:bg-fire-dark transition-all cursor-pointer"
-                  >
-                    Write a Vouch
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {reviews.map((rev) => (
-                  <div key={rev.id} className="bg-white rounded-2xl p-4 border border-border/60 shadow-2xs space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-cream border border-border flex items-center justify-center overflow-hidden font-bold text-xs text-ink/70">
-                          {rev.reviewerAvatar ? (
-                            <img src={rev.reviewerAvatar} alt={rev.reviewerName} className="w-full h-full object-cover" />
-                          ) : (
-                            rev.reviewerName?.[0]?.toUpperCase()
-                          )}
-                        </div>
-                        <span className="font-bold text-xs text-ink">{rev.reviewerName}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: 5 }).map((_, idx) => (
-                          <Star
-                            key={idx}
-                            className={`w-3.5 h-3.5 ${idx < rev.rating ? 'fill-gold text-gold' : 'text-border'}`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    {rev.text && <p className="text-xs text-ink/80 leading-relaxed font-medium">{rev.text}</p>}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
-        </div>
-
-        {/* ── Right Sidebar: At a Glance Summary ── */}
-        <div className="hidden lg:block w-[320px] shrink-0">
-          <div className="sticky top-24 space-y-6">
-            
-            <div className="bg-white rounded-3xl p-6 border border-border/60 shadow-2xs space-y-5">
-              <div className="pb-3 border-b border-border/40 flex items-center justify-between">
-                <h3 className="font-bold text-lg text-ink">At a Glance</h3>
-                {p.isVerified ? (
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                    Verified
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-ink/40 bg-cream px-2 py-0.5 rounded-full border border-border/40">
-                    Unverified
-                  </span>
-                )}
-              </div>
+          {/* ════ RIGHT COLUMN: Sticky Conversion Sidebar ──────── */}
+          <div className="hidden lg:block w-[360px] shrink-0">
+            <div className="sticky top-24 space-y-6">
               
-              <div className="space-y-4 text-xs">
-                {/* Community Rating */}
-                <div className="flex justify-between items-center">
-                  <span className="text-ink/60 font-medium">Community Rating</span>
-                  {averageRating ? (
-                    <div className="flex items-center gap-1.5 font-extrabold text-ink">
-                      <Star className="w-4 h-4 fill-gold text-gold" />
-                      <span>{averageRating}</span>
-                      <span className="text-ink/40 font-normal">({reviewCount})</span>
-                    </div>
+              <div className="bg-white rounded-3xl p-6 border border-gray-150 shadow-[0_8px_40px_rgba(0,0,0,0.10)] space-y-5">
+                
+                {/* Sidebar Header */}
+                <div className="pb-3 border-b border-gray-150 flex items-center justify-between">
+                  <h3 className="font-bold text-lg text-ink font-display">At a Glance</h3>
+                  {p.isVerified ? (
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      Verified User
+                    </span>
                   ) : (
-                    <span className="text-ink/40 font-medium italic">No reviews yet</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-ink/40 bg-gray-50 px-2.5 py-0.5 rounded-full border border-gray-200">
+                      Unverified
+                    </span>
                   )}
                 </div>
-
-                {/* Compatibility Score */}
-                <div className="space-y-1.5">
+                
+                <div className="space-y-4 text-xs">
+                  {/* Community Rating */}
                   <div className="flex justify-between items-center">
-                    <span className="text-ink/60 font-medium">Compatibility</span>
-                    <span className="font-extrabold text-fire">{matchedUser.compatibilityScore}%</span>
-                  </div>
-                  <div className="w-full bg-cream h-2 rounded-full overflow-hidden border border-border/40">
-                    <div 
-                      className="bg-fire h-full rounded-full transition-all duration-500" 
-                      style={{ width: `${matchedUser.compatibilityScore}%` }} 
-                    />
-                  </div>
-                </div>
-                
-                {/* Budget */}
-                <div className="flex justify-between items-center">
-                  <span className="text-ink/60 font-medium">Budget Alignment</span>
-                  <span className="font-extrabold text-ink text-sm">
-                    {displayBudget ? `₹${displayBudget.toLocaleString()}/mo` : 'Not specified'}
-                  </span>
-                </div>
-
-                {/* Move-in Date */}
-                <div className="flex justify-between items-center">
-                  <span className="text-ink/60 font-medium">Move-in Date</span>
-                  <span className="font-bold text-ink flex items-center gap-1">
-                    {displayMoveInDate ? (
-                      <>
-                        <Calendar className="w-3.5 h-3.5 text-fire" /> {displayMoveInDate}
-                      </>
+                    <span className="text-ink/60 font-medium">Community Rating</span>
+                    {averageRating ? (
+                      <div className="flex items-center gap-1.5 font-extrabold text-ink">
+                        <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                        <span>{averageRating}</span>
+                        <span className="text-ink/40 font-normal">({reviewCount})</span>
+                      </div>
                     ) : (
-                      'Not specified'
+                      <span className="text-ink/40 font-medium italic">No reviews yet</span>
                     )}
-                  </span>
+                  </div>
+
+                  {/* Compatibility Score */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-ink/60 font-medium">Compatibility</span>
+                      <span className="font-extrabold text-fire">{matchedUser.compatibilityScore}%</span>
+                    </div>
+                    <div className="w-full bg-cream h-2 rounded-full overflow-hidden border border-border/40">
+                      <div 
+                        className="bg-fire h-full rounded-full transition-all duration-500" 
+                        style={{ width: `${matchedUser.compatibilityScore}%` }} 
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Budget */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-ink/60 font-medium">Budget Alignment</span>
+                    <span className="font-extrabold text-ink text-sm">
+                      {displayBudget ? `₹${displayBudget.toLocaleString()}/mo` : 'Not specified'}
+                    </span>
+                  </div>
+
+                  {/* Move-in Date */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-ink/60 font-medium">Move-in Date</span>
+                    <span className="font-bold text-ink flex items-center gap-1">
+                      {displayMoveInDate ? (
+                        <>
+                          <Calendar className="w-3.5 h-3.5 text-fire" /> {displayMoveInDate}
+                        </>
+                      ) : (
+                        'Not specified'
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Main Action CTAs */}
+                <div className="pt-2 space-y-2.5">
+                  <button
+                    onClick={handleConnectOrChat}
+                    disabled={connecting || connectState === 'pending_sent'}
+                    className={`w-full py-3.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer ${
+                      connectState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
+                      connectState === 'pending_received' ? 'bg-teal text-white hover:opacity-90' :
+                      connectState === 'connected' ? 'bg-emerald-600 text-white hover:bg-emerald-700' :
+                      'btn-fire text-white'
+                    }`}
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>
+                      {connectState === 'pending_sent' ? 'Request Sent' :
+                       connectState === 'pending_received' ? 'Accept Request' :
+                       connectState === 'connected' ? 'Message User' : 'Connect & Chat'}
+                    </span>
+                  </button>
+
+                  {connectState === 'pending_received' && (
+                    <button
+                      onClick={handleRejectRequest}
+                      disabled={connecting}
+                      className="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border border-red-200 text-red-500 hover:bg-red-50 transition-all cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" /> Decline Request
+                    </button>
+                  )}
+                  
+                  <button
+                    onClick={handleToggleSave}
+                    disabled={saving}
+                    className="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all border border-gray-200 text-ink/80 bg-white hover:bg-gray-50 shadow-xs cursor-pointer"
+                  >
+                    <Heart className={`w-3.5 h-3.5 ${isSaved ? 'fill-fire text-fire' : 'text-ink/40'}`} />
+                    <span>{isSaved ? 'Saved in Shortlist' : 'Save Profile'}</span>
+                  </button>
+                </div>
+
+                {/* Footer Micro actions */}
+                <div className="pt-3 border-t border-gray-150 flex justify-around text-xs text-ink/40 font-medium">
+                  <button onClick={() => setReportModalOpen(true)} className="hover:text-amber-600 flex items-center gap-1 cursor-pointer">
+                    <Flag className="w-3.5 h-3.5" /> Report
+                  </button>
+                  <button onClick={handleBlock} className="hover:text-red-600 flex items-center gap-1 cursor-pointer">
+                    <Ban className="w-3.5 h-3.5" /> Block
+                  </button>
                 </div>
               </div>
 
-              {/* Main Action CTAs */}
-              <div className="pt-2 space-y-2.5">
-                <button
-                  onClick={handleConnectOrChat}
-                  disabled={connecting || connectState === 'pending_sent'}
-                  className={`w-full py-3.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all cursor-pointer ${
-                    connectState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
-                    connectState === 'pending_received' ? 'bg-teal text-white hover:opacity-90' :
-                    connectState === 'connected' ? 'bg-emerald-600 text-white hover:bg-emerald-700' :
-                    'btn-fire text-white'
-                  }`}
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>
-                    {connectState === 'pending_sent' ? 'Request Sent' :
-                     connectState === 'pending_received' ? 'Accept Request' :
-                     connectState === 'connected' ? 'Message User' : 'Connect & Chat'}
-                  </span>
-                </button>
-
-                {connectState === 'pending_received' && (
-                  <button
-                    onClick={handleRejectRequest}
-                    disabled={connecting}
-                    className="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border border-red-200 text-red-500 hover:bg-red-50 transition-all cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" /> Decline Request
-                  </button>
-                )}
-                
-                <button
-                  onClick={handleToggleSave}
-                  disabled={saving}
-                  className="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all border border-border text-ink/80 bg-white hover:bg-cream shadow-2xs cursor-pointer"
-                >
-                  <Heart className={`w-3.5 h-3.5 ${isSaved ? 'fill-fire text-fire' : 'text-ink/40'}`} />
-                  <span>{isSaved ? 'Saved in Shortlist' : 'Save Profile'}</span>
-                </button>
-              </div>
-
-              <div className="pt-3 border-t border-border/40 flex justify-around text-xs text-ink/40 font-medium">
-                <button onClick={() => setReportModalOpen(true)} className="hover:text-amber-600 flex items-center gap-1 cursor-pointer">
-                  <Flag className="w-3.5 h-3.5" /> Report
-                </button>
-                <button onClick={handleBlock} className="hover:text-red-600 flex items-center gap-1 cursor-pointer">
-                  <Ban className="w-3.5 h-3.5" /> Block
-                </button>
-              </div>
             </div>
-
           </div>
+
         </div>
 
       </div>
 
       {/* Mobile Floating Bottom Action Bar */}
-      <div className="fixed bottom-above-nav md:bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-border z-40 lg:hidden flex gap-2">
+      <div className="fixed bottom-above-nav md:bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-gray-200 z-40 lg:hidden flex gap-2 shadow-lg">
         <button
           onClick={handleToggleSave}
           aria-label={isSaved ? 'Remove from saved' : 'Save profile'}
-          className={`p-3 rounded-xl border flex items-center justify-center shrink-0 min-h-[44px] ${isSaved ? 'bg-fire/10 border-fire/30 text-fire' : 'border-border text-ink/70'}`}
+          className={`p-3 rounded-xl border flex items-center justify-center shrink-0 min-h-[44px] cursor-pointer ${isSaved ? 'bg-fire/10 border-fire/30 text-fire' : 'border-gray-200 text-ink/70 bg-white'}`}
         >
           <Heart className={`w-5 h-5 ${isSaved ? 'fill-fire text-fire' : ''}`} />
         </button>
         <button
           onClick={handleConnectOrChat}
           disabled={connecting || connectState === 'pending_sent'}
-          className={`flex-1 min-h-[44px] py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all ${
+          className={`flex-1 min-h-[44px] py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer ${
             connectState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
             connectState === 'pending_received' ? 'bg-teal text-white' :
             'btn-fire text-white'
@@ -1015,11 +1033,11 @@ export default function MatchDetail() {
                     key={star}
                     type="button"
                     onClick={() => setReviewRating(star)}
-                    className="p-1.5 focus:outline-none hover:scale-110 transition-transform"
+                    className="p-1.5 focus:outline-none hover:scale-110 transition-transform cursor-pointer"
                   >
                     <Star
                       className={`w-8 h-8 ${
-                        star <= reviewRating ? 'fill-gold text-gold' : 'text-border'
+                        star <= reviewRating ? 'fill-amber-400 text-amber-400' : 'text-gray-200'
                       }`}
                     />
                   </button>
