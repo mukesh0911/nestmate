@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  ArrowLeft, Heart, MessageCircle, ShieldCheck, Check, AlertCircle, 
+  ArrowLeft, Heart, MessageCircle, ShieldCheck, Check, 
   Star, Loader2, Home as HomeIcon, MoreVertical, Flag, Ban, MapPin, X,
   Moon, Sun, Utensils, Wind, Wine, Users, Sparkles, Briefcase, Dog, User, 
-  CheckCircle2, Linkedin, Instagram, Calendar, Shield, ExternalLink,
-  MessageSquare, CheckCircle, HelpCircle, UserCheck
+  CheckCircle2, Calendar, MessageSquare, ChevronRight
 } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -20,8 +19,30 @@ import { useMatches, calculateCompatibility, getActiveStatus } from '@/hooks/use
 import type { MatchedUser } from '@/hooks/useMatches';
 import { useGeocoding } from '@/hooks/useGeocoding';
 import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet';
+import { quizQuestions } from '@/lib/staticData';
+import { useStore } from '@/store/useStore';
+import { toast } from 'sonner';
 
-// Helper to handle dynamic container resizing for Leaflet maps
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import StateLoading from '@/components/StateLoading';
+import StateEmpty from '@/components/StateEmpty';
+
 function LeafletResizeHandler() {
   const map = useMap();
   useEffect(() => {
@@ -43,29 +64,6 @@ function LeafletResizeHandler() {
   return null;
 }
 
-import { quizQuestions } from '@/lib/staticData';
-import { useStore } from '@/store/useStore';
-import { toast } from 'sonner';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import StateLoading from '@/components/StateLoading';
-import StateEmpty from '@/components/StateEmpty';
-
 const CATEGORY_ICONS: Record<string, any> = {
   sleep_time: Moon,
   wake_time: Sun,
@@ -85,7 +83,7 @@ export default function MatchDetail() {
   const { user, profile, refreshProfile } = useAuth();
   const { getProfile, toggleSavedProfile, blockUser, reportUser } = useUserProfile();
   const { getOrCreateChatRoom, subscribeToChatRooms } = useChat();
-  const { sendRequest, getMyConnections, subscribeToMyConnections, acceptRequest, rejectRequest } = useConnections();
+  const { sendRequest, subscribeToMyConnections, acceptRequest, rejectRequest } = useConnections();
   const { createNotification } = useNotifications();
 
   const [matchedUser, setMatchedUser] = useState<MatchedUser | null>(null);
@@ -94,7 +92,6 @@ export default function MatchDetail() {
   const [connecting, setConnecting] = useState(false);
   const [saving, setSaving] = useState(false);
   
-  // Connections and Chat Map
   const [myConnections, setMyConnections] = useState<Connection[]>([]);
   const [chatRoomMap, setChatRoomMap] = useState<Record<string, string>>({});
 
@@ -128,7 +125,12 @@ export default function MatchDetail() {
 
       if (targetProfile) {
         const score = profile?.quizAnswers
-          ? calculateCompatibility(profile.quizAnswers, targetProfile.quizAnswers || {})
+          ? calculateCompatibility(
+              profile.quizAnswers, 
+              targetProfile.quizAnswers || {},
+              profile.city,
+              targetProfile.city
+            )
           : 0;
         setMatchedUser({ profile: targetProfile, compatibilityScore: score });
 
@@ -142,7 +144,7 @@ export default function MatchDetail() {
               
               if (targetProfile.geoLocation) {
                 setMapLoc(targetProfile.geoLocation);
-              } else {
+              } else if (targetProfile.city) {
                 geocode(targetProfile.city, ldata.locality || targetProfile.localities?.[0]).then(loc => {
                   if (loc) setMapLoc(loc);
                 });
@@ -154,7 +156,7 @@ export default function MatchDetail() {
         } else {
           if (targetProfile.geoLocation) {
             setMapLoc(targetProfile.geoLocation);
-          } else {
+          } else if (targetProfile.city) {
             geocode(targetProfile.city, targetProfile.localities?.[0]).then(loc => {
               if (loc) setMapLoc(loc);
             });
@@ -163,14 +165,14 @@ export default function MatchDetail() {
       }
       setIsLoading(false);
     });
-  }, [id, profile, geocode]);
+  }, [id, profile, geocode, getProfile, getReviewsForUser]);
 
-  // Real-time connection listener — updates button state instantly
+  // Real-time connection listener
   useEffect(() => {
     if (!user?.uid) return;
     const unsub = subscribeToMyConnections(user.uid, setMyConnections);
     return unsub;
-  }, [user?.uid]);
+  }, [user?.uid, subscribeToMyConnections]);
 
   // Real-time chat room listener
   useEffect(() => {
@@ -184,7 +186,7 @@ export default function MatchDetail() {
       setChatRoomMap(map);
     });
     return () => unsub();
-  }, [user?.uid]);
+  }, [user?.uid, subscribeToChatRooms]);
 
   const handleBlock = async () => {
     if (!user?.uid || !id) return;
@@ -193,7 +195,7 @@ export default function MatchDetail() {
       await blockUser(user.uid, id);
       await refreshProfile();
       toast.success('User blocked');
-      navigate('/seeker-dashboard');
+      navigate('/dashboard');
     } catch {
       toast.error('Failed to block user');
     }
@@ -224,8 +226,20 @@ export default function MatchDetail() {
   };
 
   const handleSubmitReview = async () => {
-    if (!user?.uid || !id || reviewRating === 0) {
-      toast.error('Please provide a rating.');
+    if (!user?.uid) {
+      useStore.getState().openAuthModal({
+        title: 'Vouch for user',
+        subtitle: 'Sign in to submit a vouch or review.',
+        redirect: `/match/${id}`,
+      });
+      return;
+    }
+    if (!id || reviewRating === 0) {
+      toast.error('Please select a star rating.');
+      return;
+    }
+    if (user.uid === id) {
+      toast.error('You cannot review your own profile.');
       return;
     }
     setIsSubmittingReview(true);
@@ -238,12 +252,12 @@ export default function MatchDetail() {
         reviewRating,
         reviewText
       );
-      toast.success('Review submitted successfully!');
+      toast.success('Vouch submitted successfully!');
       setReviewModalOpen(false);
       setReviewRating(0);
       setReviewText('');
-    } catch {
-      toast.error('Failed to submit review.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to submit review.');
     } finally {
       setIsSubmittingReview(false);
     }
@@ -284,7 +298,6 @@ export default function MatchDetail() {
     const targetUid = matchedUser.profile.uid;
     const existingConn = myConnections.find(c => c.toUserId === targetUid || c.fromUserId === targetUid);
 
-    // Already connected or has active chat — open chat
     if (chatRoomMap[targetUid] || existingConn?.status === 'accepted') {
       setConnecting(true);
       try {
@@ -299,7 +312,6 @@ export default function MatchDetail() {
       return;
     }
 
-    // They sent me a request — accept it
     if (existingConn?.status === 'pending' && existingConn.toUserId === user.uid) {
       setConnecting(true);
       try {
@@ -324,10 +336,8 @@ export default function MatchDetail() {
       return;
     }
 
-    // I already sent a request — disabled state, nothing to do
     if (existingConn?.status === 'pending' && existingConn.fromUserId === user.uid) return;
 
-    // No connection — send a new request
     setConnecting(true);
     try {
       const connectionId = await sendRequest(user.uid, targetUid);
@@ -382,11 +392,9 @@ export default function MatchDetail() {
   const isSaved = profile?.savedProfileIds?.includes(p.uid || '') || false;
   const activeStatus = getActiveStatus(p.lastActiveAt);
 
-  // Dynamic Connection state logic
   const targetUid = p.uid || id || '';
   const connectState = getRelationshipState(user?.uid, targetUid, myConnections, chatRoomMap);
 
-  // Build Quiz Data
   const myAnswers = profile?.quizAnswers || {};
   const theirAnswers = p.quizAnswers || {};
 
@@ -396,121 +404,172 @@ export default function MatchDetail() {
     
     const myLabel = q.options.find(o => o.id === myAnsId)?.label || 'Not answered';
     const theirLabel = q.options.find(o => o.id === theirAnsId)?.label || 'Not specified';
-    
     const isMatched = Boolean(myAnsId && myAnsId === theirAnsId);
     
     return { id: q.id, question: q.question, myLabel, theirLabel, isMatched };
   });
 
-  const averageRating = reviews.length > 0
-    ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
-    : '4.8';
+  // Dynamic Rating & Review Count
+  const reviewCount = reviews.length;
+  const averageRating = reviewCount > 0
+    ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviewCount).toFixed(1)
+    : null;
+
+  // Dynamic Budget & Move-in Date from user profile or active listing
+  const displayBudget = p.budget || listing?.partnerShare || listing?.totalRent;
+  const displayMoveInDate = p.moveInDate || listing?.availableFrom;
+
+  // Check if current user has already submitted a review
+  const hasUserReviewed = Boolean(user?.uid && reviews.some(r => r.reviewerId === user.uid));
+  const isSelf = Boolean(user?.uid && user.uid === id);
 
   return (
-    <div className="min-h-screen bg-parchment pb-above-nav md:pb-12 lg:pb-12 text-ink font-sans page-transition overflow-x-hidden">
-      {/* ── Desktop Two-Column Wrapper ── */}
-      <div className="max-w-6xl mx-auto py-6 px-4 sm:px-6 flex flex-col lg:flex-row gap-7">
+    <div className="min-h-screen bg-parchment pb-24 md:pb-12 text-ink font-sans page-transition overflow-x-hidden">
+      <div className="max-w-6xl mx-auto py-4 sm:py-6 px-4 sm:px-6 flex flex-col lg:flex-row gap-8">
         
-        {/* ── Left Column: Main Profile Details ── */}
-        <div className="flex-1 space-y-6">
+        {/* ── Left Main Detail Column ── */}
+        <div className="flex-1 space-y-8">
           
-          {/* Warm Harmonized Hero Header Card */}
-          <div className="bg-gradient-to-r from-orange-100/70 via-cream to-orange-100/80 rounded-[28px] p-6 border border-orange-200/70 shadow-2xs relative flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6 overflow-hidden">
-            
-            {/* Left Content */}
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 flex-1 z-10">
-              {/* Back Button */}
-              <button 
-                onClick={() => navigate(-1)}
-                aria-label="Go back"
-                className="touch-target w-11 h-11 rounded-full bg-white border border-orange-200 flex items-center justify-center text-fire shadow-2xs hover:bg-orange-50 transition-all flex-shrink-0"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
+          {/* Back Navigation Bar */}
+          <div className="flex items-center justify-between">
+            <button 
+              onClick={() => navigate(-1)}
+              aria-label="Go back"
+              className="inline-flex items-center gap-2 text-xs font-bold text-ink/60 hover:text-ink transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to discovery</span>
+            </button>
 
-              {/* Avatar */}
-              <div className="relative flex-shrink-0">
-                <img 
-                  src={p.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} 
-                  alt={p.name} 
-                  className="w-28 h-28 rounded-full border-4 border-white object-cover shadow-md" 
-                />
-              </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="p-2 text-ink/40 hover:text-ink rounded-full transition-colors cursor-pointer">
+                  <MoreVertical className="w-5 h-5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setReportModalOpen(true)}>Report User</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleBlock}>Block User</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
-              {/* Text Info */}
-              <div className="text-center sm:text-left flex-1">
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
-                  <h1 className="text-2xl font-serif font-bold text-ink">
-                    {p.name}{p.age ? `, ${p.age}` : ''}
-                  </h1>
-                  <span className="bg-fire/10 text-fire font-bold text-[11px] px-3 py-1 rounded-full inline-flex items-center gap-1 border border-fire/20 shadow-2xs">
-                    <ShieldCheck className="w-3.5 h-3.5 text-fire" /> Verified Identity
-                  </span>
+          {/* ── 1. Profile Hero ── */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-border/60 shadow-2xs">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6">
+              
+              {/* Avatar + Primary Info */}
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 text-center sm:text-left flex-1 min-w-0">
+                <div className="relative shrink-0">
+                  <img 
+                    src={p.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} 
+                    alt={p.name} 
+                    className="w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-white bg-cream object-cover shadow-md" 
+                  />
+                  {p.isVerified && (
+                    <div className="absolute bottom-1 right-1 bg-white rounded-full p-1 shadow-2xs border border-emerald-200" title="Verified Identity">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 fill-emerald-50" />
+                    </div>
+                  )}
                 </div>
-                
-                <p className="text-sm font-semibold text-ink/70 mb-1">{p.profession || 'Software Engineer'}</p>
-                <p className="text-xs text-ink/50 font-medium flex items-center justify-center sm:justify-start gap-1 mb-2">
-                  <MapPin className="w-3.5 h-3.5 text-fire" /> {p.city || 'Bengaluru'}
-                </p>
-                
-                <div className="flex items-center justify-center sm:justify-start gap-1.5 text-xs font-semibold text-emerald-600">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>{activeStatus.text || 'Active a while ago'}</span>
+
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-ink tracking-tight">
+                      {p.name}{p.age ? `, ${p.age}` : ''}
+                    </h1>
+                    {p.isVerified && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Verified Identity
+                      </span>
+                    )}
+                  </div>
+
+                  {p.profession && (
+                    <p className="text-sm font-semibold text-ink/70">
+                      {p.profession}{p.company ? ` at ${p.company}` : ''}
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-ink/60 pt-1">
+                    {p.city && (
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-fire shrink-0" />
+                        <span>{p.city}{p.locality ? ` · ${p.locality}` : ''}</span>
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1.5 text-emerald-600 font-semibold">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>{activeStatus.text || 'Active recently'}</span>
+                    </span>
+                  </div>
+
+                  {p.bio && (
+                    <p className="text-xs sm:text-sm text-ink/70 leading-relaxed pt-2 line-clamp-3 font-normal">
+                      "{p.bio}"
+                    </p>
+                  )}
                 </div>
               </div>
-            </div>
 
-            {/* Circular Compatibility Gauge (Right Side of Hero Card) */}
-            <div className="flex flex-col items-center justify-center z-10 flex-shrink-0 sm:self-center">
-              <div className="w-28 h-28 rounded-full border-4 border-fire bg-white/90 backdrop-blur-md flex flex-col items-center justify-center shadow-lg relative">
-                <span className="text-3xl font-extrabold text-fire tracking-tight">{matchedUser.compatibilityScore}%</span>
-                <span className="text-[9px] font-extrabold text-ink/40 uppercase tracking-wider mt-0.5">COMPATIBLE</span>
+              {/* Dynamic Compatibility Box */}
+              <div className="bg-cream/60 rounded-2xl p-4 sm:p-5 border border-border/50 text-center shrink-0 w-full sm:w-auto min-w-[130px] flex flex-col items-center justify-center">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-ink/40 block mb-1">
+                  Compatibility
+                </span>
+                <span className="text-3xl font-extrabold text-fire tracking-tight">
+                  {matchedUser.compatibilityScore}%
+                </span>
+                <span className="text-[11px] font-semibold text-ink/60 mt-0.5">
+                  {matchedUser.compatibilityScore >= 80 ? 'Excellent Match' : matchedUser.compatibilityScore >= 60 ? 'Good Match' : 'Potential Match'}
+                </span>
               </div>
+
             </div>
           </div>
 
-          {/* "Why you and Rohan Deshmukh are compatible" Card */}
-          <div className="bg-gradient-to-r from-orange-100/80 via-amber-50/60 to-orange-100/80 rounded-2xl p-5 border border-orange-200/70 shadow-2xs relative flex items-center gap-4 overflow-hidden">
-            <div className="w-12 h-12 rounded-2xl bg-fire/15 text-fire flex items-center justify-center flex-shrink-0 shadow-2xs">
-              <Users className="w-6 h-6" />
+          {/* ── 2. "Why You Match" Section ── */}
+          <div className="bg-cream/40 rounded-2xl p-5 border border-border/50 flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-fire/10 text-fire flex items-center justify-center shrink-0 mt-0.5">
+              <Sparkles className="w-5 h-5" />
             </div>
-            <div className="flex-1 z-10">
-              <h3 className="font-bold text-ink text-sm sm:text-base mb-0.5">
-                Why you and {p.name} are compatible
+            <div>
+              <h3 className="font-bold text-sm sm:text-base text-ink mb-1">
+                Why you and {p.name} match
               </h3>
-              <p className="text-xs text-ink/60 font-medium">
-                You have different preferences, but opposites attract!
+              <p className="text-xs text-ink/70 leading-relaxed font-medium">
+                You share compatible lifestyle expectations, work modes, and budget preferences{p.city ? ` in ${p.city}` : ''}.
               </p>
             </div>
-            {/* Background Decorative Heart Accent */}
-            <Heart className="w-32 h-32 absolute -right-6 -bottom-8 text-fire/10 fill-current pointer-events-none" />
           </div>
 
-          {/* Detailed Compatibility Breakdown Table */}
-          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-border/80 shadow-2xs">
-            <h3 className="font-bold text-base text-ink mb-6 flex items-center gap-2">
-              <Star className="w-4.5 h-4.5 text-gold fill-gold" />
-              Detailed Compatibility Breakdown
-            </h3>
+          {/* ── 3. Compatibility Breakdown Comparison ── */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-border/40">
+              <h2 className="text-lg font-bold text-ink tracking-tight">
+                Compatibility Breakdown
+              </h2>
+              <span className="text-xs font-semibold text-ink/50">
+                10 key preferences
+              </span>
+            </div>
 
-            {/* Desktop: 4-column grid table */}
-            <div className="hidden sm:block">
-              {/* Table Header */}
-              <div className="grid grid-cols-[1.5fr_1fr_1.2fr_auto] gap-4 text-[10px] font-extrabold text-ink/40 uppercase tracking-wider pb-3 border-b border-border">
-                <div>CATEGORY</div>
-                <div>YOUR PREFERENCE</div>
-                <div>THEIR LIFESTYLE</div>
-                <div className="text-center w-12">MATCH</div>
+            {/* Desktop Table View */}
+            <div className="hidden sm:block bg-white rounded-2xl border border-border/60 overflow-hidden shadow-2xs">
+              <div className="grid grid-cols-[1.5fr_1fr_1.2fr_60px] gap-4 px-5 py-3 bg-cream/40 border-b border-border/40 text-[10px] font-extrabold text-ink/50 uppercase tracking-wider">
+                <div>Category</div>
+                <div>You</div>
+                <div>{p.name}</div>
+                <div className="text-center">Match</div>
               </div>
 
-              {/* Table Rows */}
-              <div className="divide-y divide-border/40">
+              <div className="divide-y divide-border/30 text-xs">
                 {breakdownRows.map((row) => {
                   const IconComp = CATEGORY_ICONS[row.id] || Sparkles;
                   return (
-                    <div key={row.id} className="grid grid-cols-[1.5fr_1fr_1.2fr_auto] gap-4 items-center py-3 text-xs">
-                      <div className="font-semibold text-ink/80 flex items-center gap-2.5">
-                        <IconComp className="w-4 h-4 text-fire/80 flex-shrink-0" />
+                    <div key={row.id} className="grid grid-cols-[1.5fr_1fr_1.2fr_60px] gap-4 items-center px-5 py-3.5">
+                      <div className="font-semibold text-ink flex items-center gap-2.5 min-w-0">
+                        <IconComp className="w-4 h-4 text-ink/40 shrink-0" />
                         <span className="truncate">
                           {row.question
                             .replace('What time do you usually ', '')
@@ -520,12 +579,14 @@ export default function MatchDetail() {
                             .replace('How do you feel about ', '')}
                         </span>
                       </div>
-                      <div className="text-ink/40 font-medium truncate">{row.myLabel}</div>
+                      <div className="text-ink/60 font-medium truncate">{row.myLabel}</div>
                       <div className="font-bold text-ink truncate">{row.theirLabel}</div>
-                      <div className="flex justify-center w-12">
-                        <div className="w-5 h-5 rounded-full border-2 border-emerald-500 text-emerald-500 flex items-center justify-center">
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
-                        </div>
+                      <div className="flex justify-center">
+                        {row.isMatched ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        ) : (
+                          <span className="text-ink/30 font-bold">•</span>
+                        )}
                       </div>
                     </div>
                   );
@@ -533,15 +594,15 @@ export default function MatchDetail() {
               </div>
             </div>
 
-            {/* Mobile: stacked card layout — no horizontal scroll */}
-            <div className="sm:hidden space-y-2">
+            {/* Mobile Stacked View */}
+            <div className="sm:hidden space-y-2.5">
               {breakdownRows.map((row) => {
                 const IconComp = CATEGORY_ICONS[row.id] || Sparkles;
                 return (
-                  <div key={row.id} className="bg-cream/30 rounded-xl p-3 border border-border/40">
+                  <div key={row.id} className="bg-white rounded-xl p-3.5 border border-border/50 shadow-2xs">
                     <div className="flex items-center justify-between mb-2">
-                      <div className="font-semibold text-xs text-ink/80 flex items-center gap-2 min-w-0">
-                        <IconComp className="w-4 h-4 text-fire/80 flex-shrink-0" />
+                      <div className="font-semibold text-xs text-ink flex items-center gap-2 min-w-0">
+                        <IconComp className="w-4 h-4 text-ink/40 shrink-0" />
                         <span className="truncate">
                           {row.question
                             .replace('What time do you usually ', '')
@@ -551,17 +612,19 @@ export default function MatchDetail() {
                             .replace('How do you feel about ', '')}
                         </span>
                       </div>
-                      <div className="w-5 h-5 rounded-full border-2 border-emerald-500 text-emerald-500 flex items-center justify-center flex-shrink-0 ml-2">
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      </div>
+                      {row.isMatched ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 ml-2" />
+                      ) : (
+                        <span className="text-ink/30 font-bold text-xs shrink-0 ml-2">•</span>
+                      )}
                     </div>
-                    <div className="flex items-center gap-3 text-[11px]">
-                      <div className="flex-1 min-w-0">
-                        <span className="text-ink/40 block text-[9px] uppercase font-bold tracking-wide">You</span>
-                        <span className="text-ink/60 font-medium truncate block">{row.myLabel}</span>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-border/30">
+                      <div>
+                        <span className="text-ink/40 block text-[9px] uppercase font-bold tracking-wider">You</span>
+                        <span className="text-ink/70 font-medium truncate block">{row.myLabel}</span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-ink/40 block text-[9px] uppercase font-bold tracking-wide">Them</span>
+                      <div>
+                        <span className="text-ink/40 block text-[9px] uppercase font-bold tracking-wider">{p.name}</span>
                         <span className="text-ink font-bold truncate block">{row.theirLabel}</span>
                       </div>
                     </div>
@@ -571,13 +634,15 @@ export default function MatchDetail() {
             </div>
           </div>
 
-          {/* Lifestyle Setup Cards Grid */}
-          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-border/80 shadow-2xs">
-            <h3 className="font-bold text-base text-ink mb-5">
-              {p.name}'s Lifestyle Setup
-            </h3>
+          {/* ── 4. Lifestyle & Preferences Grid ── */}
+          <div className="space-y-4 pt-2">
+            <div className="pb-2 border-b border-border/40">
+              <h2 className="text-lg font-bold text-ink tracking-tight">
+                {p.name}'s Lifestyle & Preferences
+              </h2>
+            </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
               {quizQuestions.slice(0, 10).map((q) => {
                 const ansId = theirAnswers[q.id];
                 const opt = q.options.find((o) => o.id === ansId);
@@ -586,58 +651,67 @@ export default function MatchDetail() {
                 return (
                   <div 
                     key={q.id} 
-                    className="bg-white border border-border/80 rounded-2xl p-4 text-center flex flex-col items-center justify-between gap-2.5 shadow-2xs hover:border-fire/40 transition-all min-h-[110px]"
+                    className="bg-white border border-border/50 rounded-xl p-3.5 flex flex-col justify-between gap-2 shadow-2xs hover:border-fire/40 transition-all min-h-[90px]"
                   >
-                    <div className="w-10 h-10 rounded-full bg-fire/10 text-fire flex items-center justify-center flex-shrink-0">
-                      <IconComp className="w-5 h-5" />
-                    </div>
-                    <div className="w-full">
-                      <p className="text-[9px] font-extrabold text-ink/40 uppercase tracking-wider mb-0.5 truncate">
+                    <div className="flex items-center gap-2 text-ink/40">
+                      <IconComp className="w-4 h-4 text-ink/60" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider truncate">
                         {q.id.replace('_', ' ')}
-                      </p>
-                      <p className="text-xs font-extrabold text-ink leading-snug line-clamp-2">
-                        {opt?.label || 'Not specified'}
-                      </p>
+                      </span>
                     </div>
+                    <p className="text-xs font-bold text-ink leading-snug line-clamp-2">
+                      {opt?.label || 'Not specified'}
+                    </p>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Room Available Section (If Owner) */}
+          {/* ── 5. Available Room Opportunity (If Owner) ── */}
           {listing && (
-            <div className="bg-white border-2 border-fire/30 rounded-3xl p-4 sm:p-6 shadow-sm">
-              <div className="flex items-center gap-2.5 mb-4 text-fire">
-                <HomeIcon className="w-5 h-5" />
-                <h3 className="font-bold text-base">Active Room Listing Available</h3>
-              </div>
-              <div className="grid sm:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <p className="text-xs text-ink/40 font-bold uppercase">Flat Type</p>
-                  <p className="text-base font-bold text-ink">{listing.flatType} • {listing.furnishing}</p>
+            <div className="bg-white border border-fire/30 rounded-2xl p-5 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <HomeIcon className="w-4 h-4 text-fire" />
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-fire">Active Room Available</span>
                 </div>
+                <span className="text-xs text-ink/50 font-semibold">{listing.flatType}</span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-2 border-y border-border/30">
                 <div>
-                  <p className="text-xs text-ink/40 font-bold uppercase">Rent Share</p>
-                  <p className="text-xl font-extrabold text-fire">₹{(listing.partnerShare || listing.totalRent || 0).toLocaleString()}/mo</p>
+                  <h4 className="font-bold text-base text-ink">{listing.title || `${listing.locality}, ${listing.city}`}</h4>
+                  <p className="text-xs text-ink/60 capitalize mt-0.5">{listing.furnishing || 'Semi-Furnished'} • Available {listing.availableFrom || 'Immediately'}</p>
+                </div>
+                <div className="text-left sm:text-right">
+                  <p className="text-[10px] font-bold text-ink/40 uppercase tracking-wider">Your Rent Share</p>
+                  <p className="text-xl font-extrabold text-fire">₹{(listing.partnerShare || listing.totalRent || 0).toLocaleString()} <span className="text-xs text-ink/50 font-normal">/ mo</span></p>
                 </div>
               </div>
-              <button onClick={() => navigate(`/room/${listing.id}`)} className="btn-fire w-full py-3 text-white font-bold text-xs rounded-xl shadow-sm">
-                View Full Flat Details
+
+              <button 
+                onClick={() => navigate(`/room/${listing.id}`)} 
+                className="w-full py-3 bg-fire text-white font-bold text-xs rounded-xl shadow-2xs hover:bg-fire-dark transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>View Full Room Details</span>
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           )}
 
-          {/* Approximate Location Card */}
+          {/* ── 6. Location & Map ── */}
           {p.city && (
-            <div className="bg-white rounded-3xl p-4 sm:p-6 border border-border/80 shadow-2xs">
-              <h3 className="font-bold text-base text-ink mb-1">Approximate Location</h3>
-              <p className="text-xs text-ink/50 font-medium mb-4 flex items-center gap-1.5">
-                <MapPin className="w-4 h-4 text-fire" /> 
-                {listing?.locality || p.localities?.[0] || 'Indiranagar'}, {p.city || 'Bengaluru'}
-              </p>
+            <div className="space-y-3 pt-2">
+              <div className="pb-2 border-b border-border/40">
+                <h2 className="text-lg font-bold text-ink tracking-tight">Location</h2>
+                <p className="text-xs text-ink/60 mt-0.5 font-medium flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-fire" /> 
+                  <span>{listing?.locality || p.locality || p.localities?.[0] || p.city}, {p.city}</span>
+                </p>
+              </div>
 
-              <div className="h-60 rounded-2xl overflow-hidden border border-border bg-parchment relative">
+              <div className="h-56 rounded-2xl overflow-hidden border border-border/60 bg-parchment relative shadow-2xs">
                 {mapLoc ? (
                   <MapContainer center={[mapLoc.lat, mapLoc.lng]} zoom={13} className="w-full h-full" zoomControl={false} dragging={false} scrollWheelZoom={false}>
                     <LeafletResizeHandler />
@@ -658,176 +732,192 @@ export default function MatchDetail() {
             </div>
           )}
 
-          {/* Vouches & Reviews Card */}
-          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-border/80 shadow-2xs text-center">
-            <h3 className="font-bold text-base text-ink mb-6 text-left flex items-center gap-2">
-              <Star className="w-4.5 h-4.5 text-gold fill-gold" />
-              Vouches & Reviews
-            </h3>
-
-            <div className="py-6 flex flex-col items-center justify-center">
-              <div className="w-12 h-12 rounded-2xl bg-fire/10 text-fire flex items-center justify-center mb-3 shadow-2xs">
-                <MessageSquare className="w-6 h-6" />
-              </div>
-              <p className="text-sm font-bold text-ink mb-1">No reviews yet</p>
-              <p className="text-xs text-ink/50 font-medium mb-5">Be the first to vouch for {p.name}!</p>
-              
-              <button
-                onClick={() => setReviewModalOpen(true)}
-                className="btn-fire text-white font-bold text-xs px-6 py-3 rounded-xl shadow-md"
-              >
-                Be the first to review
-              </button>
+          {/* ── 7. Community Reviews & Vouches ── */}
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center justify-between pb-2 border-b border-border/40">
+              <h2 className="text-lg font-bold text-ink tracking-tight">
+                Community Reviews & Vouches {reviewCount > 0 ? `(${averageRating} · ${reviewCount})` : ''}
+              </h2>
+              {!isSelf && (
+                <button
+                  onClick={() => {
+                    if (hasUserReviewed) {
+                      toast.info('You have already submitted a vouch for this user.');
+                    } else {
+                      setReviewModalOpen(true);
+                    }
+                  }}
+                  className={`text-xs font-bold cursor-pointer ${hasUserReviewed ? 'text-ink/40' : 'text-fire hover:underline'}`}
+                >
+                  {hasUserReviewed ? 'Vouched ✓' : 'Write a Vouch'}
+                </button>
+              )}
             </div>
+
+            {reviews.length === 0 ? (
+              <div className="bg-white rounded-2xl p-6 border border-border/60 text-center flex flex-col items-center justify-center">
+                <MessageSquare className="w-8 h-8 text-ink/30 mb-2" />
+                <p className="text-sm font-bold text-ink">No reviews yet</p>
+                <p className="text-xs text-ink/50 mt-1 max-w-sm">Be the first person to share your experience or vouch for {p.name}'s character.</p>
+                {!isSelf && (
+                  <button
+                    onClick={() => setReviewModalOpen(true)}
+                    className="mt-4 px-5 py-2.5 bg-fire text-white font-bold text-xs rounded-xl shadow-2xs hover:bg-fire-dark transition-all cursor-pointer"
+                  >
+                    Write a Vouch
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {reviews.map((rev) => (
+                  <div key={rev.id} className="bg-white rounded-2xl p-4 border border-border/60 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-cream border border-border flex items-center justify-center overflow-hidden font-bold text-xs text-ink/70">
+                          {rev.reviewerAvatar ? (
+                            <img src={rev.reviewerAvatar} alt={rev.reviewerName} className="w-full h-full object-cover" />
+                          ) : (
+                            rev.reviewerName?.[0]?.toUpperCase()
+                          )}
+                        </div>
+                        <span className="font-bold text-xs text-ink">{rev.reviewerName}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: 5 }).map((_, idx) => (
+                          <Star
+                            key={idx}
+                            className={`w-3.5 h-3.5 ${idx < rev.rating ? 'fill-gold text-gold' : 'text-border'}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    {rev.text && <p className="text-xs text-ink/80 leading-relaxed font-medium">{rev.text}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
         </div>
 
-        {/* ── Right Column: Sticky Sidebar ── */}
-        <div className="hidden lg:block w-[330px] flex-shrink-0">
+        {/* ── Right Sidebar: At a Glance Summary ── */}
+        <div className="hidden lg:block w-[320px] shrink-0">
           <div className="sticky top-24 space-y-6">
             
-            {/* Card 1: "At a Glance" */}
-            <div className="bg-white rounded-3xl p-4 sm:p-6 border border-border/80 shadow-sm relative">
-              <div className="flex items-center justify-between mb-6 pb-2 border-b border-border">
-                <h3 className="font-serif font-bold text-xl text-ink">At a Glance</h3>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className="text-ink/40 hover:text-ink">
-                      <MoreVertical className="w-5 h-5" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setReportModalOpen(true)}>Report User</DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleBlock}>Block User</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+            <div className="bg-white rounded-3xl p-6 border border-border/60 shadow-2xs space-y-5">
+              <div className="pb-3 border-b border-border/40 flex items-center justify-between">
+                <h3 className="font-bold text-lg text-ink">At a Glance</h3>
+                {p.isVerified ? (
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    Verified
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-ink/40 bg-cream px-2 py-0.5 rounded-full border border-border/40">
+                    Unverified
+                  </span>
+                )}
               </div>
               
-              <div className="space-y-5">
+              <div className="space-y-4 text-xs">
                 {/* Community Rating */}
-                <div>
-                  <p className="text-xs text-ink/40 font-medium mb-1">Community Rating</p>
-                  <div className="flex items-center gap-2">
-                    <Star className="w-4.5 h-4.5 fill-gold text-gold" />
-                    <span className="font-extrabold text-base text-ink">{averageRating}</span>
-                    <span className="text-xs text-ink/40">({reviews.length || 32} reviews)</span>
-                  </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-ink/60 font-medium">Community Rating</span>
+                  {averageRating ? (
+                    <div className="flex items-center gap-1.5 font-extrabold text-ink">
+                      <Star className="w-4 h-4 fill-gold text-gold" />
+                      <span>{averageRating}</span>
+                      <span className="text-ink/40 font-normal">({reviewCount})</span>
+                    </div>
+                  ) : (
+                    <span className="text-ink/40 font-medium italic">No reviews yet</span>
+                  )}
                 </div>
 
-                {/* Overall Compatibility Progress Bar */}
-                <div>
-                  <div className="flex justify-between items-center text-xs mb-1.5">
-                    <span className="text-ink/40 font-medium">Overall Compatibility</span>
+                {/* Compatibility Score */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-ink/60 font-medium">Compatibility</span>
                     <span className="font-extrabold text-fire">{matchedUser.compatibilityScore}%</span>
                   </div>
                   <div className="w-full bg-cream h-2 rounded-full overflow-hidden border border-border/40">
                     <div 
-                      className="bg-gradient-to-r from-amber-500 to-fire h-full rounded-full transition-all duration-500" 
+                      className="bg-fire h-full rounded-full transition-all duration-500" 
                       style={{ width: `${matchedUser.compatibilityScore}%` }} 
                     />
                   </div>
                 </div>
                 
-                {/* Budget Alignment */}
-                <div>
-                  <p className="text-xs text-ink/40 font-medium mb-1">Budget Alignment</p>
-                  <p className="text-xl font-extrabold text-fire">
-                    ₹{p.budget?.toLocaleString() || '15,000'}/mo
-                  </p>
+                {/* Budget */}
+                <div className="flex justify-between items-center">
+                  <span className="text-ink/60 font-medium">Budget Alignment</span>
+                  <span className="font-extrabold text-ink text-sm">
+                    {displayBudget ? `₹${displayBudget.toLocaleString()}/mo` : 'Not specified'}
+                  </span>
                 </div>
 
-                {/* Move-in Preference */}
-                <div>
-                  <p className="text-xs text-ink/40 font-medium mb-1">Move-in Preference</p>
-                  <p className="text-xs font-bold text-ink flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4 text-fire" /> {p.moveInDate || '10 Aug 2026'}
-                  </p>
+                {/* Move-in Date */}
+                <div className="flex justify-between items-center">
+                  <span className="text-ink/60 font-medium">Move-in Date</span>
+                  <span className="font-bold text-ink flex items-center gap-1">
+                    {displayMoveInDate ? (
+                      <>
+                        <Calendar className="w-3.5 h-3.5 text-fire" /> {displayMoveInDate}
+                      </>
+                    ) : (
+                      'Not specified'
+                    )}
+                  </span>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="mt-8 space-y-3">
-                {/* Connect & Chat - Fire Button */}
+              {/* Main Action CTAs */}
+              <div className="pt-2 space-y-2.5">
                 <button
                   onClick={handleConnectOrChat}
                   disabled={connecting || connectState === 'pending_sent'}
-                  className={`w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-md transition-all ${
+                  className={`w-full py-3.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all cursor-pointer ${
                     connectState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
                     connectState === 'pending_received' ? 'bg-teal text-white hover:opacity-90' :
                     connectState === 'connected' ? 'bg-emerald-600 text-white hover:bg-emerald-700' :
                     'btn-fire text-white'
                   }`}
                 >
-                  <MessageCircle className="w-4.5 h-4.5" />
-                  {connectState === 'pending_sent' ? 'Request Sent' :
-                   connectState === 'pending_received' ? 'Accept Request' :
-                   connectState === 'connected' ? 'Connected ✓ (Message)' : 'Connect & Chat'}
+                  <MessageCircle className="w-4 h-4" />
+                  <span>
+                    {connectState === 'pending_sent' ? 'Request Sent' :
+                     connectState === 'pending_received' ? 'Accept Request' :
+                     connectState === 'connected' ? 'Message User' : 'Connect & Chat'}
+                  </span>
                 </button>
 
-                {/* Reject button — shown only when they sent us a request */}
                 {connectState === 'pending_received' && (
                   <button
                     onClick={handleRejectRequest}
                     disabled={connecting}
-                    className="w-full py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 border border-red-200 text-red-500 hover:bg-red-50 transition-all"
+                    className="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border border-red-200 text-red-500 hover:bg-red-50 transition-all cursor-pointer"
                   >
-                    <X className="w-4 h-4" /> Decline Request
+                    <X className="w-3.5 h-3.5" /> Decline Request
                   </button>
                 )}
                 
-                {/* Save Profile Button */}
                 <button
                   onClick={handleToggleSave}
                   disabled={saving}
-                  className="w-full py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all border border-border text-ink/80 bg-white hover:bg-cream shadow-2xs"
+                  className="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all border border-border text-ink/80 bg-white hover:bg-cream shadow-2xs cursor-pointer"
                 >
-                  <Heart className={`w-4 h-4 ${isSaved ? 'fill-fire text-fire' : 'text-ink/40'}`} />
-                  {isSaved ? 'Saved to Shortlist' : 'Save Profile'}
+                  <Heart className={`w-3.5 h-3.5 ${isSaved ? 'fill-fire text-fire' : 'text-ink/40'}`} />
+                  <span>{isSaved ? 'Saved in Shortlist' : 'Save Profile'}</span>
                 </button>
               </div>
 
-              {/* Report & Block Links */}
-              <div className="mt-6 pt-4 border-t border-border/50 flex flex-col gap-2 text-xs text-ink/40 font-medium">
-                <button onClick={() => setReportModalOpen(true)} className="hover:text-amber-600 flex items-center gap-1.5">
-                  <Flag className="w-3.5 h-3.5" /> Report User
+              <div className="pt-3 border-t border-border/40 flex justify-around text-xs text-ink/40 font-medium">
+                <button onClick={() => setReportModalOpen(true)} className="hover:text-amber-600 flex items-center gap-1 cursor-pointer">
+                  <Flag className="w-3.5 h-3.5" /> Report
                 </button>
-                <button onClick={handleBlock} className="hover:text-red-600 flex items-center gap-1.5">
-                  <Ban className="w-3.5 h-3.5" /> Block User
+                <button onClick={handleBlock} className="hover:text-red-600 flex items-center gap-1 cursor-pointer">
+                  <Ban className="w-3.5 h-3.5" /> Block
                 </button>
-              </div>
-            </div>
-
-            {/* Card 2: Modern Artwork & Safety Showcase Card */}
-            <div className="bg-gradient-to-b from-orange-50/70 to-white rounded-3xl p-5 border border-orange-100/80 shadow-2xs overflow-hidden space-y-4">
-              {/* Cozy Room Illustration Cover Photo */}
-              <div className="h-44 rounded-2xl overflow-hidden shadow-2xs">
-                <img 
-                  src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600&q=80" 
-                  alt="Cozy room artwork" 
-                  className="w-full h-full object-cover"
-                />
-              </div>
-
-              {/* Quote */}
-              <div className="text-center px-2">
-                <p className="font-serif italic text-fire text-sm font-semibold leading-relaxed">
-                  “Good spaces make better people.”
-                </p>
-                <p className="text-[10px] text-ink/40 font-bold uppercase mt-1">— Unknown</p>
-              </div>
-
-              {/* Safety Banner */}
-              <div className="bg-fire/10 rounded-2xl p-4 border border-fire/20 flex items-start gap-3">
-                <div className="w-8 h-8 rounded-xl bg-fire text-white flex items-center justify-center flex-shrink-0 shadow-2xs mt-0.5">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-xs text-ink mb-0.5">Safety First</h4>
-                  <p className="text-[11px] text-ink/60 leading-snug font-medium">
-                    All profiles are manually verified to ensure a safe community.
-                  </p>
-                </div>
               </div>
             </div>
 
@@ -836,28 +926,30 @@ export default function MatchDetail() {
 
       </div>
 
-      {/* Mobile Floating Bottom Bar — sits above Layout bottom nav */}
-      <div className="fixed bottom-above-nav md:bottom-0 left-0 right-0 p-3 sm:p-4 bg-white/95 backdrop-blur-md border-t border-border z-40 lg:hidden flex gap-3">
+      {/* Mobile Floating Bottom Action Bar */}
+      <div className="fixed bottom-above-nav md:bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-border z-40 lg:hidden flex gap-2">
         <button
           onClick={handleToggleSave}
           aria-label={isSaved ? 'Remove from saved' : 'Save profile'}
-          className={`touch-target p-3.5 rounded-2xl border flex items-center justify-center shrink-0 ${isSaved ? 'bg-fire/10 border-fire/30 text-fire' : 'border-border text-ink/70'}`}
+          className={`p-3 rounded-xl border flex items-center justify-center shrink-0 min-h-[44px] ${isSaved ? 'bg-fire/10 border-fire/30 text-fire' : 'border-border text-ink/70'}`}
         >
           <Heart className={`w-5 h-5 ${isSaved ? 'fill-fire text-fire' : ''}`} />
         </button>
         <button
           onClick={handleConnectOrChat}
           disabled={connecting || connectState === 'pending_sent'}
-          className={`flex-1 min-h-[48px] py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-md transition-all ${
+          className={`flex-1 min-h-[44px] py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all ${
             connectState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
             connectState === 'pending_received' ? 'bg-teal text-white' :
             'btn-fire text-white'
           }`}
         >
-          <MessageCircle className="w-4.5 h-4.5" />
-          {connectState === 'pending_sent' ? 'Request Sent' :
-           connectState === 'pending_received' ? 'Accept Request' :
-           connectState === 'connected' ? 'Chat Now' : 'Connect & Chat'}
+          <MessageCircle className="w-4 h-4" />
+          <span>
+            {connectState === 'pending_sent' ? 'Request Sent' :
+             connectState === 'pending_received' ? 'Accept Request' :
+             connectState === 'connected' ? 'Message' : 'Connect & Chat'}
+          </span>
         </button>
       </div>
 

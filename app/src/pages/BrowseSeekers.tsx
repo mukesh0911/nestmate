@@ -19,7 +19,7 @@ interface SeekerWithScore {
   score: number;
 }
 
-export default function BrowseSeekers() {
+export default function BrowseSeekers({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate();
   const { user, profile: currentUser } = useAuth();
   const { getOrCreateChatRoom, subscribeToChatRooms } = useChat();
@@ -246,10 +246,184 @@ export default function BrowseSeekers() {
     ? 'Browse verified seekers looking for accommodation'
     : 'Explore verified room owners and flatmates with available rooms';
 
+  const contentBlock = (
+    <div>
+      {/* ── Search & Count Row — always single line ── */}
+      <div className="flex items-center gap-2 mb-5">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/35 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Filter by city (e.g. Hyderabad)..."
+            value={searchCity}
+            onChange={(e) => setSearchCity(e.target.value)}
+            aria-label="Filter by city"
+            className="w-full pl-9 pr-8 py-2.5 min-h-[44px] bg-white rounded-xl text-[13px] border border-gray-200 shadow-xs outline-none focus:border-fire focus:ring-2 focus:ring-fire/10 transition-all"
+          />
+          {searchCity && (
+            <button
+              onClick={() => setSearchCity('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-ink/35 hover:text-ink/70 cursor-pointer"
+              aria-label="Clear city filter"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+        <p className="text-[11px] font-bold text-ink/45 shrink-0 whitespace-nowrap">
+          {seekers.length} {isOwner ? 'seekers' : 'roommates'}
+        </p>
+      </div>
+
+      {/* ── Listing Section & Card Grid ── */}
+      {loading ? (
+        <StateLoading label={isOwner ? "Finding room seekers..." : "Finding flatmates & room owners..."} />
+      ) : seekers.length === 0 ? (
+        <StateEmpty
+          icon={Users}
+          title={isOwner ? "No room seekers found" : "No flatmates or room owners found"}
+          description="We couldn't find results matching this exact search filter. Try searching another city."
+          className="bg-cream/30 rounded-2xl border border-dashed border-border py-12"
+        />
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5">
+          {seekers.map(({ profile, score }) => {
+            const state = getRelationshipState(user?.uid, profile.uid || '', myConnections, chatRoomMap);
+            return (
+              <div
+                key={profile.uid}
+                className="bg-white rounded-2xl overflow-hidden flex flex-col border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] hover:-translate-y-0.5 transition-all duration-200 group"
+              >
+                {/* ── Top Accent Band ── */}
+                <div
+                  className="h-1.5 w-full flex-shrink-0"
+                  style={{
+                    background: profile.role === 'owner'
+                      ? 'linear-gradient(90deg, #0d9488, #5eead4)'
+                      : 'linear-gradient(90deg, #f59e0b, #fcd34d)'
+                  }}
+                />
+
+                {/* ── Card Body ── */}
+                <div className="p-3.5 sm:p-4 flex flex-col flex-1 gap-3">
+                  {/* Row 1: Avatar + Name + Role badge */}
+                  <div className="flex items-start gap-2.5">
+                    {/* Avatar */}
+                    <div className="relative flex-shrink-0">
+                      <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl overflow-hidden bg-cream border-2 border-white shadow-sm flex items-center justify-center">
+                        {profile.avatar ? (
+                          <img
+                            src={profile.avatar}
+                            alt={profile.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-base font-bold text-fire">
+                            {profile.name?.[0]?.toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      {/* Verified Badge */}
+                      {profile.isVerified && (
+                        <span
+                          className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center shadow-xs"
+                          title="Verified"
+                        >
+                          <CheckCircle2 className="w-2.5 h-2.5 text-white fill-emerald-500" />
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Name + Role */}
+                    <div className="min-w-0 flex-1 pt-0.5">
+                      <h3 className="font-bold text-[13px] sm:text-sm text-ink leading-tight line-clamp-1 group-hover:text-fire transition-colors duration-150">
+                        {profile.name}
+                        {profile.age ? <span className="font-normal text-ink/50 text-xs">, {profile.age}</span> : null}
+                      </h3>
+                      <span className={`inline-block mt-1 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                        profile.role === 'owner'
+                          ? 'bg-teal-50 text-teal-700 border-teal-200'
+                          : 'bg-amber-50 text-amber-800 border-amber-200'
+                      }`}>
+                        {profile.role === 'owner' ? 'Room Owner' : 'Flat Seeker'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Location & Profession */}
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1 text-[11px] text-ink/60 font-medium">
+                      <MapPin className="w-3 h-3 text-fire flex-shrink-0" />
+                      <span className="truncate">{profile.city || 'Any City'}{profile.locality ? ` · ${profile.locality}` : ''}</span>
+                    </div>
+                    {profile.profession && (
+                      <div className="flex items-center gap-1 text-[11px] text-ink/45 font-medium">
+                        <Briefcase className="w-3 h-3 flex-shrink-0 text-ink/30" />
+                        <span className="truncate">{profile.profession}{profile.company ? ` at ${profile.company}` : ''}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Row 3: Match % + Budget side-by-side */}
+                  <div className="flex items-center gap-2">
+                    {score > 0 && (
+                      <div className="flex items-center gap-1 bg-fire/8 text-fire text-[10px] font-extrabold px-2 py-1 rounded-lg flex-shrink-0">
+                        <Sparkles className="w-3 h-3" />
+                        {score}% Match
+                      </div>
+                    )}
+                    {profile.budget && profile.budget > 0 && (
+                      <div className="flex-1 min-w-0 bg-gray-50 rounded-lg px-2 py-1 flex items-center justify-between gap-1 border border-gray-100">
+                        <span className="text-[9px] text-ink/40 font-semibold uppercase tracking-wide flex-shrink-0">Budget</span>
+                        <span className="text-[11px] font-extrabold text-ink truncate">₹{profile.budget.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Row 4: CTAs */}
+                  <div className="mt-auto pt-2.5 border-t border-gray-100 flex gap-1.5">
+                    <button
+                      onClick={() => navigate(`/match/${profile.uid}`)}
+                      className="flex-1 min-h-[36px] text-[11px] font-bold text-ink/70 border border-gray-200 rounded-xl hover:border-fire/40 hover:text-fire hover:bg-fire/5 transition-all duration-150 cursor-pointer"
+                    >
+                      Profile
+                    </button>
+                    <button
+                      onClick={() => handleConnect(profile.uid || '')}
+                      disabled={connectingTo === profile.uid || state === 'pending_sent'}
+                      className={`flex-[1.8] min-h-[36px] text-[11px] font-bold rounded-xl flex items-center justify-center gap-1 transition-all duration-150 shadow-xs cursor-pointer ${
+                        state === 'connected' ? 'bg-emerald-600 text-white hover:bg-emerald-700' :
+                        state === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
+                        state === 'pending_received' ? 'bg-teal text-white hover:opacity-90' :
+                        'btn-fire'
+                      }`}
+                    >
+                      {connectingTo === profile.uid ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <MessageCircle className="w-3.5 h-3.5" />
+                      )}
+                      {state === 'connected' ? 'Message' :
+                       state === 'pending_sent' ? 'Sent' :
+                       state === 'pending_received' ? 'Accept' : 'Connect'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  if (embedded) {
+    return contentBlock;
+  }
+
   return (
     <div className="min-h-screen bg-parchment pb-16 overflow-x-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {/* ── Page Header Section ── */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 pb-6 border-b border-border/50">
           <div className="min-w-0">
             <h1 className="text-2xl sm:text-3xl font-display italic text-ink tracking-tight">
@@ -259,147 +433,8 @@ export default function BrowseSeekers() {
               {pageSubtitle}
             </p>
           </div>
-
-          <div className="relative w-full md:w-80 shrink-0">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
-            <input
-              type="text"
-              placeholder="Filter by city (e.g. Hyderabad)..."
-              value={searchCity}
-              onChange={(e) => setSearchCity(e.target.value)}
-              aria-label="Filter by city"
-              className="w-full pl-10 pr-9 py-2.5 min-h-[44px] bg-white rounded-xl text-sm border border-border shadow-2xs outline-none focus:border-fire focus:ring-2 focus:ring-fire/10 transition-all font-sans"
-            />
-            {searchCity && (
-              <button
-                onClick={() => setSearchCity('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/40 hover:text-ink/70 p-1"
-                aria-label="Clear city filter"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
         </div>
-
-        {/* ── Listing Section & Card Grid ── */}
-        {loading ? (
-          <StateLoading label={isOwner ? "Finding room seekers..." : "Finding flatmates & room owners..."} />
-        ) : seekers.length === 0 ? (
-          <StateEmpty
-            icon={Users}
-            title={isOwner ? "No room seekers found" : "No flatmates or room owners found"}
-            description="We couldn't find results matching this exact search filter. Try searching another city."
-            className="bg-cream/30 rounded-2xl border border-dashed border-border py-12"
-          />
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {seekers.map(({ profile, score }) => {
-              const state = getRelationshipState(user?.uid, profile.uid || '', myConnections, chatRoomMap);
-              return (
-                <div
-                  key={profile.uid}
-                  className="bg-white rounded-2xl overflow-hidden flex flex-col shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_rgba(238,77,45,0.12)] transition-all duration-300 hover:-translate-y-1 border border-border/60 group"
-                >
-                  {/* Banner */}
-                  <div className="relative h-20 bg-gradient-to-r from-fire/10 via-cream to-teal/10 p-3.5 flex items-start justify-between border-b border-border/30">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-2xs ${
-                      profile.role === 'owner'
-                        ? 'bg-teal-50 text-teal-700 border border-teal-200'
-                        : 'bg-amber-50 text-amber-800 border border-amber-200'
-                    }`}>
-                      {profile.role === 'owner' ? 'Room Owner' : 'Flat Seeker'}
-                    </span>
-
-                    {score > 0 && (
-                      <div className="bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-extrabold text-fire shadow-2xs flex items-center gap-1 border border-fire/20">
-                        <Sparkles className="w-3.5 h-3.5 text-fire" /> {score}% Match
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Body */}
-                  <div className="p-5 pt-0 flex-1 flex flex-col justify-between">
-                    <div>
-                      {/* Avatar Row */}
-                      <div className="-mt-8 mb-3 flex items-end justify-between">
-                        <div className="w-16 h-16 rounded-full border-4 border-white bg-cream flex items-center justify-center overflow-hidden shadow-md shrink-0">
-                          {profile.avatar ? (
-                            <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-xl font-display italic text-fire/70">{profile.name?.[0]?.toUpperCase()}</span>
-                          )}
-                        </div>
-
-                        {profile.isVerified && (
-                          <div className="mb-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-bold flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Verified
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Name & Age */}
-                      <h3 className="font-bold text-base text-ink group-hover:text-fire transition-colors line-clamp-1 leading-snug">
-                        {profile.name}{profile.age ? `, ${profile.age}` : ''}
-                      </h3>
-
-                      {/* Location & Profession */}
-                      <div className="space-y-1.5 mt-2 mb-4">
-                        <div className="flex items-center gap-1.5 text-xs text-ink/60 min-w-0">
-                          <MapPin className="w-3.5 h-3.5 text-fire shrink-0" />
-                          <span className="truncate">{profile.city || 'Any City'}{profile.locality ? ` · ${profile.locality}` : ''}</span>
-                        </div>
-                        {profile.profession && (
-                          <div className="flex items-center gap-1.5 text-xs text-ink/60 min-w-0">
-                            <Briefcase className="w-3.5 h-3.5 text-ink/40 shrink-0" />
-                            <span className="truncate">{profile.profession}{profile.company ? ` at ${profile.company}` : ''}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Budget */}
-                      {profile.budget && profile.budget > 0 && (
-                        <div className="mb-4 py-2 px-3 bg-cream/50 rounded-xl border border-border/40 text-xs flex items-center justify-between">
-                          <span className="text-ink/50 font-medium">Budget:</span>
-                          <span className="font-bold text-ink">₹{profile.budget.toLocaleString()}/mo</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border/40 mt-auto">
-                      <button 
-                        onClick={() => navigate(`/match/${profile.uid}`)}
-                        className="w-full py-2.5 min-h-[42px] rounded-xl text-xs font-bold border border-border text-ink/80 hover:bg-cream hover:border-fire/40 transition-all flex items-center justify-center"
-                      >
-                        View Profile
-                      </button>
-                      <button 
-                        onClick={() => handleConnect(profile.uid || '')}
-                        disabled={connectingTo === profile.uid || state === 'pending_sent'}
-                        className={`w-full py-2.5 min-h-[42px] text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-2xs ${
-                          state === 'connected' ? 'bg-emerald-600 text-white hover:bg-emerald-700' :
-                          state === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
-                          state === 'pending_received' ? 'bg-teal text-white hover:opacity-90' :
-                          'btn-fire'
-                        }`}
-                      >
-                        {connectingTo === profile.uid ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <MessageCircle className="w-3.5 h-3.5" />
-                        )}
-                        {state === 'connected' ? 'Message' :
-                         state === 'pending_sent' ? 'Sent' :
-                         state === 'pending_received' ? 'Accept' : 'Connect'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {contentBlock}
       </div>
     </div>
   );

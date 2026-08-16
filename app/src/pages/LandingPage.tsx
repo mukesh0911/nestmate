@@ -71,11 +71,11 @@ export default function LandingPage() {
   };
 
   const handleBrowseRooms = () => {
-    navigate('/browse-rooms');
+    navigate('/explore?tab=rooms');
   };
 
   const handleBrowseSeekers = () => {
-    navigate('/browse-seekers');
+    navigate('/explore?tab=roommates');
   };
 
   const handleHeroSearch = (e: React.FormEvent) => {
@@ -84,15 +84,15 @@ export default function LandingPage() {
       city: selectedCity,
     });
     if (searchTab === 'rooms') {
-      navigate('/browse-rooms');
+      navigate('/explore?tab=rooms');
     } else {
-      navigate('/browse-seekers');
+      navigate('/explore?tab=roommates');
     }
   };
 
   const handleCityClick = (cityName: string) => {
     useStore.getState().updateFilters({ city: cityName });
-    navigate('/browse-rooms');
+    navigate('/explore?tab=rooms');
   };
 
   const handleListRoom = () => {

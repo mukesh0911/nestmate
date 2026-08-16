@@ -17,6 +17,7 @@ const OwnerOnboarding = lazy(() => import('@/pages/OwnerOnboarding'));
 const SeekerDashboard = lazy(() => import('@/pages/SeekerDashboard'));
 const OwnerDashboard = lazy(() => import('@/pages/OwnerDashboard'));
 const BrowseDashboard = lazy(() => import('@/pages/BrowseDashboard'));
+const ExplorePage = lazy(() => import('@/pages/ExplorePage'));
 const RoomDetail = lazy(() => import('@/pages/RoomDetail'));
 const MatchDetail = lazy(() => import('@/pages/MatchDetail'));
 const ChatPage = lazy(() => import('@/pages/ChatPage'));
@@ -62,6 +63,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/onboarding/owner': 'Owner Onboarding | NestMate',
   '/dashboard': 'Dashboard | NestMate',
   '/owner-dashboard': 'Owner Dashboard | NestMate',
+  '/explore': 'Explore Rooms & Roommates | NestMate',
   '/browse-rooms': 'Find Rooms | NestMate',
   '/browse-seekers': 'Find Flatmates | NestMate',
   '/chat': 'Messages | NestMate',
@@ -107,7 +109,7 @@ function PrivateRoute({ children, isAuthenticated }: { children: React.ReactNode
   return <>{children}</>;
 }
 
-// Guard dashboard routes — also enforces role-based routing
+// Guard dashboard routes — enforces authentication and role-based routing
 function OnboardingGuard({ children, isAuthenticated, authState, expectedRole }: {
   children: React.ReactNode,
   isAuthenticated: boolean,
@@ -115,14 +117,14 @@ function OnboardingGuard({ children, isAuthenticated, authState, expectedRole }:
   expectedRole?: 'seeker' | 'owner'
 }) {
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (!authState.onboardingComplete) {
-    if (!authState.role) return <Navigate to="/role-select" replace />;
-    return <Navigate to={authState.role === 'seeker' ? '/onboarding/seeker' : '/onboarding/owner'} replace />;
+
+  const activeRole = authState.role || 'seeker';
+
+  // Role mismatch — redirect to the correct dashboard for user's active role
+  if (expectedRole && activeRole !== expectedRole) {
+    return <Navigate to={activeRole === 'seeker' ? '/dashboard' : '/owner-dashboard'} replace />;
   }
-  // Role mismatch — redirect to the correct dashboard
-  if (expectedRole && authState.role && authState.role !== expectedRole) {
-    return <Navigate to={authState.role === 'seeker' ? '/dashboard' : '/owner-dashboard'} replace />;
-  }
+
   return <>{children}</>;
 }
 
@@ -158,8 +160,8 @@ function AppRoutes() {
               const data = snap.data();
               setAuthState({
                 uid: firebaseUser.uid,
-                role: data.role || null,
-                onboardingComplete: data.onboardingComplete || false,
+                role: data.role || 'seeker',
+                onboardingComplete: true,
                 loading: false,
               });
               if (data.settings?.darkMode) {
@@ -168,13 +170,13 @@ function AppRoutes() {
                 document.documentElement.classList.remove('dark');
               }
             } else {
-              setAuthState({ uid: firebaseUser.uid, role: null, onboardingComplete: false, loading: false });
+              setAuthState({ uid: firebaseUser.uid, role: 'seeker', onboardingComplete: true, loading: false });
               document.documentElement.classList.remove('dark');
             }
           },
           (err) => {
             console.error('Profile listener error:', err);
-            setAuthState({ uid: firebaseUser.uid, role: null, onboardingComplete: false, loading: false });
+            setAuthState({ uid: firebaseUser.uid, role: 'seeker', onboardingComplete: true, loading: false });
           }
         );
       } else {
@@ -196,11 +198,7 @@ function AppRoutes() {
 
   const getDashboardRoute = (): string => {
     if (!isAuthenticated) return '/login';
-    if (!authState.onboardingComplete) {
-      if (!authState.role) return '/role-select';
-      return authState.role === 'seeker' ? '/onboarding/seeker' : '/onboarding/owner';
-    }
-    return authState.role === 'seeker' ? '/dashboard' : '/owner-dashboard';
+    return authState.role === 'owner' ? '/owner-dashboard' : '/dashboard';
   };
 
   return (
@@ -220,8 +218,11 @@ function AppRoutes() {
         <Route element={<Layout />}>
           {/* Unauthenticated public browsing */}
           <Route path="/" element={<LandingPage />} />
-          <Route path="/browse-rooms" element={<BrowseDashboard />} />
-          <Route path="/browse-seekers" element={<BrowseSeekers />} />
+          <Route path="/explore" element={<ExplorePage />} />
+          <Route path="/browse-rooms" element={<Navigate to="/explore?tab=rooms" replace />} />
+          <Route path="/browse-seekers" element={<Navigate to="/explore?tab=roommates" replace />} />
+          <Route path="/find-rooms" element={<Navigate to="/explore?tab=rooms" replace />} />
+          <Route path="/find-flatmates" element={<Navigate to="/explore?tab=roommates" replace />} />
           <Route path="/room/:id" element={<RoomDetail />} />
           <Route path="/match/:id" element={<MatchDetail />} />
           <Route path="/map" element={<MapView />} />

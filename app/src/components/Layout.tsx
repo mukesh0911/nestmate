@@ -5,7 +5,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useState, useEffect } from 'react';
 import {
-  Home, Search, MessageCircle, User, Bell,
+  Home, Search, MessageCircle, User, Bell, Compass,
   Menu, X, LogOut, Settings, ChevronDown, Crown,
   FileText, PlusCircle, Map, Sparkles
 } from 'lucide-react';
@@ -71,22 +71,19 @@ export default function Layout() {
   const effectiveRole = profile?.role || currentRole || 'seeker';
 
   const guestLinks = [
-    { path: '/browse-seekers', label: 'Find Flatmates', icon: User },
-    { path: '/browse-rooms', label: 'Find Rooms', icon: Search },
+    { path: '/explore', label: 'Explore', icon: Compass },
     { path: '/map', label: 'Map View', icon: Map },
   ];
 
   const seekerLinks = [
     { path: '/dashboard', label: t('dashboard'), icon: Home },
-    { path: '/browse-seekers', label: 'Find Flatmates', icon: User },
-    { path: '/browse-rooms', label: 'Find Rooms', icon: Search },
+    { path: '/explore', label: 'Explore', icon: Compass },
     { path: '/chat', label: t('messages'), icon: MessageCircle },
   ];
 
   const ownerLinks = [
     { path: '/owner-dashboard', label: t('dashboard'), icon: Home },
-    { path: '/browse-seekers', label: 'Find Seekers', icon: User },
-    { path: '/browse-rooms', label: 'Find Rooms', icon: Search },
+    { path: '/explore', label: 'Explore', icon: Compass },
     { path: '/chat', label: t('messages'), icon: MessageCircle },
   ];
 
@@ -146,7 +143,7 @@ export default function Layout() {
             {/* Desktop Nav Links */}
             <div className="hidden md:flex items-center gap-1">
               {links.map((link) => {
-                const isActive = location.pathname === link.path;
+                const isActive = location.pathname === link.path || (link.path === '/explore' && location.pathname.startsWith('/explore'));
                 const Icon = link.icon;
                 return (
                   <Link
@@ -300,7 +297,7 @@ export default function Layout() {
               </button>
 
               {links.map((link) => {
-                const isActive = location.pathname === link.path;
+                const isActive = location.pathname === link.path || (link.path === '/explore' && location.pathname.startsWith('/explore'));
                 const Icon = link.icon;
                 return (
                   <Link
@@ -374,7 +371,7 @@ export default function Layout() {
       <nav aria-label="Mobile navigation" className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-border/60 pb-safe shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
         <div className="flex items-center justify-around h-[60px] px-1 sm:px-2">
           {links.map((link) => {
-            const isActive = location.pathname === link.path;
+            const isActive = location.pathname === link.path || (link.path === '/explore' && location.pathname.startsWith('/explore'));
             const Icon = link.icon;
             return (
               <Link

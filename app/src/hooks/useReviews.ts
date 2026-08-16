@@ -55,6 +55,26 @@ export function useReviews() {
       rating: number,
       text: string
     ) => {
+      if (reviewerId === targetUserId) {
+        throw new Error('You cannot review your own profile.');
+      }
+
+      // Check if user has already reviewed this target
+      try {
+        const existingQuery = query(
+          collection(db, 'reviews'),
+          where('targetUserId', '==', targetUserId),
+          where('reviewerId', '==', reviewerId)
+        );
+        const existingSnap = await getDocs(existingQuery);
+        if (!existingSnap.empty) {
+          throw new Error('You have already submitted a vouch for this profile.');
+        }
+      } catch (err: any) {
+        if (err.message?.includes('already submitted')) throw err;
+        // Ignore Firestore index missing warnings on fallback
+      }
+
       try {
         const ref = await addDoc(collection(db, 'reviews'), {
           targetUserId,
@@ -77,7 +97,7 @@ export function useReviews() {
           createdAt: Timestamp.now(),
         };
         
-        setReviews(prev => [newReview, ...prev]);
+        setReviews(prev => [newReview, ...prev.filter(r => r.reviewerId !== reviewerId)]);
         return ref.id;
       } catch (err) {
         console.error('Failed to add review', err);

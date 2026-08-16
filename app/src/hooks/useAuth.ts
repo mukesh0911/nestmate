@@ -123,7 +123,7 @@ export function useAuth() {
               phone: '',
               name: defaultName,
               email: '',
-              role: null,
+              role: 'seeker',
               city: '',
               localities: [],
               budget: 10000,

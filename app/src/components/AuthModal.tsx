@@ -56,7 +56,7 @@ export default function AuthModal({
           : { savedRoomIds: [] }),
         city: '',
         bio: '',
-        onboardingComplete: false,
+        onboardingComplete: true,
         isPremium: false,
         isVerified: false,
         verificationLevel: 1,

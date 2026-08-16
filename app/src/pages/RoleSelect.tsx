@@ -20,7 +20,7 @@ export default function RoleSelect() {
       console.error('Failed to save selected role:', err);
     }
 
-    navigate(role === 'seeker' ? '/onboarding/seeker' : '/onboarding/owner');
+    navigate(role === 'seeker' ? '/dashboard' : '/owner-dashboard');
   };
 
   return (

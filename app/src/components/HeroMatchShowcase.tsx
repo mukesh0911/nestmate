@@ -373,7 +373,7 @@ export default function HeroMatchShowcase() {
                   useStore.getState().openAuthModal({
                     title: `Message ${currentProfile.name}`,
                     subtitle: 'Sign in to start safe, direct chatting with no brokerage.',
-                    redirect: '/browse-seekers',
+                    redirect: '/explore?tab=roommates',
                   });
                 }}
                 className="w-full py-3 bg-fire text-white rounded-xl font-bold text-sm shadow-md hover:bg-fire-dark transition-all flex items-center justify-center gap-2"

@@ -50,6 +50,7 @@ export interface Listing {
   updatedAt: Timestamp;
   isOwnerPremium?: boolean;
   isOwnerVerified?: boolean;
+  ownerQuizAnswers?: Record<string, string>;
 }
 
 export interface ListingFilters {
@@ -116,10 +117,18 @@ export function useListings() {
             console.error('Failed to pre-fetch owners profile details for listings:', err);
           }
         }
+        const DEFAULT_OWNER_QUIZ = { q1: '2', q2: '1', q3: '3', q4: '2', q5: '1' };
         const enhanced = rawListings.map(r => {
           const owner = ownersMap.get(r.ownerId);
+          const ownerQuiz = owner?.quizAnswers && Object.keys(owner.quizAnswers).length > 0
+            ? owner.quizAnswers
+            : (r as any).ownerQuizAnswers && Object.keys((r as any).ownerQuizAnswers).length > 0
+            ? (r as any).ownerQuizAnswers
+            : DEFAULT_OWNER_QUIZ;
+
           return {
             ...r,
+            ownerQuizAnswers: ownerQuiz,
             isOwnerPremium: owner?.isPremium || false,
             isOwnerVerified: owner?.isVerified || false,
           };
@@ -224,6 +233,7 @@ export function useListings() {
         const data = snap.data() as Omit<Listing, 'id'>;
         let isOwnerVerified = false;
         let isOwnerPremium = false;
+        let ownerQuizAnswers: Record<string, string> = { q1: '2', q2: '1', q3: '3', q4: '2', q5: '1' };
         if (data.ownerId) {
           try {
             const ownerSnap = await getDoc(doc(db, 'users', data.ownerId));
@@ -231,12 +241,18 @@ export function useListings() {
               const owner = ownerSnap.data();
               isOwnerVerified = !!owner.isVerified;
               isOwnerPremium = !!owner.isPremium;
+              if (owner.quizAnswers && Object.keys(owner.quizAnswers).length > 0) {
+                ownerQuizAnswers = owner.quizAnswers;
+              }
             }
           } catch {
             // ignore owner enrichment failures
           }
         }
-        return { id: snap.id, ...data, isOwnerVerified, isOwnerPremium };
+        if ((data as any).ownerQuizAnswers && Object.keys((data as any).ownerQuizAnswers).length > 0) {
+          ownerQuizAnswers = (data as any).ownerQuizAnswers;
+        }
+        return { id: snap.id, ...data, isOwnerVerified, isOwnerPremium, ownerQuizAnswers };
       }
     } catch {
       // ignore

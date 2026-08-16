@@ -40,6 +40,18 @@ describe('calculateCompatibility', () => {
     const b = { a: '1', b: '2' };
     expect(calculateCompatibility(a, b)).toBe(calculateCompatibility(b, a));
   });
+
+  it('calculates identical match percentage for listing ownerQuizAnswers as owner profile quizAnswers', () => {
+    const seekerProfile = { quizAnswers: { q1: '0', q2: '2' }, city: 'Hyderabad' };
+    const ownerProfile = { quizAnswers: { q1: '1', q2: '2' }, city: 'Hyderabad' };
+    const listing = { ownerQuizAnswers: ownerProfile.quizAnswers, city: ownerProfile.city };
+
+    const scoreFromProfile = calculateCompatibility(seekerProfile.quizAnswers, ownerProfile.quizAnswers, seekerProfile.city, ownerProfile.city);
+    const scoreFromListing = calculateCompatibility(seekerProfile.quizAnswers, listing.ownerQuizAnswers, seekerProfile.city, listing.city);
+
+    expect(scoreFromListing).toBe(scoreFromProfile);
+    expect(scoreFromListing).toBe(83);
+  });
 });
 
 describe('getActiveStatus', () => {
