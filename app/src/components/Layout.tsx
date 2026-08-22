@@ -108,7 +108,8 @@ export default function Layout() {
         redirect: '/owner-dashboard',
       });
     } else {
-      navigate(effectiveRole === 'owner' ? '/owner-dashboard' : '/onboarding/owner');
+      // Always go to owner-dashboard; onboarding questions appear only when "Create Listing" is clicked
+      navigate('/owner-dashboard');
     }
   };
 
@@ -130,14 +131,14 @@ export default function Layout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-[60px]">
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg gradient-fire flex items-center justify-center shadow-sm">
-                <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor">
-                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zM7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 2.88-2.88 7.19-5 9.88C9.92 16.21 7 11.85 7 9z"/>
-                  <circle cx="12" cy="9" r="2.5"/>
+            <Link to="/" className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-brand-orange flex items-center justify-center text-white shadow-xs">
+                <svg fill="none" height="18" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="18" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
                 </svg>
               </div>
-              <span className="text-lg font-bold tracking-tight text-ink">NestMate</span>
+              <span className="text-lg font-bold tracking-tight text-slate-900">NestMate</span>
             </Link>
 
             {/* Desktop Nav Links */}
@@ -368,8 +369,8 @@ export default function Layout() {
       </main>
 
       {/* Mobile Bottom Bar */}
-      <nav aria-label="Mobile navigation" className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-border/60 pb-safe shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
-        <div className="flex items-center justify-around h-[60px] px-1 sm:px-2">
+      <nav aria-label="Mobile navigation" className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-100 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] pt-0 pb-1">
+        <div className="flex items-center justify-around h-[56px] px-1 sm:px-2">
           {links.map((link) => {
             const isActive = location.pathname === link.path || (link.path === '/explore' && location.pathname.startsWith('/explore'));
             const Icon = link.icon;
@@ -378,14 +379,14 @@ export default function Layout() {
                 key={link.path}
                 to={link.path}
                 className={`relative flex flex-col items-center justify-center min-w-[56px] min-h-[48px] flex-1 max-w-[72px] h-full transition-all ${
-                  isActive ? 'text-fire font-bold' : 'text-ink/50 hover:text-ink/80'
+                  isActive ? 'text-brand-orange font-bold' : 'text-slate-400 hover:text-slate-700'
                 }`}
               >
+                {isActive && (
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-brand-orange rounded-b-full shadow-2xs" />
+                )}
                 <Icon className="w-5 h-5" aria-hidden />
                 <span className="text-[10px] font-semibold mt-1 tracking-tight truncate max-w-[64px] px-0.5">{link.label}</span>
-                {isActive && (
-                  <span className="absolute top-0 w-8 h-1 bg-fire rounded-full" />
-                )}
               </Link>
             );
           })}
@@ -393,27 +394,29 @@ export default function Layout() {
             <Link
               to="/profile"
               className={`relative flex flex-col items-center justify-center min-w-[56px] min-h-[48px] flex-1 max-w-[72px] h-full transition-all ${
-                location.pathname === '/profile' ? 'text-fire font-bold' : 'text-ink/50 hover:text-ink/80'
+                location.pathname === '/profile' ? 'text-brand-orange font-bold' : 'text-slate-400 hover:text-slate-700'
               }`}
             >
+              {location.pathname === '/profile' && (
+                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-brand-orange rounded-b-full shadow-2xs" />
+              )}
               <User className="w-5 h-5" aria-hidden />
               <span className="text-[10px] font-semibold mt-1 tracking-tight">{t('profile')}</span>
-              {location.pathname === '/profile' && (
-                <span className="absolute top-0 w-8 h-1 bg-fire rounded-full" />
-              )}
             </Link>
           ) : (
             <button
               type="button"
               onClick={() => openAuthModal()}
               aria-label="Open demo or sign in"
-              className="relative flex flex-col items-center justify-center min-w-[56px] min-h-[48px] flex-1 max-w-[72px] h-full text-fire font-bold"
+              className="relative flex flex-col items-center justify-center min-w-[56px] min-h-[44px] flex-1 max-w-[72px] h-full text-brand-orange font-bold"
             >
               <Sparkles className="w-5 h-5" aria-hidden />
               <span className="text-[10px] font-semibold mt-1 tracking-tight">Demo</span>
             </button>
           )}
         </div>
+        {/* iOS Home Indicator Bar */}
+        <div className="w-32 h-1 bg-slate-900/80 rounded-full mx-auto my-1" />
       </nav>
     </div>
   );

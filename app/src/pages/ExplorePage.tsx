@@ -33,63 +33,56 @@ export default function ExplorePage() {
       : 'Compatible flatmates & room owners near you';
 
   return (
-    <div className="min-h-screen bg-[#F8F7F4] pb-24 sm:pb-16 overflow-x-hidden">
-      
-      {/* ── Page Header ─────────────────────────────────────────── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+    <div className="min-h-screen bg-[#fbf9f9] pb-24 sm:pb-16 overflow-x-hidden">
+      {/* Container */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-5">
         
-        {/* Title row */}
-        <div className="pt-5 pb-4 sm:pt-7 sm:pb-5">
-          <div className="flex items-start justify-between gap-4">
-            {/* Left: Title + subtitle */}
-            <div className="min-w-0">
-              <h1 className="text-[26px] sm:text-[30px] font-bold tracking-tight text-ink leading-none">
-                Explore
-              </h1>
-              <p className="text-[13px] text-ink/50 font-medium mt-1.5 leading-snug">
-                {subtitle}
-              </p>
-            </div>
+        {/* Explore Title & Subtitle */}
+        <div className="mb-4">
+          <h1 className="text-3xl sm:text-4xl font-serif font-bold text-slate-900 tracking-tight mb-1 leading-tight">
+            Explore
+          </h1>
+          {/* Orange Underline Accent Bar */}
+          <div className="w-12 h-1 bg-brand-orange rounded-full mb-3" />
+          <p className="text-xs sm:text-sm font-medium text-slate-500">
+            {subtitle}
+          </p>
+        </div>
 
-            {/* Right: Compact segmented tab control */}
-            <div className="flex-shrink-0 self-start mt-0.5">
-              <div className="flex items-center p-1 bg-white rounded-2xl border border-gray-200 shadow-xs gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => handleTabChange('rooms')}
-                  aria-pressed={activeTab === 'rooms'}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-bold transition-all duration-200 cursor-pointer min-h-[36px] ${
-                    activeTab === 'rooms'
-                      ? 'bg-fire text-white shadow-sm'
-                      : 'text-ink/50 hover:text-ink hover:bg-gray-50'
-                  }`}
-                >
-                  <Building2 className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span>Rooms</span>
-                </button>
+        {/* Segmented Pill Tab Control (Rooms / Seekers) */}
+        <div className="mb-5">
+          <div className="bg-[#f0ece9] border border-slate-200/80 rounded-full p-1 inline-flex items-center shadow-2xs">
+            <button
+              type="button"
+              onClick={() => handleTabChange('rooms')}
+              aria-pressed={activeTab === 'rooms'}
+              className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
+                activeTab === 'rooms'
+                  ? 'bg-white text-brand-orange shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Building2 className="w-4 h-4 shrink-0" />
+              <span>Rooms</span>
+            </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleTabChange('roommates')}
-                  aria-pressed={activeTab === 'roommates'}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-bold transition-all duration-200 cursor-pointer min-h-[36px] ${
-                    activeTab === 'roommates'
-                      ? 'bg-fire text-white shadow-sm'
-                      : 'text-ink/50 hover:text-ink hover:bg-gray-50'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span>{isOwner ? 'Seekers' : 'Roommates'}</span>
-                </button>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => handleTabChange('roommates')}
+              aria-pressed={activeTab === 'roommates'}
+              className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
+                activeTab === 'roommates'
+                  ? 'bg-white text-brand-orange shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Users className="w-4 h-4 shrink-0" />
+              <span>{isOwner ? 'Seekers' : 'Seekers'}</span>
+            </button>
           </div>
         </div>
 
-        {/* Thin divider */}
-        <div className="h-px bg-gray-200/80 mb-5" />
-
-        {/* ── Content ─────────────────────────────────────────── */}
+        {/* ── Content (BrowseRooms / BrowseSeekers) ──────────────────────── */}
         {activeTab === 'rooms' ? <BrowseRooms embedded /> : <BrowseSeekers embedded />}
       </div>
     </div>

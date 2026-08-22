@@ -50,6 +50,27 @@ module.exports = {
         },
         parchment: "#F7F3ED",
         ink: "#1A1A2E",
+        surface: {
+          DEFAULT: '#fbf9f9',
+          card: '#ffffff',
+        },
+        text: {
+          main: '#1a1f36',
+          muted: '#6b7280',
+        },
+        brand: {
+          orange: '#ff5a36',
+          lightOrange: '#ffe5df',
+          orangeLight: '#ffebd9',
+          dark: '#161c2d',
+          navy: '#1a1f36',
+          navyDark: '#0f172a',
+          bg: '#fbf9f9',
+          gray: '#64748b',
+          grayLight: '#f1f5f9',
+          teal: '#0d9488',
+          tealLight: '#ccfbf1',
+        },
         fire: {
           DEFAULT: "#E5501A",
           light: "#FFF0EB",
@@ -71,8 +92,10 @@ module.exports = {
         },
       },
       fontFamily: {
-        display: ['Lora', 'Georgia', 'serif'],
-        body: ['Sora', 'system-ui', 'sans-serif'],
+        display: ['"Playfair Display"', 'Merriweather', 'Lora', 'serif'],
+        serif: ['"Playfair Display"', 'Merriweather', 'Georgia', 'serif'],
+        body: ['Inter', 'Sora', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'Sora', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         '2xl': '22px',

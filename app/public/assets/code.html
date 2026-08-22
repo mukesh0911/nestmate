@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+
+<html lang="en" style=""><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NestMate Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+<style data-purpose="custom-fonts">
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f7f9fc;
+    }
+    h1, h2, h3, h4, h5, h6, .serif {
+      font-family: 'Merriweather', serif;
+    }
+  </style>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              orange: '#f05a28',
+              orangeLight: '#ffebd9',
+              navy: '#1a233a',
+              navyDark: '#0f172a',
+              bg: '#f7f9fc',
+              gray: '#64748b',
+              grayLight: '#f1f5f9',
+              teal: '#0d9488',
+              tealLight: '#ccfbf1',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-brand-bg text-slate-800 antialiased min-h-screen flex flex-col">
+<!-- BEGIN: Main Navigation -->
+<header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+<div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+<!-- Logo -->
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-brand-orange rounded-xl flex items-center justify-center text-white text-xl">
+<i class="fa-solid fa-location-dot"></i>
+</div>
+<span class="text-2xl font-bold text-slate-900 tracking-tight">NestMate</span>
+</div>
+<!-- Center Navigation -->
+<nav class="hidden md:flex items-center gap-2">
+<a class="flex items-center gap-2 px-5 py-2.5 bg-brand-navy text-white rounded-xl font-medium shadow-sm transition hover:bg-slate-800" href="#">
+<i class="fa-solid fa-house text-sm"></i>
+          Dashboard
+        </a>
+<a class="flex items-center gap-2 px-5 py-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl font-medium transition" href="#">
+<i class="fa-regular fa-compass text-sm"></i>
+          Explore
+        </a>
+<a class="flex items-center gap-2 px-5 py-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl font-medium transition" href="#">
+<i class="fa-regular fa-comment text-sm"></i>
+          Messages
+        </a>
+</nav>
+<!-- Right Actions -->
+<div class="flex items-center gap-5">
+<button class="flex items-center gap-2 px-4 py-2 bg-brand-orangeLight text-brand-orange rounded-full font-medium hover:bg-orange-100 transition">
+<i class="fa-solid fa-plus text-sm"></i>
+          Post Room
+        </button>
+<button class="relative text-slate-500 hover:text-slate-700 transition p-2">
+<i class="fa-regular fa-bell text-xl"></i>
+<span class="absolute top-1 right-1 w-4 h-4 bg-brand-orange text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white">3</span>
+</button>
+<button class="flex items-center gap-3 pl-2 pr-1 py-1 rounded-full hover:bg-slate-50 transition border border-transparent hover:border-slate-200">
+<img alt="User Profile" class="w-9 h-9 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDkdxmtPhIYwbrljKQTLfpD-m-3EskPItRITMhB_cL4xbShkqFeBeTbxiEd-wV4Ovo8dkXHzlXt1vp2C9c35kJPtI4DcXgo7ahVH7IsVaDe6WN2HtFWiJA1pVDBO5NIQmGNBEeypZ7yRqoOVKKJvVmbMT-pvzFLw1stKy8kjN7WFwLjqY2MkGNz1x2rz0-qSko8_ZwhOrvuHo_5a3jC-Il2jeiKUntQIjI8huRBQ0ujlDqwJ8Wj_CSR"/>
+<span class="font-medium text-sm text-slate-700">Pradeepkumar</span>
+<i class="fa-solid fa-chevron-down text-xs text-slate-400 mr-2"></i>
+</button>
+</div>
+</div>
+</header>
+<!-- END: Main Navigation -->
+<!-- BEGIN: Main Layout -->
+<main class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow flex gap-8 w-full">
+<!-- BEGIN: Left Column -->
+<div class="flex-grow flex flex-col gap-6 max-w-5xl">
+<!-- Hero Banner -->
+<section class="bg-brand-navy rounded-3xl relative overflow-hidden flex flex-col items-center justify-center text-center p-12 min-h-[360px] shadow-sm" style='background-image: linear-gradient(rgba(26, 35, 58, 0.7), rgba(26, 35, 58, 0.7)), url("https://lh3.googleusercontent.com/aida-public/AB6AXuBsQUA9QfqJ5_EhVOmV_3MNyJsHJRxcXz53agqOSoREbJWJuddao9qhrnUWYR2sni8gQnLmQ2UbjPfU9NxESk4ibTRDj5jC9XX-otGv5dn2J9_6NdY3lxiqor8wLlNlU5nXTVq3UE3V97LuOB2o7dTgz45GO7B310Rg5RRpj44ygnTM-tUWb-TLPwUL_lI52YL2oCv3wZI7XNjYknK9fdFCCu4Dx1-krJG-Kruxv5L-EHqI5XCC15bplchWcfEiMS7JeA"); background-size: cover; background-position: center center;'><!-- Abstract Background Elements -->
+<div class="absolute inset-0 opacity-20 pointer-events-none">
+<div class="absolute top-10 right-20 w-32 h-32 rounded-full border-4 border-white/20"></div>
+<div class="absolute bottom-[-20%] left-[-10%] w-[50%] h-[150%] bg-gradient-to-tr from-white/5 to-transparent rounded-full blur-3xl"></div>
+</div>
+<div class="relative z-10 flex flex-col md:flex-row items-center gap-8 w-full max-w-5xl">
+<!-- Left Column: Illustration -->
+<!-- Right Column: Content -->
+<div class="w-full flex flex-col text-center items-center justify-center">
+<div class="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center mb-6 border border-white/20">
+<i class="fa-regular fa-file-lines text-xl text-brand-orange"></i>
+</div>
+<h1 class="text-3xl md:text-4xl text-white font-bold mb-4 tracking-tight">No listing yet</h1>
+<p class="text-slate-300 mb-8 text-sm leading-relaxed max-w-md mx-auto text-center">Create your first listing to start finding great roommates and manage your property with ease.</p>
+<button class="bg-brand-orange hover:bg-orange-600 text-white px-8 py-4 rounded-xl font-semibold flex items-center gap-3 transition-all transform hover:scale-[1.02] shadow-lg shadow-orange-500/30">
+      Create Listing
+      <i class="fa-solid fa-arrow-right text-sm"></i>
+</button>
+</div>
+</div></section>
+<!-- Pending Requests -->
+<section class="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 flex flex-col items-center justify-center min-h-[280px] relative">
+<div class="absolute top-6 left-6 flex items-center gap-2 text-slate-800 font-semibold text-lg">
+<i class="fa-regular fa-user"></i>
+          Pending Requests (0)
+        </div>
+<a class="absolute top-6 right-6 text-brand-orange font-medium hover:underline text-sm" href="#">View all</a>
+<div class="flex flex-col items-center text-center mt-8">
+<div class="w-20 h-20 bg-brand-orangeLight/50 rounded-full flex items-center justify-center mb-5 relative">
+<i class="fa-regular fa-envelope text-3xl text-brand-orange"></i>
+<!-- Sparkles -->
+<i class="fa-solid fa-star text-[8px] text-brand-orange/40 absolute top-2 right-2"></i>
+<i class="fa-solid fa-star text-[10px] text-brand-orange/40 absolute bottom-4 -left-2"></i>
+</div>
+<h2 class="text-xl font-bold text-slate-900 mb-2">No pending requests</h2>
+<p class="text-slate-500">Create a listing to start receiving roommate requests.</p>
+</div>
+</section>
+<!-- My Connections -->
+<section class="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 flex flex-col items-center justify-center min-h-[280px] relative">
+<div class="absolute top-6 left-6 flex items-center gap-2 text-slate-800 font-semibold text-lg">
+<i class="fa-regular fa-user"></i>
+          My Connections (0)
+        </div>
+<a class="absolute top-6 right-6 text-brand-teal font-medium hover:underline text-sm" href="#">View all</a>
+<div class="flex flex-col items-center text-center mt-8">
+<div class="w-20 h-20 bg-brand-tealLight/50 rounded-full flex items-center justify-center mb-5 relative">
+<i class="fa-solid fa-user-group text-3xl text-brand-teal"></i>
+</div>
+<h2 class="text-xl font-bold text-slate-900 mb-2">No accepted connections yet</h2>
+<p class="text-slate-500">Accept incoming requests to connect with your future roommates.</p>
+</div>
+</section>
+</div>
+<!-- END: Left Column -->
+<!-- BEGIN: Right Column Sidebar -->
+<div class="w-full max-w-[380px] flex flex-col gap-6">
+<!-- Weekly Views Analytics -->
+<section class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 relative">
+<div class="flex justify-between items-center mb-10">
+<h3 class="font-bold text-slate-900 text-lg">Weekly Views</h3>
+<span class="text-slate-500 text-sm">0 total</span>
+</div>
+<div class="flex flex-col items-center text-center mb-10">
+<div class="relative mb-4">
+<div class="w-16 h-16 bg-brand-orangeLight/50 rounded-2xl flex items-center justify-center">
+<i class="fa-solid fa-arrow-trend-up text-2xl text-brand-orange"></i>
+</div>
+<div class="absolute -bottom-2 -right-2 w-8 h-8 bg-white rounded-full shadow-sm flex items-center justify-center border border-slate-50 text-brand-orange">
+<i class="fa-solid fa-eye text-sm"></i>
+</div>
+</div>
+<h4 class="font-bold text-slate-900 text-lg mb-1">No views yet</h4>
+<p class="text-slate-500 text-sm">Create a listing to see analytics and insights.</p>
+</div>
+<!-- Fake Chart X-Axis -->
+<div class="flex justify-between items-end border-t border-slate-100 pt-4 px-2">
+<div class="flex flex-col items-center gap-1"><span class="text-xs text-slate-400">Mon</span><span class="text-sm text-slate-600 font-medium">0</span></div>
+<div class="flex flex-col items-center gap-1"><span class="text-xs text-slate-400">Tue</span><span class="text-sm text-slate-600 font-medium">0</span></div>
+<div class="flex flex-col items-center gap-1"><span class="text-xs text-slate-400">Wed</span><span class="text-sm text-slate-600 font-medium">0</span></div>
+<div class="flex flex-col items-center gap-1"><span class="text-xs text-slate-400">Thu</span><span class="text-sm text-slate-600 font-medium">0</span></div>
+<div class="flex flex-col items-center gap-1"><span class="text-xs text-slate-400">Fri</span><span class="text-sm text-slate-600 font-medium">0</span></div>
+<div class="flex flex-col items-center gap-1"><span class="text-xs text-slate-400">Sat</span><span class="text-sm text-slate-600 font-medium">0</span></div>
+<div class="flex flex-col items-center gap-1"><span class="text-xs text-slate-400">Sun</span><span class="text-sm text-slate-600 font-medium">0</span></div>
+</div>
+</section>
+<!-- Quick Actions -->
+<section class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+<h3 class="font-bold text-slate-900 text-lg mb-4">Quick Actions</h3>
+<div class="flex flex-col gap-3">
+<a class="flex items-center p-3 rounded-2xl hover:bg-slate-50 transition group border border-slate-50" href="#">
+<div class="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center mr-4 group-hover:bg-orange-100 transition">
+<i class="fa-regular fa-comment text-brand-orange text-lg"></i>
+</div>
+<div class="flex-grow">
+<h4 class="font-bold text-slate-900 text-sm">Messages</h4>
+<p class="text-slate-500 text-xs">View all conversations</p>
+</div>
+<i class="fa-solid fa-chevron-right text-slate-400 text-sm"></i>
+</a>
+<a class="flex items-center p-3 rounded-2xl hover:bg-slate-50 transition group border border-slate-50" href="#">
+<div class="w-12 h-12 rounded-xl bg-teal-50 flex items-center justify-center mr-4 group-hover:bg-teal-100 transition">
+<i class="fa-regular fa-pen-to-square text-brand-teal text-lg"></i>
+</div>
+<div class="flex-grow">
+<h4 class="font-bold text-slate-900 text-sm">Edit Listing</h4>
+<p class="text-slate-500 text-xs">Update photos &amp; details</p>
+</div>
+<i class="fa-solid fa-chevron-right text-slate-400 text-sm"></i>
+</a>
+<a class="flex items-center p-3 rounded-2xl hover:bg-slate-50 transition group border border-slate-50" href="#">
+<div class="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mr-4 group-hover:bg-slate-200 transition">
+<i class="fa-solid fa-gear text-slate-600 text-lg"></i>
+</div>
+<div class="flex-grow">
+<h4 class="font-bold text-slate-900 text-sm">Settings</h4>
+<p class="text-slate-500 text-xs">Account &amp; preferences</p>
+</div>
+<i class="fa-solid fa-chevron-right text-slate-400 text-sm"></i>
+</a>
+</div>
+</section>
+<!-- Quick Tip -->
+<section class="bg-brand-navy rounded-3xl p-6 shadow-sm border border-slate-100 text-white">
+<div class="flex items-center gap-2 mb-3">
+<i class="fa-regular fa-lightbulb text-brand-orange text-lg"></i>
+<h3 class="font-bold text-lg">Quick Tip</h3>
+</div>
+<p class="text-slate-300 text-sm leading-relaxed">Replying to applicants quickly improves your listing's visibility and helps you find the right roommate faster.</p>
+</section>
+</div>
+<!-- END: Right Column Sidebar -->
+</main>
+<!-- END: Main Layout -->
+</body></html>

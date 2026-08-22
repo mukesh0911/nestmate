@@ -57,7 +57,6 @@ export function useUserProfile() {
   const setRole = useCallback(async (userId: string, role: 'seeker' | 'owner') => {
     await setDoc(doc(db, 'users', userId), {
       role,
-      onboardingComplete: true,
       updatedAt: serverTimestamp(),
     }, { merge: true });
   }, []);

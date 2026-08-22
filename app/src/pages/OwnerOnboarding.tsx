@@ -21,6 +21,54 @@ type ScreenId =
   | 'photos' | 'amenities' | 'available_from' | 'pref_gender' | 'house_rules'
   | 'loading' | 'success';
 
+const CITY_SVG_ICONS: Record<string, React.ReactNode> = {
+  'Chennai': (
+    <svg className="w-7 h-7 stroke-[#ff5a36] fill-none stroke-[1.5] stroke-linecap-round stroke-linejoin-round" viewBox="0 0 24 24">
+      <path d="M12 2v20M8 6l4-4 4 4M6 10l6-4 6 4M4 14l8-4 8 4M2 18l10-4 10 4M2 22h20" />
+    </svg>
+  ),
+  'Bengaluru': (
+    <svg className="w-7 h-7 stroke-[#ff5a36] fill-none stroke-[1.5] stroke-linecap-round stroke-linejoin-round" viewBox="0 0 24 24">
+      <path d="M12 2a4 4 0 0 0-4 4v4H4v8h16v-8h-4V6a4 4 0 0 0-4-4z" />
+      <path d="M12 2v4M8 10h8M12 14v4M10 18h4" />
+      <path d="M2 22h20" />
+    </svg>
+  ),
+  'Hyderabad': (
+    <svg className="w-7 h-7 stroke-[#ff5a36] fill-none stroke-[1.5] stroke-linecap-round stroke-linejoin-round" viewBox="0 0 24 24">
+      <path d="M4 22V6M20 22V6M4 10h16" />
+      <path d="M8 22v-6a4 4 0 0 1 8 0v6" />
+      <path d="M4 6l4-4M20 6l-4-4" />
+      <path d="M2 22h20" />
+    </svg>
+  ),
+  'Pune': (
+    <svg className="w-7 h-7 stroke-[#ff5a36] fill-none stroke-[1.5] stroke-linecap-round stroke-linejoin-round" viewBox="0 0 24 24">
+      <path d="M2 22h20" />
+      <path d="M4 22v-8l4-4 4 4 4-4 4 4v8" />
+      <path d="M10 22v-4h4v4" />
+      <path d="M8 10V6M16 10V6" />
+      <path d="M6 6h12" />
+    </svg>
+  ),
+  'Mumbai': (
+    <svg className="w-7 h-7 stroke-[#ff5a36] fill-none stroke-[1.5] stroke-linecap-round stroke-linejoin-round" viewBox="0 0 24 24">
+      <path d="M2 22h20" />
+      <path d="M4 22V4h4v6a4 4 0 0 0 8 0V4h4v18" />
+      <path d="M12 10v12" />
+      <path d="M6 4l-2-2M18 4l2-2" />
+    </svg>
+  ),
+  'Delhi NCR': (
+    <svg className="w-7 h-7 stroke-[#ff5a36] fill-none stroke-[1.5] stroke-linecap-round stroke-linejoin-round" viewBox="0 0 24 24">
+      <path d="M2 22h20" />
+      <path d="M6 22V8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v14" />
+      <path d="M10 22v-6a2 2 0 0 1 4 0v6" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  ),
+};
+
 export default function OwnerOnboarding() {
   const navigate = useNavigate();
   const { user, profile: authProfile, refreshProfile } = useAuth();
@@ -491,17 +539,43 @@ export default function OwnerOnboarding() {
     // 7. City Screen
     if (currentScreen === 'city') return (
       <Screen
-        emoji="🏙️" title="Which city is your room in?" subtitle="We matches room seekers within the same city"
+        emoji="🏙️" title="Which city is your room in?" subtitle="We match you with verified room seekers in the same city"
         onNext={() => next(() => !city ? 'Please select a city' : null)}
         onBack={() => go(-1)} error={error}
       >
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          {cities.map(c => (
-            <button key={c} onClick={() => { setCity(c); setLocality(''); }}
-              className={`p-4 rounded-2xl border-2 font-medium transition-all text-sm ${city === c ? 'border-fire bg-fire/5 text-fire' : 'border-border bg-white hover:border-fire/30'}`}>
-              {c}
-            </button>
-          ))}
+        <div className="w-full max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+          {cities.map(c => {
+            const isSelected = city === c;
+            return (
+              <label
+                key={c}
+                onClick={() => { setCity(c); setLocality(''); }}
+                className={`group relative bg-white border rounded-2xl p-4 flex items-center gap-4 cursor-pointer transition-all duration-200 ${
+                  isSelected
+                    ? 'border-brand-orange shadow-md bg-orange-50/20'
+                    : 'border-slate-100 hover:border-brand-orange hover:shadow-sm'
+                }`}
+              >
+                <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
+                  isSelected ? 'bg-orange-100' : 'bg-orange-50 group-hover:bg-orange-100'
+                }`}>
+                  {CITY_SVG_ICONS[c] || (
+                    <svg className="w-7 h-7 stroke-brand-orange fill-none stroke-[1.5]" viewBox="0 0 24 24">
+                      <path d="M4 22V6M20 22V6M4 10h16M2 22h20" />
+                    </svg>
+                  )}
+                </div>
+                <span className={`font-semibold text-lg transition-colors ${
+                  isSelected ? 'text-brand-orange font-bold' : 'text-slate-800 group-hover:text-brand-orange'
+                }`}>
+                  {c}
+                </span>
+                <div className={`absolute inset-0 border-2 rounded-2xl pointer-events-none transition-all ${
+                  isSelected ? 'border-brand-orange' : 'border-transparent'
+                }`} />
+              </label>
+            );
+          })}
         </div>
       </Screen>
     );
@@ -515,10 +589,18 @@ export default function OwnerOnboarding() {
           onNext={() => next(() => !locality ? 'Please select a locality' : null)}
           onBack={() => go(-1)} error={error}
         >
-          <div className="flex flex-wrap gap-2 mt-4 max-h-[40vh] overflow-y-auto p-1">
+          <div className="flex flex-wrap gap-2.5 my-4 max-h-[40vh] overflow-y-auto p-1">
             {available.map(loc => (
-              <button key={loc} onClick={() => setLocality(loc)}
-                className={`px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${locality === loc ? 'border-fire bg-fire text-white' : 'border-border bg-white hover:border-fire/30'}`}>
+              <button
+                key={loc}
+                type="button"
+                onClick={() => setLocality(loc)}
+                className={`px-4 py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  locality === loc
+                    ? 'bg-brand-orange text-white shadow-xs'
+                    : 'bg-white border border-slate-200 text-slate-800 hover:border-brand-orange shadow-2xs'
+                }`}
+              >
                 {loc}
               </button>
             ))}
@@ -534,10 +616,18 @@ export default function OwnerOnboarding() {
         onNext={() => next(() => !flatType ? 'Please select a flat configuration' : null)}
         onBack={() => go(-1)} error={error}
       >
-        <div className="grid grid-cols-2 gap-3 mt-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 my-4">
           {flatTypes.map(ft => (
-            <button key={ft} onClick={() => setFlatType(ft)}
-              className={`p-4 rounded-2xl border-2 font-medium transition-all text-sm ${flatType === ft ? 'border-fire bg-fire/5 text-fire' : 'border-border bg-white hover:border-fire/30'}`}>
+            <button
+              key={ft}
+              type="button"
+              onClick={() => setFlatType(ft)}
+              className={`w-full min-h-[52px] px-4 py-3.5 rounded-full font-bold text-sm sm:text-base text-center transition-all cursor-pointer flex items-center justify-center ${
+                flatType === ft
+                  ? 'bg-orange-50/50 border-2 border-brand-orange text-brand-orange shadow-xs'
+                  : 'bg-white border border-slate-200/80 hover:border-brand-orange text-slate-900 shadow-2xs hover:shadow-xs'
+              }`}
+            >
               {ft}
             </button>
           ))}
@@ -552,11 +642,20 @@ export default function OwnerOnboarding() {
         onNext={() => next(() => !furnishing ? 'Please select a furnishing level' : null)}
         onBack={() => go(-1)} error={error}
       >
-        <div className="space-y-3 mt-4">
+        <div className="space-y-3 my-4">
           {furnishingTypes.map(ft => (
-            <button key={ft} onClick={() => setFurnishing(ft)}
-              className={`w-full p-4 rounded-2xl border-2 text-left font-medium transition-all ${furnishing === ft ? 'border-fire bg-fire/5 text-fire' : 'border-border bg-white hover:border-fire/30'}`}>
-              {ft}
+            <button
+              key={ft}
+              type="button"
+              onClick={() => setFurnishing(ft)}
+              className={`w-full min-h-[52px] px-5 py-3.5 rounded-full font-bold text-sm sm:text-base text-left transition-all cursor-pointer flex items-center justify-between ${
+                furnishing === ft
+                  ? 'bg-orange-50/50 border-2 border-brand-orange text-brand-orange shadow-xs'
+                  : 'bg-white border border-slate-200/80 hover:border-brand-orange text-slate-900 shadow-2xs hover:shadow-xs'
+              }`}
+            >
+              <span>{ft}</span>
+              {furnishing === ft && <span>✓</span>}
             </button>
           ))}
         </div>
@@ -773,25 +872,33 @@ export default function OwnerOnboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-parchment flex flex-col">
-      {/* Top Bar */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-parchment/90 backdrop-blur-sm border-b border-border">
-        <div className="h-1 bg-border">
-          <div className="h-full bg-gradient-to-r from-fire to-amber-400 transition-all duration-500" style={{ width: `${progress}%` }} />
+    <div className="min-h-screen bg-[#FBF9F6] flex flex-col justify-between select-none">
+      {/* Top Progress & Header */}
+      <div className="w-full bg-white border-b border-gray-100 sticky top-0 z-50">
+        {/* Progress Bar */}
+        <div className="w-full h-1 bg-gray-100 absolute top-0 left-0 z-30">
+          <div className="h-full bg-brand-orange transition-all duration-500" style={{ width: `${progress}%` }} />
         </div>
-        <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg gradient-fire flex items-center justify-center">
-              <span className="text-white text-xs font-bold">N</span>
+        <header className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center relative z-20 bg-white">
+          {/* Logo / Brand */}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-brand-orange flex items-center justify-center text-white shadow-xs">
+              <svg fill="none" height="18" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="18" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
             </div>
-            <span className="text-xs font-semibold text-ink/50">NestMate Setup</span>
+            <span className="font-bold text-lg tracking-tight text-slate-900">NestMate Setup</span>
           </div>
-          <span className="text-xs text-ink/40 font-medium">{progress}% complete</span>
-        </div>
+          {/* Progress Text */}
+          <div className="text-sm font-medium">
+            <span className="text-brand-orange font-bold">{progress}%</span> <span className="text-gray-400">complete</span>
+          </div>
+        </header>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 flex items-center justify-center pt-20 pb-12 px-4">
+      {/* Main Form Content */}
+      <div className="flex-1 flex items-center justify-center pt-24 pb-12 px-4">
         <div className="w-full max-w-md">
           {renderScreen()}
         </div>
@@ -826,9 +933,10 @@ const EMOJI_TO_LUCIDE: Record<string, any> = {
   '💻': Briefcase,
   '🐾': Heart,
   '💬': Sparkles,
+  '🖼️': Camera,
 };
 
-// Reusable Screen Wrapper
+// Reusable Screen Wrapper matching screenshot design
 function Screen({
   emoji, title, subtitle, children, onNext, onBack, nextLabel = 'Continue', error,
 }: {
@@ -837,33 +945,50 @@ function Screen({
 }) {
   const IconComp = EMOJI_TO_LUCIDE[emoji] || MapPin;
   return (
-    <div className="animate-fade-up">
+    <div className="animate-fade-up max-w-md mx-auto w-full">
       <div className="text-center mb-6">
-        <div className="relative inline-block mb-3">
-          <div className="absolute inset-0 bg-fire/20 rounded-2xl blur-lg animate-pulse" />
-          <div className="w-16 h-16 relative bg-white/95 backdrop-blur-md rounded-2xl border-2 border-fire/30 shadow-md flex items-center justify-center transition-all duration-300 hover:scale-105">
-            <IconComp className="w-8 h-8 text-fire" />
-          </div>
+        {/* Glowing Soft Badge */}
+        <div className="w-20 h-20 bg-white rounded-3xl border border-orange-100 flex items-center justify-center shadow-[0_10px_35px_rgba(255,90,54,0.18)] mb-5 mx-auto transition-transform hover:scale-105">
+          <IconComp className="w-9 h-9 text-brand-orange" />
         </div>
-        <h2 className="text-2xl font-display italic mb-1 text-ink">{title}</h2>
-        <p className="text-sm text-ink/50">{subtitle}</p>
+        
+        {/* Title */}
+        <h2 className="text-2xl sm:text-3xl font-serif italic text-slate-900 text-center tracking-tight mb-2 leading-snug">
+          {title}
+        </h2>
+        
+        {/* Subtitle */}
+        <p className="text-xs sm:text-sm text-slate-500 font-normal text-center max-w-sm mx-auto leading-relaxed">
+          {subtitle}
+        </p>
       </div>
 
       {children}
 
       {error && (
-        <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 mt-4 text-center">
+        <p className="text-xs sm:text-sm text-red-500 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mt-4 text-center font-medium">
           {error}
         </p>
       )}
 
-      <button onClick={onNext} className="w-full btn-fire mt-6 py-3.5 text-base font-semibold">
-        {nextLabel} →
+      {/* Primary Continue Button */}
+      <button
+        type="button"
+        onClick={onNext}
+        className="w-full bg-[#ff5a36] hover:bg-orange-600 active:scale-[0.98] text-white font-bold text-sm sm:text-base py-4 rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-orange-500/25 transition-all cursor-pointer mt-6"
+      >
+        <span>{nextLabel}</span>
+        <span>→</span>
       </button>
 
+      {/* Back Link */}
       {onBack && (
-        <button onClick={onBack} className="w-full mt-3 text-sm text-ink/40 hover:text-ink/60 flex items-center justify-center gap-1 py-2 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back
+        <button
+          type="button"
+          onClick={onBack}
+          className="w-full mt-3 text-xs sm:text-sm font-semibold text-slate-400 hover:text-slate-700 flex items-center justify-center gap-1.5 py-2 transition-colors cursor-pointer"
+        >
+          <span>← Back</span>
         </button>
       )}
     </div>

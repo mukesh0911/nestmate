@@ -1,0 +1,10 @@
+{
+  "name": "roomate-root",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix app run dev",
+    "build": "npm --prefix app run build",
+    "check": "npm --prefix app run check",
+    "test": "npm --prefix app run test"
+  }
+}

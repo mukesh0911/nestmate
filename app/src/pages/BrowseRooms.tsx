@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cities, amenitiesList as allAmenities } from '@/lib/staticData';
 import StateEmpty from '@/components/StateEmpty';
+import RoomCard from '@/components/RoomCard';
 
 export default function BrowseRooms({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate();
@@ -106,24 +107,24 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
 
   const contentGrid = (
     <div>
-      {/* Search & Filter Row — always single line */}
-      <div className="flex items-center gap-2 mb-5">
+      {/* Search & Filter Row — matching screenshot styling */}
+      <div className="flex items-center gap-2.5 mb-4">
         {/* Search input */}
         <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/35 pointer-events-none" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
             placeholder="Search by locality, title, or city..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             aria-label="Search rooms"
-            className="w-full pl-9 pr-8 py-2.5 min-h-[44px] bg-white rounded-xl text-[13px] border border-gray-200 shadow-xs outline-none focus:border-fire focus:ring-2 focus:ring-fire/10 transition-all"
+            className="w-full pl-10 pr-8 py-3 min-h-[44px] bg-white rounded-xl text-xs sm:text-sm border border-slate-200 shadow-xs outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/10 transition-all text-slate-800 placeholder:text-slate-400"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
               aria-label="Clear search"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-ink/35 hover:text-ink/70 cursor-pointer"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -135,35 +136,35 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
           type="button"
           onClick={() => setShowFilters(true)}
           aria-label="Open filters"
-          className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 min-h-[44px] bg-white border rounded-xl text-[12px] font-bold transition-all shadow-xs cursor-pointer ${
+          className={`flex-shrink-0 flex items-center gap-2 px-4 py-3 min-h-[44px] bg-white border rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs cursor-pointer ${
             filters.city || (filters.budgetMax && filters.budgetMax < 25000)
-              ? 'border-fire text-fire bg-fire/5'
-              : 'border-gray-200 text-ink/70 hover:text-ink hover:bg-gray-50'
+              ? 'border-brand-orange text-brand-orange bg-brand-orange/5'
+              : 'border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          <span className="hidden xs:inline">Filters</span>
+          <SlidersHorizontal className="w-4 h-4" />
+          <span>Filters</span>
           {filters.city || (filters.budgetMax && filters.budgetMax < 25000) ? (
-            <span className="w-1.5 h-1.5 rounded-full bg-fire" />
+            <span className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
           ) : null}
         </button>
+      </div>
 
-        {/* Count badge */}
-        <span className="flex-shrink-0 text-[11px] font-bold text-ink/45 whitespace-nowrap">
-          {filtered.length} found
-        </span>
+      {/* Count badge */}
+      <div className="text-xs text-slate-500 font-semibold mb-4 block px-0.5">
+        {filtered.length} found
       </div>
 
       {/* Skeleton Loading */}
       {isLoading && (
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex flex-col">
+            <div key={i} className="flex flex-col bg-white rounded-3xl p-3 border border-slate-100">
               <div className="aspect-[4/3] w-full rounded-2xl skeleton-shimmer mb-2.5" />
-              <div className="px-0.5 space-y-2">
+              <div className="px-1 space-y-2">
                 <div className="flex justify-between items-center">
-                  <div className="h-3.5 w-2/3 skeleton-shimmer rounded-md" />
-                  <div className="h-3.5 w-1/4 skeleton-shimmer rounded-md" />
+                  <div className="h-4 w-2/3 skeleton-shimmer rounded-md" />
+                  <div className="h-4 w-1/4 skeleton-shimmer rounded-md" />
                 </div>
                 <div className="h-3 w-1/2 skeleton-shimmer rounded-md" />
               </div>
@@ -179,137 +180,49 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
         </div>
       )}
 
-      {/* Room Grid — 2 cols mobile, 3 col tablet, 4 col desktop */}
+      {/* Room Grid — 1 col mobile, 2 col tablet, 4 col desktop */}
       {!isLoading && (
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
           {filtered.map(room => {
             const isSaved = savedRoomIds.includes(room.id);
             const isSaving = savingRoomId === room.id;
-            const images = room.images?.length > 0 ? room.images : ['https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&auto=format&fit=crop'];
-            const currentImgIdx = imageIndexes[room.id] || 0;
-            const isHovered = hoveredCardId === room.id;
-
-            const compatibility = profile
-              ? calculateCompatibility(
-                  profile.quizAnswers || {},
-                  room.ownerQuizAnswers || {},
-                  profile.city,
-                  room.city
-                )
-              : null;
-
             return (
-              <div
+              <RoomCard
                 key={room.id}
-                className="group relative flex flex-col cursor-pointer"
-                onMouseEnter={() => setHoveredCardId(room.id)}
-                onMouseLeave={() => setHoveredCardId(null)}
+                room={room}
+                isSaved={isSaved}
+                isSaving={isSaving}
+                onToggleSave={handleToggleSave}
                 onClick={() => navigate(`/room/${room.id}`)}
-              >
-                {/* Photo area — 4:3 ratio is compact & natural on mobile */}
-                <div className="relative aspect-[4/3] w-full rounded-2xl overflow-hidden bg-gray-100 shadow-xs mb-2.5">
-                  <img
-                    src={images[currentImgIdx]}
-                    alt={room.title}
-                    loading="lazy"
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                  />
-
-                  {/* Gradient scrim */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent pointer-events-none" />
-
-                  {/* Image nav — desktop hover only */}
-                  {images.length > 1 && isHovered && (
-                    <>
-                      <button
-                        onClick={e => prevImage(e, room.id, images.length - 1)}
-                        aria-label="Previous photo"
-                        className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white/95 text-ink shadow-md transition-all z-10 hover:scale-105 cursor-pointer"
-                      >
-                        <ChevronLeft className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={e => nextImage(e, room.id, images.length - 1)}
-                        aria-label="Next photo"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white/95 text-ink shadow-md transition-all z-10 hover:scale-105 cursor-pointer"
-                      >
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                    </>
-                  )}
-
-                  {/* Dots */}
-                  {images.length > 1 && (
-                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
-                      {images.map((_, idx) => (
-                        <span
-                          key={idx}
-                          className={`rounded-full transition-all ${
-                            idx === currentImgIdx
-                              ? 'w-3 h-1.5 bg-white'
-                              : 'w-1.5 h-1.5 bg-white/50'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Save button */}
-                  <button
-                    onClick={e => handleToggleSave(e, room.id)}
-                    aria-label={isSaved ? 'Remove from saved' : 'Save room'}
-                    className="absolute top-2.5 right-2.5 w-8 h-8 flex items-center justify-center rounded-full bg-white/85 hover:bg-white backdrop-blur-sm shadow-sm transition-all z-10 cursor-pointer"
-                  >
-                    {isSaving
-                      ? <Loader2 className="w-3.5 h-3.5 animate-spin text-fire" />
-                      : <Heart className={`w-3.5 h-3.5 transition-all ${isSaved ? 'fill-red-500 text-red-500 scale-110' : 'text-ink/60'}`} />
-                    }
-                  </button>
-
-                  {/* Type badge */}
-                  <span className="absolute top-2.5 left-2.5 bg-white/90 text-ink text-[9px] font-extrabold px-1.5 py-0.5 rounded-md shadow-sm backdrop-blur-sm uppercase tracking-wider">
-                    {room.flatType}
-                  </span>
-
-                  {/* Verified badge — bottom left on image */}
-                  {room.isOwnerVerified && (
-                    <span className="absolute bottom-2 right-2 flex items-center gap-1 bg-emerald-600 text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded-md uppercase tracking-wider z-10">
-                      <ShieldCheck className="w-2.5 h-2.5" />
-                      <span className="hidden sm:inline">Verified</span>
-                    </span>
-                  )}
-                </div>
-
-                {/* Card info — compact on mobile */}
-                <div className="flex flex-col flex-1 space-y-0.5">
-                  {/* Location + match */}
-                  <div className="flex items-start justify-between gap-1">
-                    <p className="font-bold text-[12px] sm:text-[13px] text-ink leading-tight truncate">
-                      {room.locality}, {room.city}
-                    </p>
-                    {compatibility !== null && compatibility > 0 && (
-                      <span className="flex-shrink-0 text-[9px] sm:text-[10px] font-extrabold text-teal bg-teal-light px-1.5 py-0.5 rounded-md whitespace-nowrap">
-                        {compatibility}% ✦
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Meta row */}
-                  <p className="text-[11px] text-ink/45 font-medium truncate">
-                    {room.furnishing || 'Semi-Furnished'} · {room.partnersNeeded || 1} needed
-                  </p>
-
-                  {/* Price row */}
-                  <div className="flex items-baseline gap-0.5 pt-1.5 border-t border-gray-100 mt-1">
-                    <span className="font-extrabold text-[13px] sm:text-[14px] text-ink">
-                      ₹{(room.partnerShare || room.totalRent || 0).toLocaleString()}
-                    </span>
-                    <span className="text-[11px] text-ink/40 font-normal">/mo</span>
-                  </div>
-                </div>
-              </div>
+              />
             );
           })}
+        </div>
+      )}
+
+      {/* Can't find what you're looking for? Callout Banner */}
+      {!isLoading && filtered.length > 0 && (
+        <div className="bg-[#fff3f0] border border-[#ffe0d8] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs mt-8 mb-6">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-10 h-10 bg-[#ffebd9] rounded-xl flex items-center justify-center text-brand-orange shrink-0">
+              <MapPin className="w-5 h-5 text-brand-orange" />
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-900 text-sm sm:text-base leading-tight">
+                Can't find what you're looking for?
+              </h4>
+              <p className="text-xs text-slate-500 mt-1 leading-snug">
+                Post your requirements and let the right matches find you.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/onboarding/seeker')}
+            className="bg-brand-orange hover:bg-orange-600 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm shadow-orange-500/20 shrink-0 cursor-pointer self-stretch sm:self-auto justify-center"
+          >
+            <span>Post Requirement</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       )}
 

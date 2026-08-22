@@ -34,8 +34,8 @@ export default function AuthPage() {
     try {
       // Try sign-in first; if user not found, sign up
       try {
-        const { isNew, role, onboardingComplete } = await signInWithEmail(email.trim(), password);
-        navigate(isNew || !onboardingComplete ? '/role-select' : role === 'owner' ? '/owner-dashboard' : '/dashboard');
+        const { isNew, role } = await signInWithEmail(email.trim(), password);
+        navigate(isNew || !role ? '/role-select' : role === 'owner' ? '/owner-dashboard' : '/dashboard');
       } catch (signInErr: any) {
         if (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential') {
           await signUpWithEmail(email.trim(), password);

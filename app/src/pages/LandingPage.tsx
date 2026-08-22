@@ -97,7 +97,8 @@ export default function LandingPage() {
 
   const handleListRoom = () => {
     if (authState.uid) {
-      navigate(authState.role === 'owner' ? '/owner-dashboard' : '/onboarding/owner');
+      // Always go to owner-dashboard; onboarding questions appear only when "Create Listing" is clicked
+      navigate('/owner-dashboard');
     } else {
       useStore.getState().openAuthModal({
         title: 'Post Your Room Listing',
