@@ -4,7 +4,7 @@ import {
   countConnectionsSince,
   findExistingConnectionId,
   FREE_CONNECT_LIMIT,
-} from '@/lib/connectionGuards';
+} from './connectionGuards';
 
 describe('findExistingConnectionId', () => {
   const pairs = [

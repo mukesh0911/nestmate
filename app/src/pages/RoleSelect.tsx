@@ -20,7 +20,7 @@ export default function RoleSelect() {
       console.error('Failed to save selected role:', err);
     }
 
-    navigate(role === 'seeker' ? '/dashboard' : '/owner-dashboard');
+    navigate(role === 'seeker' ? '/onboarding/seeker' : '/onboarding/owner');
   };
 
   return (
@@ -29,7 +29,7 @@ export default function RoleSelect() {
         {/* Header */}
         <div className="text-center mb-10">
           <p className="text-xs font-bold text-fire mb-3 tracking-widest uppercase">Step 1 of 1</p>
-          <h1 className="text-3xl sm:text-4xl font-display italic mb-3">I want to…</h1>
+          <h1 className="type-h1 mb-3">I want to…</h1>
           <p className="text-ink/60 max-w-md mx-auto">
             Choose your primary role. You can always switch later from your profile settings.
           </p>
@@ -53,7 +53,7 @@ export default function RoleSelect() {
                 <Search className="w-7 h-7 text-navy" />
               </div>
 
-              <h3 className="text-xl font-display italic mb-3 text-navy">Find a Room & Roommate</h3>
+              <h3 className="type-h3 mb-3 text-navy">Find a Room & Roommate</h3>
               <p className="text-sm text-ink/60 mb-6 leading-relaxed">
                 I don't have a flat yet. I want to find both a compatible roommate and a place to live.
               </p>
@@ -97,7 +97,7 @@ export default function RoleSelect() {
                 <Home className="w-7 h-7 text-fire" />
               </div>
 
-              <h3 className="text-xl font-display italic mb-3 text-fire">List My Room / Flat</h3>
+              <h3 className="type-h3 mb-3 text-fire">List My Room / Flat</h3>
               <p className="text-sm text-ink/60 mb-6 leading-relaxed">
                 I already have a flat or room. I want to find a compatible person to share it with.
               </p>

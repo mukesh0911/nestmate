@@ -40,7 +40,7 @@ export default function PrivacyPolicy() {
         <div className="card-nestmate p-8 md:p-12">
           {activeTab === 'privacy' ? (
             <div className="prose prose-sm md:prose-base text-ink/80 max-w-none">
-              <h2 className="text-2xl font-display italic mb-6">Privacy Policy</h2>
+              <h2 className="type-h2 mb-6">Privacy Policy</h2>
               <p>Last updated: October 2025</p>
 
               <h3 className="font-semibold text-lg mt-8 mb-4">1. Information We Collect</h3>
@@ -67,7 +67,7 @@ export default function PrivacyPolicy() {
             </div>
           ) : (
             <div className="prose prose-sm md:prose-base text-ink/80 max-w-none">
-              <h2 className="text-2xl font-display italic mb-6">Terms of Service</h2>
+              <h2 className="type-h2 mb-6">Terms of Service</h2>
               <p>Last updated: October 2025</p>
 
               <h3 className="font-semibold text-lg mt-8 mb-4">1. Acceptance of Terms</h3>

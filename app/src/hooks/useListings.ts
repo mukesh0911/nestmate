@@ -18,8 +18,12 @@ import {
   DocumentSnapshot,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-
-
+import { isDiscoverable } from '@/lib/listingFreshness';
+import { isPubliclyVisibleListing } from '@/lib/marketplaceVisibility';
+// Sprint 4B: filter pipeline extracted to a pure, unit-testable module.
+import { applyClientFilters, type ListingFilters } from '@/lib/listingFilters';
+import { useAnalytics } from './useAnalytics';
+import { getAuth } from 'firebase/auth';
 
 export interface Listing {
   id: string;
@@ -43,52 +47,35 @@ export interface Listing {
   availableFrom: string;
   lat: number;
   lng: number;
-  status: 'active' | 'paused' | 'filled';
+  status: 'active' | 'paused' | 'filled' | 'closed' | 'pending_verification';
   applicants: number;
   views: number;
+  /** Owner-confirmed availability timestamp (Sprint 2A). Legacy docs may lack it. */
+  lastConfirmedAt?: Timestamp;
   createdAt: Timestamp;
   updatedAt: Timestamp;
   isOwnerPremium?: boolean;
   isOwnerVerified?: boolean;
   ownerQuizAnswers?: Record<string, string>;
+  /**
+   * Set to true ONLY by admin approval of owner identity verification.
+   * Firestore rules enforce that only admins can write this field.
+   * Absent field on legacy listings = grandfathered (grace period).
+   * false = explicitly unverified (must not appear in discovery).
+   */
+  ownerVerified?: boolean;
 }
 
-export interface ListingFilters {
-  city?: string;
-  budgetMin?: number;
-  budgetMax?: number;
-  flatType?: string[];
-  furnishing?: string[];
-  amenities?: string[];
-}
-
-function applyClientFilters(results: Listing[], filters?: ListingFilters): Listing[] {
-  if (!filters) return results;
-  if (filters.city) {
-    const target = filters.city.toLowerCase().trim();
-    results = results.filter(l => (l.city || '').toLowerCase().trim() === target || (l.city || '').toLowerCase().includes(target));
-  }
-  if (filters.budgetMin !== undefined) {
-    results = results.filter(l => (l.partnerShare || l.totalRent || 0) >= (filters.budgetMin ?? 0));
-  }
-  if (filters.budgetMax !== undefined) {
-    results = results.filter(l => (l.partnerShare || l.totalRent || 0) <= (filters.budgetMax ?? Infinity));
-  }
-  if (filters.flatType?.length) {
-    results = results.filter(l => filters.flatType!.includes(l.flatType));
-  }
-  if (filters.furnishing?.length) {
-    results = results.filter(l => filters.furnishing!.includes(l.furnishing));
-  }
-  if (filters.amenities?.length) {
-    results = results.filter(l => filters.amenities!.every(a => l.amenities?.includes(a)));
-  }
-  return results;
-}
+// ListingFilters + applyClientFilters now live in @/lib/listingFilters
+// (pure module, unit-tested in listingFilters.test.ts). Re-exported here so
+// existing imports of these names from useListings keep working.
+export type { ListingFilters } from '@/lib/listingFilters';
+export { applyClientFilters } from '@/lib/listingFilters';
 
 const PAGE_SIZE = 20;
 
 export function useListings() {
+  const { logEvent } = useAnalytics();
   const [listings, setListings] = useState<Listing[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,18 +104,23 @@ export function useListings() {
             console.error('Failed to pre-fetch owners profile details for listings:', err);
           }
         }
-        const DEFAULT_OWNER_QUIZ = { q1: '2', q2: '1', q3: '3', q4: '2', q5: '1' };
+        // Sprint 4A (truth): NEVER fabricate owner quiz answers. If the owner
+        // has no real quiz data, ownerQuizAnswers stays undefined and the UI
+        // must render an honest "preferences unavailable" state instead of a
+        // compatibility score computed against invented answers.
         const enhanced = rawListings.map(r => {
           const owner = ownersMap.get(r.ownerId);
-          const ownerQuiz = owner?.quizAnswers && Object.keys(owner.quizAnswers).length > 0
-            ? owner.quizAnswers
-            : (r as any).ownerQuizAnswers && Object.keys((r as any).ownerQuizAnswers).length > 0
-            ? (r as any).ownerQuizAnswers
-            : DEFAULT_OWNER_QUIZ;
+          const storedQuiz = (r as any).ownerQuizAnswers;
+          const ownerQuiz =
+            owner?.quizAnswers && Object.keys(owner.quizAnswers).length > 0
+              ? owner.quizAnswers
+              : storedQuiz && Object.keys(storedQuiz).length > 0
+                ? storedQuiz
+                : undefined;
 
           return {
             ...r,
-            ownerQuizAnswers: ownerQuiz,
+            ...(ownerQuiz ? { ownerQuizAnswers: ownerQuiz } : {}),
             isOwnerPremium: owner?.isPremium || false,
             isOwnerVerified: owner?.isVerified || false,
           };
@@ -146,6 +138,9 @@ export function useListings() {
         });
         return enhanced;
       };
+
+      // Availability & Verification integrity: drop unverified/closed/expired listings from discovery.
+      const dropUnavailable = (ls: Listing[]) => ls.filter(l => isPubliclyVisibleListing(l));
 
       let fetchedResults: Listing[] = [];
       try {
@@ -169,7 +164,7 @@ export function useListings() {
           const snap = await getDocs(q);
           lastDocRef.current = snap.docs[snap.docs.length - 1] || null;
           setHasMore(snap.docs.length === 100);
-          fetchedResults = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Listing));
+          fetchedResults = dropUnavailable(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Listing)));
         } else {
           if (!reset && lastDocRef.current) {
             constraints.push(startAfter(lastDocRef.current));
@@ -178,7 +173,7 @@ export function useListings() {
           const snap = await getDocs(q);
           lastDocRef.current = snap.docs[snap.docs.length - 1] || null;
           setHasMore(snap.docs.length === 100);
-          fetchedResults = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Listing));
+          fetchedResults = dropUnavailable(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Listing)));
         }
       } catch (e) {
         console.warn('Firestore constrained listings fetch failed, executing fallback all-listings query:', e);
@@ -190,7 +185,8 @@ export function useListings() {
           const rawSnap = await getDocs(collection(db, 'listings'));
           fetchedResults = rawSnap.docs
             .map((d) => ({ id: d.id, ...d.data() } as Listing))
-            .filter((l) => l.status === 'active' || !l.status);
+            .filter((l) => l.status === 'active' || !l.status)
+            .filter(isPubliclyVisibleListing);
         } catch (err) {
           console.error('Fallback listings query failed:', err);
         }
@@ -233,7 +229,9 @@ export function useListings() {
         const data = snap.data() as Omit<Listing, 'id'>;
         let isOwnerVerified = false;
         let isOwnerPremium = false;
-        let ownerQuizAnswers: Record<string, string> = { q1: '2', q2: '1', q3: '3', q4: '2', q5: '1' };
+        // Sprint 4A (truth): no fabricated default quiz. ownerQuizAnswers is
+        // set ONLY from real data; RoomDetail renders an honest state when absent.
+        let ownerQuizAnswers: Record<string, string> | undefined = undefined;
         if (data.ownerId) {
           try {
             const ownerSnap = await getDoc(doc(db, 'users', data.ownerId));
@@ -252,7 +250,13 @@ export function useListings() {
         if ((data as any).ownerQuizAnswers && Object.keys((data as any).ownerQuizAnswers).length > 0) {
           ownerQuizAnswers = (data as any).ownerQuizAnswers;
         }
-        return { id: snap.id, ...data, isOwnerVerified, isOwnerPremium, ownerQuizAnswers };
+        return {
+          id: snap.id,
+          ...data,
+          isOwnerVerified,
+          isOwnerPremium,
+          ...(ownerQuizAnswers ? { ownerQuizAnswers } : {}),
+        };
       }
     } catch {
       // ignore
@@ -286,13 +290,23 @@ export function useListings() {
         ownerId,
         applicants: 0,
         views: 0,
-        status: 'active',
+        // Security: New listings start as pending_verification and are not publicly visible
+        // until admin approves the owner's identity verification.
+        // The status may be overridden by caller only to 'pending_verification' or 'paused';
+        // Firestore rules enforce newListingFieldsSafe() which blocks status:'active' on create.
+        status: data.status === 'paused' ? 'paused' : 'pending_verification',
+        // ownerVerified is always false on creation — only admin approval sets this to true.
+        ownerVerified: false,
+        // A brand-new listing counts as freshly confirmed at publish time.
+        lastConfirmedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      // Sprint 2D: supply-side event (fire-and-forget)
+      logEvent({ name: 'listing_created', actorId: ownerId, entityId: docRef.id, city: data.city });
       return docRef.id;
     },
-    []
+    [logEvent]
   );
 
   const updateListing = useCallback(
@@ -308,6 +322,40 @@ export function useListings() {
   const deleteListing = useCallback(async (id: string) => {
     await deleteDoc(doc(db, 'listings', id));
   }, []);
+
+  /**
+   * Owner explicitly confirms "this room is still available".
+   * Ownership is enforced by Firestore rules; the timestamp uses
+   * serverTimestamp() so clients cannot spoof freshness.
+   */
+  const confirmAvailability = useCallback(async (id: string) => {
+    const snap = await getDoc(doc(db, 'listings', id));
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data.status === 'pending_verification' || data.ownerVerified === false) {
+        console.warn('Cannot confirm availability for unverified listing:', id);
+        return;
+      }
+    }
+    await updateDoc(doc(db, 'listings', id), {
+      status: 'active',
+      lastConfirmedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    // Sprint 2D: freshness event (fire-and-forget). Actor = real auth UID so
+    // server rules can verify actorId == auth.uid. No PII logged.
+    logEvent({ name: 'availability_confirmed', actorId: getAuth().currentUser?.uid ?? '', entityId: id });
+  }, [logEvent]);
+
+  /** Owner marks the room as no longer available (soft close, history kept). */
+  const closeListing = useCallback(async (id: string) => {
+    await updateDoc(doc(db, 'listings', id), {
+      status: 'closed',
+      updatedAt: serverTimestamp(),
+    });
+    // Sprint 2D: supply-side event (fire-and-forget). Actor = real auth UID.
+    logEvent({ name: 'listing_closed', actorId: getAuth().currentUser?.uid ?? '', entityId: id });
+  }, [logEvent]);
 
   const incrementViews = useCallback(async (id: string) => {
     const ref = doc(db, 'listings', id);
@@ -384,6 +432,8 @@ export function useListings() {
     createListing,
     updateListing,
     deleteListing,
+    confirmAvailability,
+    closeListing,
     incrementViews,
     recordView,
     getWeeklyViews,

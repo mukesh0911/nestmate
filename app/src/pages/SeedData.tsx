@@ -52,7 +52,9 @@ const unsplashApartments = [
   'https://images.unsplash.com/photo-1565182999561-18d7dc61c393?w=600&q=80',
 ];
 
-export default function SeedData() {
+// Hard guard: this page must never render or execute in production builds.
+// (The /dev/seed route is also compiled out of App.tsx via import.meta.env.DEV.)
+function SeedDataInner() {
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -440,17 +442,31 @@ export default function SeedData() {
             <p className="text-gray-500">Awaiting command...</p>
           ) : (
             logs.map((l, i) => (
-              <div key={i} className={`mb-0.5 leading-relaxed ${
-                l.startsWith('✅') || l.startsWith('🎉') || l.startsWith('✓') ? 'text-green-400' :
+              <div key={i} className={`mb-0.5 leading-relaxed ${l.startsWith('✅') || l.startsWith('🎉') || l.startsWith('✓') ? 'text-green-400' :
                 l.startsWith('❌') ? 'text-red-400' :
-                l.startsWith('⚠️') ? 'text-yellow-400' :
-                l.startsWith('🗑') || l.startsWith('🌱') || l.startsWith('👥') || l.startsWith('🏠') || l.startsWith('🔗') || l.startsWith('🔔') ? 'text-blue-400' :
-                'text-gray-300'
-              }`}>{l}</div>
+                  l.startsWith('⚠️') ? 'text-yellow-400' :
+                    l.startsWith('🗑') || l.startsWith('🌱') || l.startsWith('👥') || l.startsWith('🏠') || l.startsWith('🔗') || l.startsWith('🔔') ? 'text-blue-400' :
+                      'text-gray-300'
+                }`}>{l}</div>
             ))
           )}
         </div>
       </div>
     </div>
   );
+}
+
+export default function SeedData() {
+  if (!import.meta.env.DEV) {
+    return (
+      <div className="min-h-screen bg-parchment flex items-center justify-center p-6">
+        <div className="max-w-md text-center">
+          <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-4" />
+          <h1 className="text-xl font-semibold text-ink mb-2">Dev tools unavailable</h1>
+          <p className="text-sm text-ink/60">Seed utilities are disabled in production.</p>
+        </div>
+      </div>
+    );
+  }
+  return <SeedDataInner />;
 }

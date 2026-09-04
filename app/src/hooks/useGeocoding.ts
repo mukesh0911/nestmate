@@ -27,7 +27,7 @@ export function useGeocoding() {
           
           const response = await fetch(url, {
             headers: {
-              'User-Agent': 'NestMate/1.0 (test@nestmate.com)'
+              'User-Agent': 'NestMate/1.0 (hello@nestmate.in)'
             }
           });
           

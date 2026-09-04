@@ -27,6 +27,8 @@ export interface Connection {
   toUserId: string;
   status: 'pending' | 'accepted' | 'rejected' | 'blocked';
   createdAt: Timestamp;
+  /** Sprint 3C — listing attribution: which listing this interest originated from (optional, legacy docs lack it) */
+  listingId?: string;
 }
 
 export { FREE_CONNECT_LIMIT };
@@ -63,7 +65,7 @@ export function useConnections() {
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
     const startMs = startOfMonth.getTime();
-    
+
     const q = query(
       collection(db, 'connections'),
       where('fromUserId', '==', userId)
@@ -77,9 +79,16 @@ export function useConnections() {
     return countConnectionsSince(msList, startMs);
   }, []);
 
-  /** Send a connect request from `fromId` to `toId`. Returns the connection doc ID. */
+  /**
+   * Send a connect request from `fromId` to `toId`. Returns the connection doc ID.
+   *
+   * Sprint 3C — optional `opts.listingId` records which listing the interest
+   * originated from. Firestore rules enforce that a supplied listingId must
+   * reference an existing listing owned by `toId`, so a client cannot claim
+   * another owner's listing. Legacy connections (no listingId) are unaffected.
+   */
   const sendRequest = useCallback(
-    async (fromId: string, toId: string): Promise<string> => {
+    async (fromId: string, toId: string, opts?: { listingId?: string }): Promise<string> => {
       if (fromId === toId) throw new Error("Cannot connect with yourself");
 
       const q = query(
@@ -102,11 +111,14 @@ export function useConnections() {
         return activeDoc ? activeDoc.id : allDocs[0].id;
       }
 
+      // Only attach listingId when provided AND non-empty; rules validate ownership.
+      const listingId = opts?.listingId?.trim();
       const ref = await addDoc(collection(db, 'connections'), {
         fromUserId: fromId,
         toUserId: toId,
         status: 'pending',
         createdAt: serverTimestamp(),
+        ...(listingId ? { listingId } : {}),
       });
       return ref.id;
     },

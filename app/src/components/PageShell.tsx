@@ -35,9 +35,8 @@ export default function PageShell({
         {(title || actions) && (
           <div className="flex items-start justify-between gap-4 mb-6">
             <div className="min-w-0">
-              {title && (
-                <h1 className="text-2xl font-display italic text-ink tracking-tight">{title}</h1>
-              )}
+              {/* Sprint 5C: sans voice for page headings */}
+              {title && <h1 className="type-h2 text-ink">{title}</h1>}
               {subtitle && <p className="text-sm text-ink/50 mt-1">{subtitle}</p>}
             </div>
             {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}

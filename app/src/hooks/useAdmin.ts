@@ -1,10 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
-import { doc, getDoc, collection, getDocs, query, where, orderBy, limit, updateDoc, deleteDoc, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, query, where, orderBy, limit, updateDoc, deleteDoc, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
+import { adminEmailKey } from '@/lib/adminKeys';
+import {
+  adminApproveOwnerVerification,
+  adminRejectOwnerVerification,
+  adminRequestResubmission,
+  adminBeginReview,
+} from '@/lib/ownerVerification';
 
-// Hardcoded admin emails for bootstrap — also checks Firestore admins collection
-const HARDCODED_ADMIN_EMAILS = ['test@nestmate.com', 'admin@nestmate.com'];
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin authorization model (must mirror firestore.rules isAdmin()):
+//   An authenticated user is an admin IFF a document exists at
+//   admins/{lowercased auth email}. The email comes from the Firebase Auth
+//   token — never from client-supplied data. No hardcoded emails.
+// Bootstrap: create admins/<email> in the Firebase console
+// (see docs/security/ADMIN_BOOTSTRAP.md).
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function useAdmin() {
   const { user, profile } = useAuth();
@@ -21,34 +34,15 @@ export function useAdmin() {
 
     const checkAdmin = async () => {
       try {
-        // 1. Check hardcoded emails
-        const email = user.email || profile?.email || '';
-        if (HARDCODED_ADMIN_EMAILS.includes(email.toLowerCase())) {
-          setIsAdmin(true);
-          setChecking(false);
+        // Single source of truth, mirroring firestore.rules isAdmin():
+        // admins/{verified auth email} must exist.
+        const email = user.email || '';
+        if (!email) {
+          setIsAdmin(false);
           return;
         }
-
-        // 2. Check Firestore admins/{uid}
-        const adminDoc = await getDoc(doc(db, 'admins', user.uid));
-        if (adminDoc.exists()) {
-          setIsAdmin(true);
-          setChecking(false);
-          return;
-        }
-
-        // 3. Check config/admin adminEmails array
-        const configDoc = await getDoc(doc(db, 'config', 'admin'));
-        if (configDoc.exists()) {
-          const adminEmails: string[] = configDoc.data()?.adminEmails || [];
-          if (adminEmails.includes(email.toLowerCase())) {
-            setIsAdmin(true);
-            setChecking(false);
-            return;
-          }
-        }
-
-        setIsAdmin(false);
+        const adminDoc = await getDoc(doc(db, 'admins', adminEmailKey(email)));
+        setIsAdmin(adminDoc.exists());
       } catch (err) {
         console.error('Admin check failed:', err);
         setIsAdmin(false);
@@ -199,38 +193,133 @@ export function useAdmin() {
 
   // --- Verifications ---
   const getAllVerifications = useCallback(async () => {
-    const snap = await getDocs(query(collection(db, 'verifications'), orderBy('submittedAt', 'asc')));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Fetch both the legacy verifications collection AND the new ownerVerifications collection
+    const [legacySnap, ownerSnap] = await Promise.all([
+      getDocs(query(collection(db, 'verifications'), orderBy('submittedAt', 'asc'))),
+      getDocs(collection(db, 'ownerVerifications')),
+    ]);
+    const legacyDocs = legacySnap.docs.map(d => ({ id: d.id, ...d.data(), _source: 'legacy' }));
+    const ownerDocs = ownerSnap.docs.map(d => ({
+      id: d.id,
+      userId: d.id,
+      type: d.data().documentType ?? 'aadhaar',
+      status: mapOwnerVerifStatusToLegacy(d.data().status),
+      documentUrl: d.data().documentUrl ?? '',
+      submittedAt: d.data().submittedAt,
+      reviewedAt: d.data().reviewedAt ?? null,
+      reviewNote: d.data().reviewNote ?? null,
+      _source: 'ownerVerification',
+      _ownerVerifStatus: d.data().status,
+      _declaredName: d.data().declaredName,
+      _resubmissionCount: d.data().resubmissionCount ?? 0,
+      _auditTrail: d.data().auditTrail ?? [],
+    }));
+    // Return ownerVerifications first (they are the security-critical ones)
+    return [...ownerDocs, ...legacyDocs];
   }, []);
 
-  const approveVerification = useCallback(async (id: string, userId: string, type: string) => {
-    await updateDoc(doc(db, 'verifications', id), { status: 'approved', reviewedAt: serverTimestamp() });
-    // Align with TrustBadge / UI fields (isVerified, workEmailVerified) — not unused isAadhaarVerified flags
-    const userUpdates: Record<string, unknown> = { updatedAt: serverTimestamp() };
-    if (type === 'aadhaar' || type === 'student_id') {
-      userUpdates.isVerified = true;
-      userUpdates.verificationLevel = 3;
-      userUpdates.isAadhaarVerified = type === 'aadhaar';
-      userUpdates.isStudentIdVerified = type === 'student_id';
-    } else if (type === 'work_id') {
-      userUpdates.workEmailVerified = true;
-      userUpdates.isWorkIdVerified = true;
+  /** Map new state-machine status to legacy 'pending'|'approved'|'rejected' for UI compat */
+  function mapOwnerVerifStatusToLegacy(status: string): 'pending' | 'approved' | 'rejected' {
+    if (status === 'APPROVED') return 'approved';
+    if (status === 'REJECTED') return 'rejected';
+    return 'pending';
+  }
+
+  /**
+   * Approve an owner verification.
+   * For ownerVerification entries: delegates to adminApproveOwnerVerification()
+   * which ALSO unlocks all pending_verification listings.
+   * For legacy verifications: updates the verifications doc and user fields.
+   */
+  const approveVerification = useCallback(async (id: string, userId: string, type: string, source?: string) => {
+    if (source === 'ownerVerification') {
+      // New path: uses ownerVerification state machine + unlocks listings
+      const adminUid = user?.uid ?? 'admin';
+      const result = await adminApproveOwnerVerification(userId, adminUid);
+      await addDoc(collection(db, 'notifications'), {
+        userId,
+        type: 'verification',
+        title: 'Identity Verified — Your Listing is Now Live!',
+        description: `Your identity has been verified by the NestMate team. ${result.listingsUnlocked > 0 ? `${result.listingsUnlocked} listing(s) are now publicly visible.` : ''}`,
+        read: false,
+        createdAt: serverTimestamp(),
+      });
+    } else {
+      // Legacy path: updates the verifications doc and user trust fields
+      await updateDoc(doc(db, 'verifications', id), { status: 'approved', reviewedAt: serverTimestamp() });
+      const userUpdates: Record<string, unknown> = { updatedAt: serverTimestamp() };
+      if (type === 'aadhaar' || type === 'student_id') {
+        userUpdates.isVerified = true;
+        userUpdates.verificationLevel = 3;
+        userUpdates.isAadhaarVerified = type === 'aadhaar';
+        userUpdates.isStudentIdVerified = type === 'student_id';
+      } else if (type === 'work_id') {
+        userUpdates.workEmailVerified = true;
+        userUpdates.isWorkIdVerified = true;
+      }
+      await updateDoc(doc(db, 'users', userId), userUpdates);
+      await addDoc(collection(db, 'notifications'), {
+        userId, type: 'verification', title: 'Verification Approved',
+        description: `Your ${type.replace('_', ' ')} verification has been approved!`,
+        read: false, createdAt: serverTimestamp(),
+      });
     }
-    await updateDoc(doc(db, 'users', userId), userUpdates);
-    await addDoc(collection(db, 'notifications'), {
-      userId, type: 'verification', title: 'Verification Approved',
-      description: `Your ${type.replace('_', ' ')} verification has been approved!`,
-      read: false, createdAt: serverTimestamp(),
-    });
-  }, []);
+  }, [user?.uid]);
 
-  const rejectVerification = useCallback(async (id: string, userId: string, type: string, note: string) => {
-    await updateDoc(doc(db, 'verifications', id), { status: 'rejected', reviewedAt: serverTimestamp(), reviewNote: note });
+  /**
+   * Reject an owner verification with a mandatory note.
+   */
+  const rejectVerification = useCallback(async (id: string, userId: string, type: string, note: string, source?: string) => {
+    if (source === 'ownerVerification') {
+      const adminUid = user?.uid ?? 'admin';
+      await adminRejectOwnerVerification(userId, adminUid, note);
+      await addDoc(collection(db, 'notifications'), {
+        userId,
+        type: 'verification',
+        title: 'Verification Rejected',
+        description: `Your identity verification was rejected. Reason: ${note}. Please resubmit with a clearer document.`,
+        read: false,
+        createdAt: serverTimestamp(),
+      });
+    } else {
+      // Legacy path
+      await updateDoc(doc(db, 'verifications', id), { status: 'rejected', reviewedAt: serverTimestamp(), reviewNote: note });
+      await addDoc(collection(db, 'notifications'), {
+        userId, type: 'verification', title: 'Verification Rejected',
+        description: `Your ${type.replace('_', ' ')} verification was rejected. Reason: ${note}`,
+        read: false, createdAt: serverTimestamp(),
+      });
+    }
+  }, [user?.uid]);
+
+  /**
+   * Request resubmission — a soft rejection with specific guidance.
+   */
+  const requestResubmission = useCallback(async (userId: string, note: string) => {
+    const adminUid = user?.uid ?? 'admin';
+    await adminRequestResubmission(userId, adminUid, note);
     await addDoc(collection(db, 'notifications'), {
-      userId, type: 'verification', title: 'Verification Rejected',
-      description: `Your ${type.replace('_', ' ')} verification was rejected. Reason: ${note}`,
-      read: false, createdAt: serverTimestamp(),
+      userId,
+      type: 'verification',
+      title: 'Resubmission Required',
+      description: `The NestMate team requires additional information for your verification. ${note}`,
+      read: false,
+      createdAt: serverTimestamp(),
     });
+  }, [user?.uid]);
+
+  /**
+   * Admin claims a verification for review (UNDER_REVIEW state).
+   */
+  const beginReview = useCallback(async (userId: string) => {
+    const adminUid = user?.uid ?? 'admin';
+    await adminBeginReview(userId, adminUid);
+  }, [user?.uid]);
+
+  // Fetch all ownerVerifications for admin panel
+  const getAllOwnerVerifications = useCallback(async () => {
+    const snap = await getDocs(collection(db, 'ownerVerifications'));
+    return snap.docs.map(d => ({ id: d.id, userId: d.id, ...d.data() }));
   }, []);
 
   // --- Admin management ---
@@ -239,11 +328,14 @@ export function useAdmin() {
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   }, []);
 
+  /** Register an admin. Keyed by lowercased email so it matches the rules. */
   const addAdmin = useCallback(async (email: string, name: string) => {
-    await addDoc(collection(db, 'admins'), { email, name, role: 'moderator', createdAt: serverTimestamp() });
+    const key = adminEmailKey(email);
+    await setDoc(doc(db, 'admins', key), { email: key, name, role: 'moderator', createdAt: serverTimestamp() });
   }, []);
 
   const removeAdmin = useCallback(async (id: string) => {
+    // id IS the lowercased email key for docs created via addAdmin()
     await deleteDoc(doc(db, 'admins', id));
   }, []);
 
@@ -252,15 +344,28 @@ export function useAdmin() {
     return snap.exists() ? (snap.data() as { adminEmails?: string[] }) : { adminEmails: [] };
   }, []);
 
+  /**
+   * Update the informational config list AND keep the authoritative
+   * admins/{email} registry in sync (additive). Rules enforce access via
+   * admins/{email}; this keeps both views consistent.
+   */
   const updateAdminEmails = useCallback(async (emails: string[]) => {
     const ref = doc(db, 'config', 'admin');
     const snap = await getDoc(ref);
     if (snap.exists()) {
       await updateDoc(ref, { adminEmails: emails });
     } else {
-      const { setDoc } = await import('firebase/firestore');
       await setDoc(ref, { adminEmails: emails });
     }
+    // Additive sync into the authoritative registry
+    await Promise.all(
+      emails
+        .map(e => e.trim().toLowerCase())
+        .filter(Boolean)
+        .map(key =>
+          setDoc(doc(db, 'admins', key), { email: key, role: 'moderator', createdAt: serverTimestamp() }, { merge: true })
+        )
+    );
   }, []);
 
   return {
@@ -268,7 +373,8 @@ export function useAdmin() {
     getMetrics, getAllUsers, suspendUser, banUser, reinstateUser,
     getAllListings, deleteListing, broadcastNotification,
     getAllReports, updateReportStatus,
-    getAllVerifications, approveVerification, rejectVerification,
+    getAllVerifications, getAllOwnerVerifications, approveVerification, rejectVerification,
+    requestResubmission, beginReview,
     getAdmins, addAdmin, removeAdmin, getAdminConfig, updateAdminEmails,
   };
 }

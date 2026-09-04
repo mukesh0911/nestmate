@@ -28,7 +28,7 @@ export function getProfileFields(profile: UserProfile | null): ProfileField[] {
     {
       id: 'photo',
       label: 'Add Profile Photo',
-      description: 'Profiles with photos get 3x more connects',
+      description: 'A real photo helps people recognise you',
       icon: <Camera className="w-4 h-4" />,
       done: !!profile.avatar && profile.avatar.trim().length > 0,
       weight: 20,
@@ -63,14 +63,16 @@ export function getProfileFields(profile: UserProfile | null): ProfileField[] {
       done: !!profile.quizAnswers && Object.keys(profile.quizAnswers).length >= 5,
       weight: 25,
       actionLabel: 'Take Quiz',
-      actionPath: '/onboarding/seeker',
+      actionPath: '/edit-profile',
     },
     {
       id: 'workemail',
       label: 'Verify Work / College Email',
       description: 'Boosts trust — earn Gold badge',
       icon: <Mail className="w-4 h-4" />,
-      done: !!profile.workEmailVerified || !!profile.workEmail,
+      // Truthful semantics: only a VERIFIED work/college email counts.
+      // An email that was merely provided is not verification (Sprint 2B).
+      done: !!profile.workEmailVerified,
       weight: 15,
       actionLabel: 'Verify Email',
       actionPath: '/edit-profile',
@@ -118,8 +120,8 @@ export default function ProfileCompleteness({
 
   const barColor =
     pct >= 85 ? 'bg-teal' :
-    pct >= 60 ? 'bg-fire' :
-    'bg-amber-400';
+      pct >= 60 ? 'bg-fire' :
+        'bg-amber-400';
 
   if (compact) {
     return (
@@ -161,12 +163,11 @@ export default function ProfileCompleteness({
           <p className="text-xs text-ink/50">
             {pct < 100
               ? `${100 - pct} points left to reach 100%`
-              : 'Your profile is complete! 🎉'}
+              : 'Your profile is complete!'}
           </p>
         </div>
-        <div className={`text-2xl font-bold ${
-          pct >= 85 ? 'text-teal' : pct >= 60 ? 'text-fire' : 'text-amber-500'
-        }`}>
+        <div className={`text-2xl font-bold ${pct >= 85 ? 'text-teal' : pct >= 60 ? 'text-fire' : 'text-amber-500'
+          }`}>
           {pct}%
         </div>
       </div>
@@ -184,17 +185,15 @@ export default function ProfileCompleteness({
         {fields.map(field => (
           <div
             key={field.id}
-            className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
-              field.done
-                ? 'opacity-60'
-                : 'bg-fire/3 border border-fire/10 cursor-pointer hover:bg-fire/5'
-            }`}
+            className={`flex items-center gap-3 p-3 rounded-xl transition-all ${field.done
+              ? 'opacity-60'
+              : 'bg-fire/3 border border-fire/10 cursor-pointer hover:bg-fire/5'
+              }`}
             onClick={field.done ? undefined : () => navigate(field.actionPath)}
           >
             {/* Icon */}
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-              field.done ? 'bg-teal/10 text-teal' : 'bg-fire/10 text-fire'
-            }`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${field.done ? 'bg-teal/10 text-teal' : 'bg-fire/10 text-fire'
+              }`}>
               {field.done ? (
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />

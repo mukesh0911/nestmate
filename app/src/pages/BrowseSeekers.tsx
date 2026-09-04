@@ -13,6 +13,8 @@ import StateEmpty from '@/components/StateEmpty';
 import StateLoading from '@/components/StateLoading';
 import { useStore } from '@/store/useStore';
 import { toast } from 'sonner';
+import { isPubliclyVisibleProfile } from '@/lib/marketplaceVisibility';
+import { formatBudgetINR } from '@/lib/displayTruth';
 
 interface SeekerWithScore {
   profile: UserProfile;
@@ -58,6 +60,9 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
           const snap = await getDocs(collection(db, 'users'));
           snap.docs.forEach(d => {
             const data = { uid: d.id, ...d.data() } as UserProfile;
+            // Sprint 2E hardening: shared visibility rule — demo, suspended/
+            // banned and incomplete-onboarding profiles never appear.
+            if (!isPubliclyVisibleProfile(data)) return;
             if (data.uid && data.uid !== user?.uid && !currentUser?.blockedUserIds?.includes(data.uid)) {
               profileMap.set(data.uid, data);
             }
@@ -66,134 +71,33 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
           console.warn('Firestore users query warning:', err);
         }
 
-        // Layer 2: Fetch active room listings & extract owner profiles
-        try {
-          const lsnap = await getDocs(collection(db, 'listings'));
-          lsnap.docs.forEach(d => {
-            const ldata = d.data();
-            const ownerId = ldata.ownerId || d.id;
-            if (ownerId && ownerId !== user?.uid && !currentUser?.blockedUserIds?.includes(ownerId)) {
-              if (!profileMap.has(ownerId)) {
-                profileMap.set(ownerId, {
-                  uid: ownerId,
-                  name: ldata.ownerName || 'Property Owner',
-                  avatar: ldata.ownerAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${ownerId}`,
-                  role: 'owner',
-                  city: ldata.city || 'Hyderabad',
-                  locality: ldata.locality || 'Gachibowli',
-                  localities: [ldata.locality || 'Gachibowli'],
-                  budget: ldata.partnerShare || ldata.totalRent || 12000,
-                  profession: 'Property Host',
-                  bio: ldata.description || `Offering ${ldata.flatType || 'room'} in ${ldata.locality || ldata.city}`,
-                  onboardingComplete: true,
-                  isVerified: true,
-                } as UserProfile);
-              }
-            }
-          });
-        } catch (err) {
-          console.warn('Firestore listings query warning:', err);
-        }
+        // Sprint 2E hardening — ORPHAN POLICY (decision): the previous
+        // "Layer 2" fabricated synthetic "Property Owner" profiles from
+        // listing metadata when the owner document did not exist. Per the
+        // documented policy we now HIDE such listings instead of inventing a
+        // person. Every real owner document is already loaded by Layer 1, so
+        // no second query is needed here at all.
 
-        // Layer 3: Fallback verified flatmates across Indian cities if database has no other profiles
-        if (profileMap.size === 0) {
-          const fallbackProfiles: UserProfile[] = ([
-            {
-              uid: 'demo_flatmate_1',
-              name: 'Priya Sharma',
-              age: 24,
-              gender: 'Female',
-              role: 'seeker',
-              city: 'Hyderabad',
-              locality: 'Gachibowli',
-              localities: ['Gachibowli', 'HITECH City'],
-              budget: 15000,
-              profession: 'Software Engineer',
-              company: 'Microsoft',
-              bio: 'Looking for a clean, peaceful flatmate near HITECH City.',
-              avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&q=80',
-              onboardingComplete: true,
-              isVerified: true,
-              quizAnswers: { q1: '1', q2: '2', q3: '1', q4: '3', q5: '2' },
-            },
-            {
-              uid: 'demo_flatmate_2',
-              name: 'Rohan Verma',
-              age: 26,
-              gender: 'Male',
-              role: 'owner',
-              city: 'Hyderabad',
-              locality: 'Kondapur',
-              localities: ['Kondapur', 'Madhapur'],
-              budget: 18000,
-              profession: 'Product Manager',
-              company: 'Google',
-              bio: 'Furnished 3BHK room available for a like-minded flatmate.',
-              avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80',
-              onboardingComplete: true,
-              isVerified: true,
-              quizAnswers: { q1: '2', q2: '1', q3: '3', q4: '2', q5: '1' },
-            },
-            {
-              uid: 'demo_flatmate_3',
-              name: 'Ananya Reddy',
-              age: 23,
-              gender: 'Female',
-              role: 'seeker',
-              city: 'Bengaluru',
-              locality: 'Koramangala',
-              localities: ['Koramangala', 'HSR Layout'],
-              budget: 16000,
-              profession: 'UI/UX Designer',
-              company: 'Swiggy',
-              bio: 'Creative professional seeking a non-smoking flatmate in Koramangala.',
-              avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&q=80',
-              onboardingComplete: true,
-              isVerified: true,
-              quizAnswers: { q1: '1', q2: '3', q3: '2', q4: '1', q5: '2' },
-            },
-            {
-              uid: 'demo_flatmate_4',
-              name: 'Karthik Iyer',
-              age: 27,
-              gender: 'Male',
-              role: 'owner',
-              city: 'Chennai',
-              locality: 'Velachery',
-              localities: ['Velachery', 'Adyar'],
-              budget: 14000,
-              profession: 'Data Scientist',
-              company: 'Zoho',
-              bio: 'Master bedroom with attached bath available in Velachery 2BHK.',
-              avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&q=80',
-              onboardingComplete: true,
-              isVerified: true,
-              quizAnswers: { q1: '3', q2: '2', q3: '1', q4: '2', q5: '3' },
-            },
-          ] as unknown[]) as UserProfile[];
-          fallbackProfiles.forEach(p => profileMap.set(p.uid, p));
-        }
-
-        const targetRole = currentUser?.role === 'owner' ? 'seeker' : 'owner';
+        // NOTE: No fake/fallback profiles are injected when the database has
+        // no real users. An empty result renders the StateEmpty component —
+        // the production marketplace must never display fabricated profiles.
+        const targetRole = 'seeker';
         let fetched = Array.from(profileMap.values()).filter(p => {
           if (!p.uid || p.uid === user?.uid) return false;
           const r = (p.role || '').toLowerCase();
           return r === targetRole;
         });
 
-        let filtered = searchCity
-          ? fetched.filter(r => r.city?.toLowerCase().includes(searchCity.toLowerCase()))
+        const filtered = searchCity.trim()
+          ? fetched.filter(r => r.city?.toLowerCase().includes(searchCity.trim().toLowerCase()))
           : fetched;
-
-        if (filtered.length === 0 && searchCity) {
-          filtered = fetched;
-        }
 
         const scored = filtered.map(u => ({
           profile: u,
-          score: currentUser?.quizAnswers
+          // No fabricated scores: missing preference data yields 0, not a fake 85%
+          score: currentUser?.quizAnswers && u.quizAnswers
             ? calculateCompatibility(currentUser.quizAnswers, u.quizAnswers || {}, currentUser.city, u.city)
-            : 85,
+            : 0,
         }));
 
         setSeekers(scored);
@@ -275,13 +179,13 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
 
       {/* ── Listing Section & Card Grid ── */}
       {loading ? (
-        <StateLoading label={isOwner ? "Finding room seekers..." : "Finding flatmates & room owners..."} />
+        <StateLoading label={isOwner ? "Finding room seekers..." : "Finding flatmates..."} />
       ) : seekers.length === 0 ? (
         <StateEmpty
           icon={Users}
-          title={isOwner ? "No room seekers found" : "No flatmates or room owners found"}
+          title={isOwner ? "No room seekers found" : "No flatmates found"}
           description="We couldn't find results matching this exact search filter. Try searching another city."
-          className="bg-white rounded-3xl border border-dashed border-slate-200 py-12"
+          className="bg-white rounded-2xl border border-dashed border-slate-200 py-12"
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
@@ -290,7 +194,7 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
             return (
               <div
                 key={profile.uid}
-                className="bg-white rounded-3xl overflow-hidden flex flex-col border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group relative"
+                className="bg-white rounded-2xl overflow-hidden flex flex-col border border-border shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group relative"
               >
                 {/* ── Top Accent Band ── */}
                 <div
@@ -335,15 +239,15 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
 
                       {/* Name + Role */}
                       <div className="min-w-0 flex-1 pt-0.5">
-                        <h3 className="font-serif font-bold text-base sm:text-lg text-slate-900 leading-snug truncate group-hover:text-brand-orange transition-colors">
+                        {/* Sprint 5B: sans voice for card titles */}
+                        <h3 className="font-bold text-base sm:text-lg text-slate-900 leading-snug truncate group-hover:text-brand-orange transition-colors">
                           {profile.name}
                           {profile.age ? <span className="font-normal text-slate-500 text-xs">, {profile.age}</span> : null}
                         </h3>
-                        <span className={`inline-block mt-1 text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
-                          profile.role === 'owner'
-                            ? 'bg-teal-50 text-teal-700 border-teal-200'
-                            : 'bg-orange-50 text-brand-orange border-orange-200'
-                        }`}>
+                        <span className={`inline-block mt-1 text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${profile.role === 'owner'
+                          ? 'bg-teal-50 text-teal-700 border-teal-200'
+                          : 'bg-orange-50 text-brand-orange border-orange-200'
+                          }`}>
                           {profile.role === 'owner' ? 'Room Owner' : 'FLAT SEEKER'}
                         </span>
                       </div>
@@ -364,16 +268,18 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
                     )}
 
                     {/* Budget Box */}
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5 flex items-center justify-between mt-2">
+                    <div className="bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 flex items-center justify-between mt-2">
                       <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">BUDGET</span>
-                      <span className="text-sm font-extrabold text-slate-900">
-                        ₹{profile.budget?.toLocaleString() || '10,000'}
+                      {/* Sprint 4A (truth): missing budget shows a neutral state —
+                          never an invented ₹10,000 default. */}
+                      <span className={`text-sm font-extrabold ${profile.budget && profile.budget > 0 ? 'text-slate-900' : 'text-slate-400'}`}>
+                        {formatBudgetINR(profile.budget)}
                       </span>
                     </div>
                   </div>
 
                   {/* Action Buttons Row: Profile + Connect */}
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-2 pt-2 border-t border-border">
                     <button
                       onClick={() => navigate(`/match/${profile.uid}`)}
                       className="px-3.5 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer shrink-0"
@@ -384,15 +290,14 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
                     <button
                       onClick={() => handleConnect(profile.uid || '')}
                       disabled={connectingTo === profile.uid || state === 'pending_sent'}
-                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer ${
-                        state === 'connected' || chatRoomMap[profile.uid || '']
-                          ? 'bg-teal-600 hover:bg-teal-700 text-white'
-                          : state === 'pending_sent'
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer ${state === 'connected' || chatRoomMap[profile.uid || '']
+                        ? 'bg-teal-600 hover:bg-teal-700 text-white'
+                        : state === 'pending_sent'
                           ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
                           : state === 'pending_received'
-                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                          : 'bg-brand-orange hover:bg-orange-600 text-white shadow-orange-500/20'
-                      }`}
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                            : 'bg-brand-orange hover:bg-orange-600 text-white shadow-orange-500/20'
+                        }`}
                     >
                       {connectingTo === profile.uid ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -431,8 +336,15 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
     <div className="min-h-screen bg-[#fbf9f9] py-6">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-slate-900 tracking-tight">{pageTitle}</h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">{pageSubtitle}</p>
+          {/* Sprint 5B: sans voice for page headings */}
+          <h1 className="type-h1 text-slate-900">
+            {isOwner ? 'Find Room Seekers' : 'Find Flatmates'}
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            {isOwner
+              ? 'Browse real seekers looking for a room in your area.'
+              : 'Browse real flatmates looking for shared accommodation.'}
+          </p>
         </div>
         {contentBlock}
       </div>

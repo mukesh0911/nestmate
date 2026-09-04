@@ -4,6 +4,9 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useActiveTracking } from '@/hooks/useActiveTracking';
+import { isAccountActive, blockedStatusMessage } from '@/lib/accountStatus';
+import { ShieldAlert, LogOut } from 'lucide-react';
+import { signOut } from 'firebase/auth';
 import { Loader2 } from 'lucide-react';
 
 // ----- Lazy-loaded pages (code splitting) -----
@@ -41,6 +44,7 @@ const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout'));
 const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard'));
 const AdminUsers = lazy(() => import('@/pages/admin/AdminUsers'));
 const AdminListings = lazy(() => import('@/pages/admin/AdminListings'));
+const AdminMarketplace = lazy(() => import('@/pages/admin/AdminMarketplace'));
 const AdminReports = lazy(() => import('@/pages/admin/AdminReports'));
 const AdminVerifications = lazy(() => import('@/pages/admin/AdminVerifications'));
 const AdminNotifications = lazy(() => import('@/pages/admin/AdminNotifications'));
@@ -100,23 +104,59 @@ interface AuthState {
   uid: string | null;
   role: 'seeker' | 'owner' | null;
   onboardingComplete: boolean;
+  status: string;
   loading: boolean;
 }
 
-// Guard authenticated routes
-function PrivateRoute({ children, isAuthenticated }: { children: React.ReactNode, isAuthenticated: boolean }) {
+// Full-screen notice for suspended/banned accounts (server-enforced via rules too)
+function BlockedAccountScreen({ status }: { status: string }) {
+  const message = blockedStatusMessage(status);
+  return (
+    <div className="min-h-screen bg-parchment flex items-center justify-center p-6">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-ink/10 p-8 text-center">
+        <ShieldAlert className="w-12 h-12 text-fire mx-auto mb-4" />
+        <h1 className="text-xl font-semibold text-ink mb-2">Account Restricted</h1>
+        <p className="text-sm text-ink/60 mb-6">{message || 'Your account access is restricted.'}</p>
+        <button
+          onClick={() => signOut(auth)}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-ink text-white text-sm font-medium"
+        >
+          <LogOut className="w-4 h-4" /> Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Guard authenticated routes (auth + account status)
+function PrivateRoute({ children, isAuthenticated, status }: { children: React.ReactNode, isAuthenticated: boolean, status: string }) {
+  if (auth.currentUser && !isAuthenticated) return <PageLoader />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAccountActive(status)) return <BlockedAccountScreen status={status} />;
   return <>{children}</>;
 }
 
-// Guard dashboard routes — enforces authentication and role-based routing
+// Guard interactive routes — enforces authentication, account status,
+// completed onboarding, and role-based routing. Server-side rules are the
+// authoritative enforcement layer; this guard is UX + defense-in-depth.
 function OnboardingGuard({ children, isAuthenticated, authState, expectedRole }: {
   children: React.ReactNode,
   isAuthenticated: boolean,
   authState: AuthState,
   expectedRole?: 'seeker' | 'owner'
 }) {
+  if (authState.loading || (auth.currentUser && authState.uid !== auth.currentUser.uid)) return <PageLoader />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAccountActive(authState.status)) return <BlockedAccountScreen status={authState.status} />;
+
+  // Incomplete onboarding must never reach interactive features.
+  // If the user already has a role, send them to the right onboarding page to continue;
+  // if no role has been chosen yet, send them to role-select.
+  if (!authState.onboardingComplete) {
+    if (authState.role === 'seeker') return <Navigate to="/onboarding/seeker" replace />;
+    if (authState.role === 'owner') return <Navigate to="/onboarding/owner" replace />;
+    return <Navigate to="/role-select" replace />;
+  }
 
   const activeRole = authState.role || 'seeker';
 
@@ -133,6 +173,7 @@ function AppRoutes() {
     uid: null,
     role: null,
     onboardingComplete: false,
+    status: 'active',
     loading: true,
   });
 
@@ -153,6 +194,9 @@ function AppRoutes() {
       }
 
       if (firebaseUser) {
+        // Set loading: true so OnboardingGuard waits for the profile snapshot
+        setAuthState(prev => ({ ...prev, uid: firebaseUser.uid, loading: true }));
+
         unsubscribeProfile = onSnapshot(
           doc(db, 'users', firebaseUser.uid),
           (snap) => {
@@ -160,8 +204,10 @@ function AppRoutes() {
               const data = snap.data();
               setAuthState({
                 uid: firebaseUser.uid,
-                role: data.role || 'seeker',
-                onboardingComplete: true,
+                role: data.role || null,
+                // Trust only the real DB field — never assume completion
+                onboardingComplete: data.onboardingComplete === true,
+                status: data.status || 'active',
                 loading: false,
               });
               if (data.settings?.darkMode) {
@@ -170,17 +216,19 @@ function AppRoutes() {
                 document.documentElement.classList.remove('dark');
               }
             } else {
-              setAuthState({ uid: firebaseUser.uid, role: 'seeker', onboardingComplete: true, loading: false });
+              // No profile doc yet — user must complete role select + onboarding
+              setAuthState({ uid: firebaseUser.uid, role: null, onboardingComplete: false, status: 'active', loading: false });
               document.documentElement.classList.remove('dark');
             }
           },
           (err) => {
             console.error('Profile listener error:', err);
-            setAuthState({ uid: firebaseUser.uid, role: 'seeker', onboardingComplete: true, loading: false });
+            // Fail closed: treat as incomplete until profile is readable
+            setAuthState({ uid: firebaseUser.uid, role: null, onboardingComplete: false, status: 'active', loading: false });
           }
         );
       } else {
-        setAuthState({ uid: null, role: null, onboardingComplete: false, loading: false });
+        setAuthState({ uid: null, role: null, onboardingComplete: false, status: 'active', loading: false });
       }
     });
 
@@ -209,10 +257,24 @@ function AppRoutes() {
         <Route path="/phone-login" element={isAuthenticated ? <Navigate to={getDashboardRoute()} replace /> : <PhoneLogin />} />
         <Route path="/verify-otp" element={isAuthenticated ? <Navigate to={getDashboardRoute()} replace /> : <OTPVerify />} />
 
-        {/* Post-auth onboarding */}
-        <Route path="/role-select" element={<PrivateRoute isAuthenticated={isAuthenticated}><RoleSelect /></PrivateRoute>} />
-        <Route path="/onboarding/seeker" element={<PrivateRoute isAuthenticated={isAuthenticated}><SeekerOnboarding /></PrivateRoute>} />
-        <Route path="/onboarding/owner" element={<PrivateRoute isAuthenticated={isAuthenticated}><OwnerOnboarding /></PrivateRoute>} />
+        {/* Post-auth onboarding — reachable until onboarding is complete.
+            Once complete, redirect to the correct dashboard so a refresh
+            on /onboarding/seeker or /role-select doesn't restart onboarding. */}
+        <Route path="/role-select" element={
+          isAuthenticated && authState.onboardingComplete
+            ? <Navigate to={authState.role === 'owner' ? '/owner-dashboard' : '/dashboard'} replace />
+            : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><RoleSelect /></PrivateRoute>
+        } />
+        <Route path="/onboarding/seeker" element={
+          isAuthenticated && authState.onboardingComplete
+            ? <Navigate to="/dashboard" replace />
+            : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><SeekerOnboarding /></PrivateRoute>
+        } />
+        <Route path="/onboarding/owner" element={
+          isAuthenticated && authState.onboardingComplete
+            ? <Navigate to="/owner-dashboard" replace />
+            : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><OwnerOnboarding /></PrivateRoute>
+        } />
 
         {/* Public & App routes with shared Layout */}
         <Route element={<Layout />}>
@@ -235,13 +297,13 @@ function AppRoutes() {
           {/* Authenticated user routes */}
           <Route path="/dashboard" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState} expectedRole="seeker"><SeekerDashboard /></OnboardingGuard>} />
           <Route path="/owner-dashboard" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState} expectedRole="owner"><OwnerDashboard /></OnboardingGuard>} />
-          <Route path="/edit-listing/:id" element={<PrivateRoute isAuthenticated={isAuthenticated}><EditListing /></PrivateRoute>} />
-          <Route path="/chat" element={<PrivateRoute isAuthenticated={isAuthenticated}><ChatPage /></PrivateRoute>} />
-          <Route path="/chat/:roomId" element={<PrivateRoute isAuthenticated={isAuthenticated}><ChatPage /></PrivateRoute>} />
-          <Route path="/profile" element={<PrivateRoute isAuthenticated={isAuthenticated}><ProfilePage /></PrivateRoute>} />
-          <Route path="/edit-profile" element={<PrivateRoute isAuthenticated={isAuthenticated}><EditProfile /></PrivateRoute>} />
-          <Route path="/settings" element={<PrivateRoute isAuthenticated={isAuthenticated}><SettingsPage /></PrivateRoute>} />
-          <Route path="/notifications" element={<PrivateRoute isAuthenticated={isAuthenticated}><NotificationsPage /></PrivateRoute>} />
+          <Route path="/edit-listing/:id" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><EditListing /></OnboardingGuard>} />
+          <Route path="/chat" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><ChatPage /></OnboardingGuard>} />
+          <Route path="/chat/:roomId" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><ChatPage /></OnboardingGuard>} />
+          <Route path="/profile" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><ProfilePage /></OnboardingGuard>} />
+          <Route path="/edit-profile" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><EditProfile /></OnboardingGuard>} />
+          <Route path="/settings" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><SettingsPage /></OnboardingGuard>} />
+          <Route path="/notifications" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><NotificationsPage /></OnboardingGuard>} />
         </Route>
 
         {/* Admin routes */}
@@ -249,17 +311,24 @@ function AppRoutes() {
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="listings" element={<AdminListings />} />
+          <Route path="marketplace" element={<AdminMarketplace />} />
           <Route path="reports" element={<AdminReports />} />
           <Route path="verifications" element={<AdminVerifications />} />
           <Route path="notifications" element={<AdminNotifications />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
 
-        {/* Dev */}
-        <Route path="/dev/seed" element={<SeedData />} />
+        {/* Dev-only: seed utility is compiled out of production builds */}
+        {import.meta.env.DEV && <Route path="/dev/seed" element={<SeedData />} />}
 
-        {/* Redirects */}
+        {/* Deep Link & Convenience Redirects */}
         <Route path="/home" element={<Navigate to={getDashboardRoute()} replace />} />
+        <Route path="/connections" element={<Navigate to="/dashboard?tab=connections" replace />} />
+        <Route path="/applicants" element={<Navigate to="/owner-dashboard" replace />} />
+        <Route path="/create-listing" element={<Navigate to="/edit-listing/new" replace />} />
+        <Route path="/listings" element={<Navigate to="/owner-dashboard" replace />} />
+        <Route path="/my-listings" element={<Navigate to="/owner-dashboard" replace />} />
+        <Route path="/my-profile" element={<Navigate to="/profile" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

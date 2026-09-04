@@ -12,3 +12,11 @@ dist-ssr
 coverage
 smoke-artifacts
 app/smoke-artifacts
+
+# JDK & local runtimes
+.jdk/
+**/.jdk/
+
+# E2E artifacts
+app/e2e/reports/screenshots/
+app/e2e/reports/traces/

@@ -6,14 +6,15 @@ import { useListings } from '@/hooks/useListings';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { calculateCompatibility } from '@/hooks/useMatches';
-import { 
-  Search, MapPin, Heart, ShieldCheck, Bed, Loader2, 
+import {
+  Search, MapPin, Heart, ShieldCheck, Bed, Loader2,
   SlidersHorizontal, X, ChevronLeft, ChevronRight, Map,
   ShieldAlert
 } from 'lucide-react';
 import { cities, amenitiesList as allAmenities } from '@/lib/staticData';
 import StateEmpty from '@/components/StateEmpty';
 import RoomCard from '@/components/RoomCard';
+import { isPubliclyVisibleListing } from '@/lib/marketplaceVisibility';
 
 export default function BrowseRooms({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate();
@@ -97,6 +98,9 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
   };
 
   const filtered = listings.filter(l => {
+    // Sprint 2E hardening: shared visibility rule — paused/stale listings and
+    // any other non-discoverable state never render on the Explore surface.
+    if (!isPubliclyVisibleListing(l)) return false;
     if (profile?.blockedUserIds?.includes(l.ownerId)) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -136,11 +140,10 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
           type="button"
           onClick={() => setShowFilters(true)}
           aria-label="Open filters"
-          className={`flex-shrink-0 flex items-center gap-2 px-4 py-3 min-h-[44px] bg-white border rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs cursor-pointer ${
-            filters.city || (filters.budgetMax && filters.budgetMax < 25000)
+          className={`flex-shrink-0 flex items-center gap-2 px-4 py-3 min-h-[44px] bg-white border rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs cursor-pointer ${filters.city || (filters.budgetMax && filters.budgetMax < 25000)
               ? 'border-brand-orange text-brand-orange bg-brand-orange/5'
               : 'border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50'
-          }`}
+            }`}
         >
           <SlidersHorizontal className="w-4 h-4" />
           <span>Filters</span>
@@ -159,7 +162,7 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
       {isLoading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex flex-col bg-white rounded-3xl p-3 border border-slate-100">
+            <div key={i} className="flex flex-col bg-white rounded-2xl p-3 border border-border">
               <div className="aspect-[4/3] w-full rounded-2xl skeleton-shimmer mb-2.5" />
               <div className="px-1 space-y-2">
                 <div className="flex justify-between items-center">
@@ -217,7 +220,17 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
             </div>
           </div>
           <button
-            onClick={() => navigate('/onboarding/seeker')}
+            onClick={() => {
+              if (!user) {
+                useStore.getState().openAuthModal({
+                  title: 'Post Your Requirement',
+                  subtitle: 'Create a seeker profile with your budget and location preferences so matching flatmates can find you.',
+                  redirect: '/onboarding/seeker',
+                });
+              } else {
+                navigate(profile?.onboardingComplete ? '/edit-profile' : '/onboarding/seeker');
+              }
+            }}
             className="bg-brand-orange hover:bg-orange-600 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm shadow-orange-500/20 shrink-0 cursor-pointer self-stretch sm:self-auto justify-center"
           >
             <span>Post Requirement</span>
@@ -247,7 +260,7 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
               Clear All Filters
             </button>
           }
-          className="bg-cream/20 rounded-3xl max-w-xl mx-auto border border-border/40"
+          className="bg-cream/20 rounded-2xl max-w-xl mx-auto border border-border/40"
         />
       )}
     </div>
@@ -255,7 +268,7 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
 
   const filterDrawer = showFilters && (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-fade-in">
-      <div className="bg-white rounded-3xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border border-border">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border border-border">
         <div className="p-5 border-b border-border flex items-center justify-between bg-cream/30">
           <h3 className="font-bold text-lg text-ink">Room Filters</h3>
           <button onClick={() => setShowFilters(false)} className="p-1 rounded-full text-ink/40 hover:text-ink hover:bg-black/5">
@@ -308,9 +321,8 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
                     key={label}
                     type="button"
                     onClick={() => handleAmenityToggle(label)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
-                      selected ? 'bg-fire text-white border-fire' : 'bg-cream/40 border-border text-ink/70 hover:bg-cream'
-                    }`}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${selected ? 'bg-fire text-white border-fire' : 'bg-cream/40 border-border text-ink/70 hover:bg-cream'
+                      }`}
                   >
                     {label}
                   </button>

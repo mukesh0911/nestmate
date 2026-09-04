@@ -115,41 +115,7 @@ export function useAuth() {
             const data = profileSnap.data() as UserProfile;
             setProfile(await hydrateOwnProfile({ ...data, uid: firebaseUser.uid }));
           } else {
-            const defaultName = firebaseUser.displayName || (firebaseUser.email ? firebaseUser.email.split('@')[0] : 'User');
-            const phone = firebaseUser.phoneNumber || '';
-            const email = firebaseUser.email || '';
-            const newProfile: UserProfile = {
-              uid: firebaseUser.uid,
-              phone: '',
-              name: defaultName,
-              email: '',
-              role: 'seeker',
-              city: '',
-              localities: [],
-              budget: 10000,
-              moveInDate: '',
-              profession: '',
-              company: '',
-              bio: '',
-              age: 24,
-              gender: 'Male',
-              avatar: firebaseUser.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${defaultName}`,
-              quizAnswers: {},
-              onboardingComplete: false,
-              isPremium: false,
-              connectsUsed: 0,
-              connectsLimit: 5,
-              verificationLevel: 1,
-              isVerified: false,
-              savedProfileIds: [],
-              savedRoomIds: [],
-              skippedUserIds: [],
-              blockedUserIds: [],
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            };
-            await persistPublicUser(firebaseUser.uid, newProfile as unknown as Record<string, unknown>, { phone, email });
-            setProfile(await hydrateOwnProfile({ ...newProfile, uid: firebaseUser.uid, phone, email }));
+            setProfile(null);
           }
         } catch (err: any) {
           console.error('Unable to read user profile during auth load:', err);
@@ -172,7 +138,7 @@ export function useAuth() {
     if (!window.recaptchaVerifier) {
       window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
         size: 'invisible',
-        callback: () => {},
+        callback: () => { },
         'expired-callback': () => {
           window.recaptchaVerifier = null;
         },
@@ -187,7 +153,7 @@ export function useAuth() {
     if (!window.recaptchaVerifier) {
       window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
         size: 'invisible',
-        callback: () => {},
+        callback: () => { },
         'expired-callback': () => {
           window.recaptchaVerifier = null;
         },
@@ -282,21 +248,24 @@ export function useAuth() {
             role: null,
             city: '',
             localities: [],
-            budget: 10000,
+            budget: 0,
             moveInDate: '',
             profession: '',
             company: '',
             bio: '',
-            age: 25,
-            gender: 'Male',
-            avatar: firebaseUser.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${defaultName}`,
+            // Sprint 4A (truth): age/gender are NOT invented at signup.
+            age: 0,
+            gender: '',
+            avatar: firebaseUser.photoURL || '',
             quizAnswers: {},
             onboardingComplete: false,
             isPremium: false,
             connectsUsed: 0,
             connectsLimit: 5,
-            verificationLevel: 1,
+            // Sprint 4A (truth): unverified by default — no implied verification.
+            verificationLevel: 0,
             isVerified: false,
+            workEmailVerified: false,
             savedProfileIds: [],
             savedRoomIds: [],
             skippedUserIds: [],
@@ -326,7 +295,9 @@ export function useAuth() {
           msg = 'Too many failed attempts. Please try again later.';
         }
         setError(msg);
-        throw new Error(msg);
+        const thrownError: any = new Error(msg);
+        thrownError.code = err.code;
+        throw thrownError;
       }
     },
     []
@@ -351,7 +322,8 @@ export function useAuth() {
           role: null,
           city: '',
           localities: [],
-          budget: 8000,
+          // BUG-2 FIX: budget is collected during onboarding, not fabricated.
+          budget: 0,
           moveInDate: '',
           profession: '',
           company: '',
@@ -415,7 +387,7 @@ export function useAuth() {
    * Returns true if new user (needs onboarding), false if existing user.
    */
   const verifyOTP = useCallback(
-    async (verificationId: string, code: string): Promise<{ isNew: boolean; role?: string | null }> => {
+    async (verificationId: string, code: string): Promise<{ isNew: boolean; role?: string | null; onboardingComplete?: boolean }> => {
       setError(null);
       try {
         const credential = PhoneAuthProvider.credential(verificationId, code);
@@ -437,7 +409,8 @@ export function useAuth() {
             role: null,
             city: '',
             localities: [],
-            budget: 8000,
+            // BUG-12 FIX: budget is collected during onboarding, not fabricated.
+            budget: 0,
             moveInDate: '',
             profession: '',
             company: '',
@@ -465,7 +438,12 @@ export function useAuth() {
         }
 
         setUser(firebaseUser);
-        return { isNew, role: isNew ? null : (userSnap.data() as UserProfile).role };
+        const existingData = userSnap.data() as UserProfile | undefined;
+        return {
+          isNew,
+          role: isNew ? null : (existingData?.role || null),
+          onboardingComplete: isNew ? false : !!existingData?.onboardingComplete,
+        };
       } catch (err: any) {
         const msg = err.code === 'auth/invalid-verification-code'
           ? 'Invalid OTP. Please try again.'
@@ -504,21 +482,24 @@ export function useAuth() {
           role: null,
           city: '',
           localities: [],
-          budget: 10000,
+          budget: 0,
           moveInDate: '',
           profession: '',
           company: '',
           bio: '',
-          age: 25,
-          gender: 'Male',
-          avatar: firebaseUser.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${defaultName}`,
+          // Sprint 4A (truth): age/gender are NOT invented at signup.
+          age: 0,
+          gender: '',
+          avatar: firebaseUser.photoURL || '',
           quizAnswers: {},
           onboardingComplete: false,
           isPremium: false,
           connectsUsed: 0,
           connectsLimit: 5,
-          verificationLevel: 1,
+          // Sprint 4A (truth): unverified by default — no implied verification.
+          verificationLevel: 0,
           isVerified: false,
+          workEmailVerified: false,
           savedProfileIds: [],
           savedRoomIds: [],
           skippedUserIds: [],

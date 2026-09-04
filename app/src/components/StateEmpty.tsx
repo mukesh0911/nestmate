@@ -37,7 +37,7 @@ export default function StateEmpty({
       >
         <Icon className={cn(compact ? 'w-6 h-6' : 'w-8 h-8', 'text-ink/20')} aria-hidden />
       </div>
-      <h3 className={cn('font-display italic text-ink mb-2', compact ? 'text-lg' : 'text-xl')}>
+      <h3 className={cn('font-semibold text-ink mb-2', compact ? 'text-lg' : 'text-xl')}>
         {title}
       </h3>
       {description && (

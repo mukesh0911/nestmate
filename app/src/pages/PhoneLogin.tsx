@@ -43,9 +43,11 @@ export default function PhoneLogin() {
     setError('');
     setLoading(true);
     try {
-      const { isNew, role } = await signInWithGoogle();
+      const { isNew, role, onboardingComplete } = await signInWithGoogle();
       if (isNew || !role) {
         navigate('/role-select');
+      } else if (!onboardingComplete) {
+        navigate(role === 'owner' ? '/onboarding/owner' : '/onboarding/seeker');
       } else {
         navigate(role === 'owner' ? '/owner-dashboard' : '/dashboard');
       }
@@ -78,7 +80,7 @@ export default function PhoneLogin() {
             <div className="w-14 h-14 bg-fire/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Smartphone className="w-7 h-7 text-fire" />
             </div>
-            <h2 className="text-2xl font-display italic mb-2">Welcome to NestMate</h2>
+            <h2 className="type-h2 mb-2">Welcome to NestMate</h2>
             <p className="text-sm text-ink/60">Enter your phone number to get started</p>
           </div>
 
@@ -111,7 +113,7 @@ export default function PhoneLogin() {
           {/* Development Test Numbers */}
           {isDevelopment && (
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-xs font-medium text-blue-800 mb-2">🚀 Development Mode - Test Numbers:</p>
+              <p className="text-xs font-medium text-blue-800 mb-2">Development Mode — Test Numbers:</p>
               <div className="grid grid-cols-1 gap-1 text-xs text-blue-700">
                 <button
                   onClick={() => setPhone('6505553434')}

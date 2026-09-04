@@ -58,7 +58,7 @@ export default function HowItWorks() {
                 <div className="w-12 h-12 bg-fire/10 rounded-2xl flex items-center justify-center mb-4">
                   <step.icon className="w-6 h-6 text-fire" />
                 </div>
-                <h2 className="text-2xl font-display italic mb-3">{step.title}</h2>
+                <h2 className="type-h2 mb-3">{step.title}</h2>
                 <p className="text-ink/60 mb-5 leading-relaxed">{step.desc}</p>
                 <ul className="space-y-2">
                   {step.points.map(p => (
@@ -83,7 +83,7 @@ export default function HowItWorks() {
           <div className="w-14 h-14 bg-teal/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Shield className="w-7 h-7 text-teal" />
           </div>
-          <h2 className="text-2xl font-display italic mb-3">Your Safety is Our Priority</h2>
+          <h2 className="type-h2 mb-3">Your Safety is Our Priority</h2>
           <p className="text-ink/60 max-w-md mx-auto mb-6">
             Every profile goes through verification. Phone numbers stay private until both parties agree to share. 
             Report any concerns and our team will respond within 24 hours.

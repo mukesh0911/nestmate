@@ -47,15 +47,15 @@ export function usePushNotifications() {
   // Trigger local notification broadcast
   const sendLocalNotification = useCallback(
     (title: string, body: string, url = '/chat') => {
-      if (Notification.permission === 'granted') {
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
         if (swRegistration) {
           swRegistration.showNotification(title, {
             body,
-            icon: '/favicon.ico',
+            icon: '/favicon.svg',
             data: { url },
           });
         } else {
-          new Notification(title, { body, icon: '/favicon.ico' });
+          new Notification(title, { body, icon: '/favicon.svg' });
         }
       }
     },

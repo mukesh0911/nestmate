@@ -75,7 +75,9 @@ export default function EditProfile() {
 
     try {
       const ext = file.name.split('.').pop() || 'jpg';
-      const path = `profiles/${user.uid}/verifications/${selectedDocType}_${Date.now()}.${ext}`;
+      // Owner-only Storage path (see storage.rules /verifications/{userId}/**).
+      // Never under profiles/** — those objects are readable by all authenticated users.
+      const path = `verifications/${user.uid}/${selectedDocType}_${Date.now()}.${ext}`;
       const url = await uploadGenericImage(file, path, (pct) => setUploadProgress(pct));
 
       // Submit for admin review — never self-grant verified status (LB-01)
@@ -177,7 +179,10 @@ export default function EditProfile() {
         quizAnswers: {},
         onboardingComplete: false,
       });
-      navigate('/onboarding/seeker');
+      // BUG-7 FIX: navigate to the correct onboarding flow based on role.
+      // Previously always went to /onboarding/seeker, breaking owners who retake quiz.
+      const onboardingPath = profile?.role === 'owner' ? '/onboarding/owner' : '/onboarding/seeker';
+      navigate(onboardingPath);
     } catch (err) {
       console.error('Error resetting quiz', err);
       setRetaking(false);
@@ -194,7 +199,7 @@ export default function EditProfile() {
           <button onClick={() => navigate('/profile')} className="p-2 -ml-2 rounded-full hover:bg-cream/50 transition-colors" aria-label="Back to profile">
             <ArrowLeft className="w-5 h-5 text-ink/70" />
           </button>
-          <h1 className="text-xl font-display italic">Edit Profile</h1>
+          <h1 className="type-h2">Edit Profile</h1>
         </div>
         <button onClick={handleSave} disabled={saving} className="btn-fire px-4 py-1.5 text-sm flex items-center gap-2">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -211,7 +216,7 @@ export default function EditProfile() {
             <input type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className={`input-nestmate ${errors.name ? 'border-red-400' : ''}`} />
             {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label-floating">Age</label>
@@ -239,9 +244,9 @@ export default function EditProfile() {
 
           <div>
             <label className="label-floating">Bio</label>
-            <textarea 
-              value={formData.bio} 
-              onChange={e => setFormData({ ...formData, bio: e.target.value })} 
+            <textarea
+              value={formData.bio}
+              onChange={e => setFormData({ ...formData, bio: e.target.value })}
               className="input-nestmate min-h-[100px] resize-none"
               placeholder="Tell potential roommates a bit about yourself..."
             />
@@ -274,19 +279,19 @@ export default function EditProfile() {
         <div className="card-nestmate p-5 space-y-4">
           <h2 className="font-semibold mb-2">Social Profiles</h2>
           <p className="text-xs text-ink/60 -mt-2 mb-4">Add your social profiles to build trust with potential roommates.</p>
-          
+
           <div className="space-y-4">
             <label className="text-sm font-semibold text-ink hidden">Social Profiles</label>
-            
+
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Linkedin className="w-5 h-5 text-[#0077B5]" />
               </div>
-              <input 
-                type="url" 
+              <input
+                type="url"
                 placeholder="LinkedIn Profile URL"
-                value={formData.linkedin} 
-                onChange={e => setFormData({ ...formData, linkedin: e.target.value })} 
+                value={formData.linkedin}
+                onChange={e => setFormData({ ...formData, linkedin: e.target.value })}
                 className="input-nestmate pl-10"
               />
             </div>
@@ -295,11 +300,11 @@ export default function EditProfile() {
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Instagram className="w-5 h-5 text-[#E1306C]" />
               </div>
-              <input 
-                type="url" 
+              <input
+                type="url"
                 placeholder="Instagram Handle or URL"
-                value={formData.instagram} 
-                onChange={e => setFormData({ ...formData, instagram: e.target.value })} 
+                value={formData.instagram}
+                onChange={e => setFormData({ ...formData, instagram: e.target.value })}
                 className="input-nestmate pl-10"
               />
             </div>
@@ -312,7 +317,7 @@ export default function EditProfile() {
             <Shield className="w-5 h-5 text-fire" /> Trust & Verification
           </h2>
           <p className="text-xs text-ink/60 -mt-2">Upload government ID or work credentials to achieve higher tier badges (Silver, Gold, Pro) and boost match visibility.</p>
-          
+
           {/* Active status */}
           {verificationLoading ? (
             <div className="flex items-center gap-2 text-xs text-ink/40 py-2">
@@ -337,7 +342,7 @@ export default function EditProfile() {
                       </div>
                     )}
                   </div>
-                  
+
                   {v.status === 'rejected' && (
                     <button
                       onClick={() => {
@@ -369,11 +374,10 @@ export default function EditProfile() {
                     key={type}
                     type="button"
                     onClick={() => setSelectedDocType(type)}
-                    className={`py-2 px-1 rounded-lg text-[10px] font-bold capitalize transition-all border ${
-                      selectedDocType === type
+                    className={`py-2 px-1 rounded-lg text-[10px] font-bold capitalize transition-all border ${selectedDocType === type
                         ? 'bg-fire text-white border-fire'
                         : 'bg-white text-ink/60 border-border hover:bg-cream/40'
-                    }`}
+                      }`}
                   >
                     {type.replace('_', ' ')}
                   </button>
@@ -410,7 +414,7 @@ export default function EditProfile() {
         {/* Retake Quiz */}
         {profile?.role === 'seeker' && (
           <div className="card-nestmate p-5 bg-gradient-to-br from-cream to-parchment border-fire/20 text-center">
-            <h2 className="font-display italic text-lg mb-2 text-fire">Update Your Compatibility Profile</h2>
+            <h2 className="type-h3 mb-2 text-fire">Update Your Compatibility Profile</h2>
             <p className="text-sm text-ink/60 mb-4">Changed your habits or preferences? Retake the quiz to get better roommate matches.</p>
             <button onClick={handleRetakeQuiz} disabled={retaking} className="btn-outline border-fire/50 text-fire hover:bg-fire/10 w-full flex items-center justify-center gap-2">
               {retaking ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}

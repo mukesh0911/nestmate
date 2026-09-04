@@ -1,7 +1,7 @@
 # 🏠 NestMate — Documentation System
 
 > **Version**: 1.0.0  
-> **Product**: NestMate — AI-Powered Roommate & Room Discovery Platform  
+> **Product**: NestMate — Roommate & Room Discovery Platform  
 > **Last Updated**: 2026-07-26  
 > **Status**: Production (≈90% Complete)  
 > **Team**: 2 Developers | Bootstrap Startup  

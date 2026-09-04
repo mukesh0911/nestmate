@@ -27,19 +27,20 @@ export default function ExplorePage() {
 
   const subtitle =
     activeTab === 'rooms'
-      ? 'Verified rooms & apartments across India'
+      ? 'Rooms & apartments across India'
       : isOwner
-      ? 'Room seekers looking for accommodation'
-      : 'Compatible flatmates & room owners near you';
+        ? 'Room seekers looking for accommodation'
+        : 'Compatible flatmates & room owners near you';
 
   return (
     <div className="min-h-screen bg-[#fbf9f9] pb-24 sm:pb-16 overflow-x-hidden">
       {/* Container */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-5">
-        
+
         {/* Explore Title & Subtitle */}
         <div className="mb-4">
-          <h1 className="text-3xl sm:text-4xl font-serif font-bold text-slate-900 tracking-tight mb-1 leading-tight">
+          {/* Sprint 5B: sans voice for page headings */}
+          <h1 className="type-h1 text-slate-900 mb-1">
             Explore
           </h1>
           {/* Orange Underline Accent Bar */}
@@ -56,11 +57,10 @@ export default function ExplorePage() {
               type="button"
               onClick={() => handleTabChange('rooms')}
               aria-pressed={activeTab === 'rooms'}
-              className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
-                activeTab === 'rooms'
-                  ? 'bg-white text-brand-orange shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${activeTab === 'rooms'
+                ? 'bg-white text-brand-orange shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               <Building2 className="w-4 h-4 shrink-0" />
               <span>Rooms</span>
@@ -70,14 +70,13 @@ export default function ExplorePage() {
               type="button"
               onClick={() => handleTabChange('roommates')}
               aria-pressed={activeTab === 'roommates'}
-              className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
-                activeTab === 'roommates'
-                  ? 'bg-white text-brand-orange shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${activeTab === 'roommates'
+                ? 'bg-white text-brand-orange shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               <Users className="w-4 h-4 shrink-0" />
-              <span>{isOwner ? 'Seekers' : 'Seekers'}</span>
+              <span>{isOwner ? 'Seekers' : 'Flatmates'}</span>
             </button>
           </div>
         </div>

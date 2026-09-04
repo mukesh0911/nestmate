@@ -9,10 +9,12 @@ import { useStorage } from '@/hooks/useStorage';
 import { resolveEntityCoordinates } from '@/lib/locationResolver';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import OwnerVerificationGate from '@/components/OwnerVerificationGate';
 import {
-  ArrowLeft, Camera, Upload, X, Loader2, Check,
+  ArrowLeft, ArrowRight, Camera, Upload, X, Loader2, Check,
   MapPin, Building2, User, Users, Calendar, Briefcase,
-  Phone, Home, Wallet, Sparkles, ShieldCheck, Moon, Sun, Utensils, Wind, Wine, Heart
+  Phone, Home, Wallet, Sparkles, ShieldCheck, Moon, Sun, Utensils, Wind, Wine, Heart,
+  CheckCircle2
 } from 'lucide-react';
 
 type ScreenId =
@@ -227,8 +229,12 @@ export default function OwnerOnboarding() {
         }
       }
 
-      const total = parseInt(totalRent || '0');
-      const share = Math.round(total / (partnersNeeded + 1));
+      const total = parseInt(totalRent || '0', 10);
+      const safeTotal = isNaN(total) ? 0 : total;
+      const share = Math.round(safeTotal / ((partnersNeeded || 1) + 1));
+
+      const parsedAge = parseInt(age, 10);
+      const safeAge = isNaN(parsedAge) ? 0 : parsedAge;
 
       const resolvedGeo = resolveEntityCoordinates({
         uid: user.uid,
@@ -239,15 +245,15 @@ export default function OwnerOnboarding() {
       await updateProfile(user.uid, {
         role: 'owner',
         name: name.trim(),
-        age: parseInt(age),
-        gender,
-        profession,
-        company,
-        phone,
-        city,
-        localities: [locality],
+        age: safeAge,
+        gender: gender || '',
+        profession: profession || '',
+        company: company || '',
+        phone: phone || '',
+        city: city || '',
+        localities: locality ? [locality] : [],
         budget: share,
-        moveInDate: availableFrom,
+        moveInDate: availableFrom || '',
         onboardingComplete: true,
         ...(avatarUrl && { avatar: avatarUrl }),
         ...(resolvedGeo && { geoLocation: { lat: resolvedGeo.lat, lng: resolvedGeo.lng, formattedAddress: `${locality}, ${city}` } }),
@@ -263,6 +269,9 @@ export default function OwnerOnboarding() {
         city,
         locality,
       }) || resolvedGeo || { lat: 20.5937, lng: 78.9629 };
+
+      const isVerifiedOwner = authProfile?.isVerified || false;
+      const initialStatus = isVerifiedOwner ? ('active' as const) : ('pending_verification' as const);
 
       let listingId = '';
       const listingData = {
@@ -284,7 +293,7 @@ export default function OwnerOnboarding() {
         availableFrom,
         lat: listingCoords.lat,
         lng: listingCoords.lng,
-        status: 'active' as const,
+        status: initialStatus,
       };
 
       if (matchingListing) {
@@ -337,12 +346,12 @@ export default function OwnerOnboarding() {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center">
           <div className="relative w-20 h-20">
-            <div className="w-20 h-20 rounded-full bg-fire/10 flex items-center justify-center animate-pulse">
-              <span className="text-4xl">🏢</span>
+            <div className="w-20 h-20 rounded-full bg-fire/10 flex items-center justify-center animate-pulse-dot">
+              <Building2 className="w-8 h-8 text-fire" />
             </div>
           </div>
           <div>
-            <h2 className="text-2xl font-display italic mb-2">Publishing your listing…</h2>
+            <h2 className="type-h2 mb-2">Publishing your listing…</h2>
             <p className="text-ink/50 text-sm">Uploading photos and details ({Math.min(100, Math.max(0, uploadProgress))}%)</p>
           </div>
           <div className="w-full max-w-xs bg-ink/10 h-1.5 rounded-full overflow-hidden">
@@ -354,34 +363,34 @@ export default function OwnerOnboarding() {
 
     if (currentScreen === 'success') {
       return (
-        <div className="flex flex-col items-center justify-center min-h-[70vh] gap-6 text-center px-4">
-          <div className="text-6xl animate-bounce">🎉</div>
-          <div>
-            <h2 className="text-3xl font-display italic mb-2">Listing is Live!</h2>
+        <div className="flex flex-col items-center justify-center min-h-[70vh] gap-6 px-4">
+          {/* Header — honest: listing is created but NOT yet live */}
+          <div className="w-20 h-20 rounded-full bg-amber-50 border-2 border-amber-200 flex items-center justify-center">
+            <ShieldCheck className="w-10 h-10 text-amber-500" />
+          </div>
+          <div className="text-center">
+            <h2 className="type-h1 mb-2">Listing Created!</h2>
             <p className="text-ink/60 text-base mb-1">
-              Your flat is now visible to seekers in <span className="font-bold text-fire">{city}</span>.
+              One more step: verify your identity to publish your listing.
             </p>
-            <p className="text-ink/40 text-sm">We found <span className="font-bold text-fire text-xl">{matchCount}</span> potential flatmates in your area.</p>
+            <p className="text-sm text-ink/40 max-w-sm mx-auto">
+              Your listing is saved and will go live automatically once our team approves your identity documents.
+            </p>
           </div>
-          <div className="card-nestmate p-5 w-full max-w-sm text-left">
-            <div className="flex justify-between text-sm mb-2 border-b border-border/50 pb-2">
-              <span className="text-ink/60">Property</span>
-              <span className="font-medium text-ink">{flatType} in {locality}</span>
-            </div>
-            <div className="flex justify-between text-sm mb-2 border-b border-border/50 pb-2">
-              <span className="text-ink/60">Rent Per Month</span>
-              <span className="font-medium text-ink">₹{parseInt(totalRent).toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-ink/60">Split Share</span>
-              <span className="font-medium text-fire font-bold">₹{Math.round(parseInt(totalRent) / (partnersNeeded + 1)).toLocaleString()} / user</span>
-            </div>
+
+          {/* Show the verification gate inline so the owner can submit right away */}
+          <div className="w-full max-w-xl">
+            <OwnerVerificationGate
+              listingTitle={`${flatType} for rent in ${locality}`}
+            />
           </div>
+
+          {/* Go to dashboard anyway */}
           <button
-            onClick={() => { window.location.href = '/owner-dashboard'; }}
-            className="btn-fire text-base px-10 py-3.5 mt-2"
+            onClick={() => { navigate('/owner-dashboard', { replace: true }); }}
+            className="text-sm text-ink/50 hover:text-fire underline"
           >
-            Go to Owner Dashboard →
+            Go to dashboard (verify later)
           </button>
         </div>
       );
@@ -414,8 +423,8 @@ export default function OwnerOnboarding() {
           </label>
         </div>
         {!avatarPreview && (
-          <button onClick={() => go(1)} className="w-full text-sm text-ink/40 hover:text-ink/60 transition-colors py-2">
-            Skip for now →
+          <button onClick={() => go(1)} className="w-full text-sm text-ink/40 hover:text-ink/60 transition-colors py-2 flex items-center justify-center gap-1">
+            Skip for now <ArrowRight className="w-3.5 h-3.5" />
           </button>
         )}
       </Screen>
@@ -447,15 +456,18 @@ export default function OwnerOnboarding() {
       >
         <div className="space-y-3 mt-4">
           {[
-            { id: 'female', label: 'Female', icon: '👩' },
-            { id: 'male', label: 'Male', icon: '👨' },
-            { id: 'other', label: 'Other', icon: '🤝' },
+            { id: 'female', label: 'Female', Icon: User },
+            { id: 'male', label: 'Male', Icon: User },
+            { id: 'other', label: 'Other', Icon: Users },
           ].map(opt => (
             <button key={opt.id} onClick={() => setGender(opt.id)}
               className={`w-full p-4 rounded-2xl border-2 text-left flex items-center gap-4 transition-all ${gender === opt.id ? 'border-fire bg-fire/5' : 'border-border bg-white hover:border-fire/30'}`}>
-              <span className="text-2xl">{opt.icon}</span>
+              {/* Sprint 6B: Lucide icon replaces emoji */}
+              <span className="w-10 h-10 rounded-xl bg-cream/70 flex items-center justify-center shrink-0 border border-border/60">
+                <opt.Icon className="w-5 h-5 text-fire" />
+              </span>
               <span className="font-medium">{opt.label}</span>
-              {gender === opt.id && <span className="ml-auto text-fire">✓</span>}
+              {gender === opt.id && <Check className="ml-auto w-4 h-4 text-fire shrink-0" />}
             </button>
           ))}
         </div>
@@ -539,7 +551,7 @@ export default function OwnerOnboarding() {
     // 7. City Screen
     if (currentScreen === 'city') return (
       <Screen
-        emoji="🏙️" title="Which city is your room in?" subtitle="We match you with verified room seekers in the same city"
+        emoji="🏙️" title="Which city is your room in?" subtitle="We match you with room seekers in the same city"
         onNext={() => next(() => !city ? 'Please select a city' : null)}
         onBack={() => go(-1)} error={error}
       >
@@ -550,29 +562,25 @@ export default function OwnerOnboarding() {
               <label
                 key={c}
                 onClick={() => { setCity(c); setLocality(''); }}
-                className={`group relative bg-white border rounded-2xl p-4 flex items-center gap-4 cursor-pointer transition-all duration-200 ${
-                  isSelected
-                    ? 'border-brand-orange shadow-md bg-orange-50/20'
-                    : 'border-slate-100 hover:border-brand-orange hover:shadow-sm'
-                }`}
+                className={`group relative bg-white border rounded-2xl p-4 flex items-center gap-4 cursor-pointer transition-all duration-200 ${isSelected
+                  ? 'border-brand-orange shadow-md bg-orange-50/20'
+                  : 'border-slate-100 hover:border-brand-orange hover:shadow-sm'
+                  }`}
               >
-                <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
-                  isSelected ? 'bg-orange-100' : 'bg-orange-50 group-hover:bg-orange-100'
-                }`}>
+                <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${isSelected ? 'bg-orange-100' : 'bg-orange-50 group-hover:bg-orange-100'
+                  }`}>
                   {CITY_SVG_ICONS[c] || (
                     <svg className="w-7 h-7 stroke-brand-orange fill-none stroke-[1.5]" viewBox="0 0 24 24">
                       <path d="M4 22V6M20 22V6M4 10h16M2 22h20" />
                     </svg>
                   )}
                 </div>
-                <span className={`font-semibold text-lg transition-colors ${
-                  isSelected ? 'text-brand-orange font-bold' : 'text-slate-800 group-hover:text-brand-orange'
-                }`}>
+                <span className={`font-semibold text-lg transition-colors ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-800 group-hover:text-brand-orange'
+                  }`}>
                   {c}
                 </span>
-                <div className={`absolute inset-0 border-2 rounded-2xl pointer-events-none transition-all ${
-                  isSelected ? 'border-brand-orange' : 'border-transparent'
-                }`} />
+                <div className={`absolute inset-0 border-2 rounded-2xl pointer-events-none transition-all ${isSelected ? 'border-brand-orange' : 'border-transparent'
+                  }`} />
               </label>
             );
           })}
@@ -595,11 +603,10 @@ export default function OwnerOnboarding() {
                 key={loc}
                 type="button"
                 onClick={() => setLocality(loc)}
-                className={`px-4 py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                  locality === loc
-                    ? 'bg-brand-orange text-white shadow-xs'
-                    : 'bg-white border border-slate-200 text-slate-800 hover:border-brand-orange shadow-2xs'
-                }`}
+                className={`px-4 py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer ${locality === loc
+                  ? 'bg-brand-orange text-white shadow-xs'
+                  : 'bg-white border border-slate-200 text-slate-800 hover:border-brand-orange shadow-2xs'
+                  }`}
               >
                 {loc}
               </button>
@@ -622,11 +629,10 @@ export default function OwnerOnboarding() {
               key={ft}
               type="button"
               onClick={() => setFlatType(ft)}
-              className={`w-full min-h-[52px] px-4 py-3.5 rounded-full font-bold text-sm sm:text-base text-center transition-all cursor-pointer flex items-center justify-center ${
-                flatType === ft
-                  ? 'bg-orange-50/50 border-2 border-brand-orange text-brand-orange shadow-xs'
-                  : 'bg-white border border-slate-200/80 hover:border-brand-orange text-slate-900 shadow-2xs hover:shadow-xs'
-              }`}
+              className={`w-full min-h-[52px] px-4 py-3.5 rounded-full font-bold text-sm sm:text-base text-center transition-all cursor-pointer flex items-center justify-center ${flatType === ft
+                ? 'bg-orange-50/50 border-2 border-brand-orange text-brand-orange shadow-xs'
+                : 'bg-white border border-slate-200/80 hover:border-brand-orange text-slate-900 shadow-2xs hover:shadow-xs'
+                }`}
             >
               {ft}
             </button>
@@ -648,14 +654,13 @@ export default function OwnerOnboarding() {
               key={ft}
               type="button"
               onClick={() => setFurnishing(ft)}
-              className={`w-full min-h-[52px] px-5 py-3.5 rounded-full font-bold text-sm sm:text-base text-left transition-all cursor-pointer flex items-center justify-between ${
-                furnishing === ft
-                  ? 'bg-orange-50/50 border-2 border-brand-orange text-brand-orange shadow-xs'
-                  : 'bg-white border border-slate-200/80 hover:border-brand-orange text-slate-900 shadow-2xs hover:shadow-xs'
-              }`}
+              className={`w-full min-h-[52px] px-5 py-3.5 rounded-full font-bold text-sm sm:text-base text-left transition-all cursor-pointer flex items-center justify-between ${furnishing === ft
+                ? 'bg-orange-50/50 border-2 border-brand-orange text-brand-orange shadow-xs'
+                : 'bg-white border border-slate-200/80 hover:border-brand-orange text-slate-900 shadow-2xs hover:shadow-xs'
+                }`}
             >
               <span>{ft}</span>
-              {furnishing === ft && <span>✓</span>}
+              {furnishing === ft && <Check className="w-4 h-4" />}
             </button>
           ))}
         </div>
@@ -762,8 +767,8 @@ export default function OwnerOnboarding() {
             const sel = amenities.includes(a);
             return (
               <button key={a} onClick={() => toggleAmenity(a)}
-                className={`p-3 rounded-xl border-2 text-xs font-semibold transition-all ${sel ? 'border-teal bg-teal/10 text-teal' : 'border-border bg-white hover:border-fire/20'}`}>
-                {sel ? '✓ ' : ''}{a}
+                className={`p-3 rounded-xl border-2 text-xs font-semibold transition-all flex items-center justify-center gap-1 ${sel ? 'border-teal bg-teal/10 text-teal' : 'border-border bg-white hover:border-fire/20'}`}>
+                {sel && <Check className="w-3.5 h-3.5 shrink-0" />}{a}
               </button>
             );
           })}
@@ -828,8 +833,8 @@ export default function OwnerOnboarding() {
             const sel = selectedRules.includes(r);
             return (
               <button key={r} onClick={() => toggleRule(r)}
-                className={`px-3 py-2 rounded-xl text-sm border-2 transition-all ${sel ? 'border-fire bg-fire/10 text-fire' : 'border-border bg-white hover:border-fire/30'}`}>
-                {sel ? '✓ ' : ''}{r}
+                className={`px-3 py-2 rounded-xl text-sm border-2 transition-all inline-flex items-center gap-1 ${sel ? 'border-fire bg-fire/10 text-fire' : 'border-border bg-white hover:border-fire/30'}`}>
+                {sel && <Check className="w-3.5 h-3.5 shrink-0" />}{r}
               </button>
             );
           })}
@@ -850,7 +855,10 @@ export default function OwnerOnboarding() {
             {customRules.map((r, i) => (
               <span key={i} className="badge-fire flex items-center gap-1">
                 {r}
-                <button onClick={() => setCustomRules(prev => prev.filter((_, idx) => idx !== i))}>×</button>
+                {/* Sprint 6B: accessible remove control */}
+                <button onClick={() => setCustomRules(prev => prev.filter((_, idx) => idx !== i))} aria-label={`Remove rule ${r}`} className="hover:text-red-600 transition-colors">
+                  <X className="w-3 h-3" />
+                </button>
               </span>
             ))}
           </div>
@@ -872,7 +880,7 @@ export default function OwnerOnboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FBF9F6] flex flex-col justify-between select-none">
+    <div className="min-h-screen bg-brand-bg flex flex-col justify-between select-none">
       {/* Top Progress & Header */}
       <div className="w-full bg-white border-b border-gray-100 sticky top-0 z-50">
         {/* Progress Bar */}
@@ -947,16 +955,17 @@ function Screen({
   return (
     <div className="animate-fade-up max-w-md mx-auto w-full">
       <div className="text-center mb-6">
-        {/* Glowing Soft Badge */}
-        <div className="w-20 h-20 bg-white rounded-3xl border border-orange-100 flex items-center justify-center shadow-[0_10px_35px_rgba(255,90,54,0.18)] mb-5 mx-auto transition-transform hover:scale-105">
+        {/* Step badge — Sprint 6B: restrained elevation, no decorative glow/scale */}
+        <div className="w-20 h-20 bg-white rounded-3xl border border-orange-100 flex items-center justify-center shadow-card mb-5 mx-auto">
           <IconComp className="w-9 h-9 text-brand-orange" />
         </div>
-        
+
         {/* Title */}
-        <h2 className="text-2xl sm:text-3xl font-serif italic text-slate-900 text-center tracking-tight mb-2 leading-snug">
+        {/* Sprint 5B: sans voice for ordinary headings */}
+        <h2 className="type-h2 text-slate-900 text-center mb-2">
           {title}
         </h2>
-        
+
         {/* Subtitle */}
         <p className="text-xs sm:text-sm text-slate-500 font-normal text-center max-w-sm mx-auto leading-relaxed">
           {subtitle}
@@ -975,10 +984,10 @@ function Screen({
       <button
         type="button"
         onClick={onNext}
-        className="w-full bg-[#ff5a36] hover:bg-orange-600 active:scale-[0.98] text-white font-bold text-sm sm:text-base py-4 rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-orange-500/25 transition-all cursor-pointer mt-6"
+        className="w-full bg-brand-orange hover:bg-orange-600 active:scale-[0.98] text-white font-bold text-sm sm:text-base py-4 rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-orange-500/25 transition-all cursor-pointer mt-6"
       >
         <span>{nextLabel}</span>
-        <span>→</span>
+        <ArrowRight className="w-4 h-4" />
       </button>
 
       {/* Back Link */}
@@ -988,7 +997,7 @@ function Screen({
           onClick={onBack}
           className="w-full mt-3 text-xs sm:text-sm font-semibold text-slate-400 hover:text-slate-700 flex items-center justify-center gap-1.5 py-2 transition-colors cursor-pointer"
         >
-          <span>← Back</span>
+          <ArrowLeft className="w-3.5 h-3.5" /> Back
         </button>
       )}
     </div>

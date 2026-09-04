@@ -4,6 +4,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 @layer base {
   :root {
     --background: 37 33% 95%;
@@ -41,13 +42,25 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-parchment text-ink font-body antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     overflow-x: hidden;
   }
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-display;
+
+  /*
+   * Sprint 5A typography discipline: headings default to the sans voice with
+   * tight tracking. The serif display face is an opt-in hero treatment
+   * (`.font-display`), never the implicit default for every heading.
+   */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-sans tracking-tight text-ink;
   }
 
   /* Accessibility: visible focus ring for keyboard users */
@@ -58,7 +71,9 @@
   }
 
   /* Fix iOS auto-zoom: inputs must be ≥16px */
-  input, select, textarea {
+  input,
+  select,
+  textarea {
     font-size: 16px;
   }
 
@@ -72,18 +87,19 @@
   .frosted-glass {
     @apply backdrop-blur-xl bg-white/70 border-b border-white/20;
   }
-  
+
+  /* Sprint 5A: flat-first cards — hairline border defines structure,
+     shadow stays subtle; strong elevation belongs to overlays only. */
   .card-nestmate {
-    @apply bg-white rounded-2xl shadow-card border-0;
+    @apply bg-white rounded-2xl border border-border/60 shadow-xs;
   }
-  
+
   .card-nestmate-hover {
-    @apply bg-white rounded-2xl shadow-card border-0 transition-all duration-300 hover:shadow-lift hover:-translate-y-1;
+    @apply bg-white rounded-2xl border border-border/60 shadow-xs transition-all duration-200 hover:shadow-md hover:border-border hover:-translate-y-0.5;
   }
 
   .btn-fire {
-    @apply bg-fire text-white font-medium px-6 py-3 rounded-xl transition-all duration-200 
-           hover:bg-fire-dark hover:shadow-lg active:scale-[0.98];
+    @apply bg-fire text-white font-medium px-6 py-3 rounded-xl transition-colors duration-200 hover:bg-fire-dark active:scale-[0.98];
   }
 
   /* Alias — some screens historically used btn-primary */
@@ -92,18 +108,15 @@
   }
 
   .btn-navy {
-    @apply bg-navy text-white font-medium px-6 py-3 rounded-xl transition-all duration-200 
-           hover:bg-navy-dark hover:shadow-lg active:scale-[0.98];
+    @apply bg-navy text-white font-medium px-6 py-3 rounded-xl transition-colors duration-200 hover:bg-navy-dark active:scale-[0.98];
   }
 
   .btn-outline {
-    @apply border-2 border-fire text-fire font-medium px-6 py-3 rounded-xl 
-           transition-all duration-200 hover:bg-fire-light active:scale-[0.98];
+    @apply border-2 border-fire text-fire font-medium px-6 py-3 rounded-xl transition-all duration-200 hover:bg-fire-light active:scale-[0.98];
   }
 
   .btn-ghost {
-    @apply text-ink/70 font-medium px-4 py-2 rounded-lg transition-all duration-200 
-           hover:bg-ink/5 hover:text-ink;
+    @apply text-ink/70 font-medium px-4 py-2 rounded-lg transition-all duration-200 hover:bg-ink/5 hover:text-ink;
   }
 
   .gradient-fire {
@@ -119,7 +132,7 @@
   }
 
   .gradient-mesh-fire {
-    background: 
+    background:
       radial-gradient(ellipse 80% 60% at 80% 20%, rgba(229, 80, 26, 0.15) 0%, transparent 60%),
       radial-gradient(ellipse 60% 80% at 20% 80%, rgba(30, 58, 95, 0.12) 0%, transparent 60%);
   }
@@ -135,9 +148,7 @@
   }
 
   .input-nestmate {
-    @apply w-full px-4 py-3 bg-cream/50 border-2 border-border rounded-xl 
-           transition-all duration-200 focus:border-fire focus:ring-2 focus:ring-fire/20 
-           focus:outline-none placeholder:text-muted-foreground/50;
+    @apply w-full px-4 py-3 bg-cream/50 border-2 border-border rounded-xl transition-all duration-200 focus:border-fire focus:ring-2 focus:ring-fire/20 focus:outline-none placeholder:text-muted-foreground/50;
   }
 
   .label-floating {
@@ -160,10 +171,65 @@
     @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gold-light text-gold;
   }
 
+  /* Sprint 5A status badge vocabulary — one shape, semantic colors only.
+     teal = verified trust · success/warning = lifecycle status · neutral = metadata. */
+  .badge-success {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100;
+  }
+
+  .badge-warning {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200;
+  }
+
+  .badge-neutral {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-cream/60 text-ink/60 border border-border/50;
+  }
+
+  .badge-destructive {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-100;
+  }
+
+  /*
+   * Sprint 5A type-scale roles. Screens should use these instead of
+   * arbitrary size/weight combinations so hierarchy stays consistent.
+   */
+  .type-display {
+    @apply font-display italic tracking-tight leading-[1.1] text-4xl sm:text-5xl lg:text-6xl;
+  }
+
+  .type-h1 {
+    @apply font-sans font-bold tracking-tight leading-tight text-3xl sm:text-4xl;
+  }
+
+  .type-h2 {
+    @apply font-sans font-bold tracking-tight leading-tight text-2xl sm:text-3xl;
+  }
+
+  .type-h3 {
+    @apply font-sans font-semibold leading-snug text-lg sm:text-xl;
+  }
+
+  .type-body-lg {
+    @apply font-normal leading-relaxed text-base sm:text-lg text-ink/70;
+  }
+
+  .type-body {
+    @apply font-normal leading-relaxed text-sm text-ink/70;
+  }
+
+  .type-caption {
+    @apply font-normal leading-snug text-xs text-ink/50;
+  }
+
+  .type-label {
+    @apply font-medium text-xs text-ink/60;
+  }
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
@@ -178,6 +244,7 @@
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
+
   .pt-safe {
     padding-top: env(safe-area-inset-top, 0px);
   }
@@ -189,15 +256,19 @@
   .h-app-mobile {
     height: calc(100dvh - 60px - 68px - env(safe-area-inset-bottom, 0px));
   }
+
   .h-app-desktop {
     height: calc(100dvh - 60px);
   }
+
   .bottom-above-nav {
     bottom: calc(68px + env(safe-area-inset-bottom, 0px));
   }
+
   .pb-above-nav {
     padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
   }
+
   .touch-target {
     min-width: 44px;
     min-height: 44px;
@@ -211,8 +282,15 @@
 }
 
 @keyframes typingPulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Ensure Leaflet map containers fill parent dimensions dynamically without clipping */
@@ -223,3 +301,22 @@
   background-color: #f4f3ef !important;
 }
 
+/* ── Reduced motion (Sprint 5D) ────────────────────────────────────────────
+   Motion must communicate state, never decorate. Users who opt out of
+   animation get instant state changes and no ambient movement. */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .typing-dots {
+    animation: none !important;
+    opacity: 0.6;
+  }
+}

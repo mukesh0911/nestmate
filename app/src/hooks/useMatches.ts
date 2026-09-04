@@ -19,6 +19,10 @@ import type { UserProfile } from './useAuth';
 import { useState, useRef } from 'react';
 import { sanitizePublicProfile } from '@/lib/sanitizeProfile';
 import { calculateCompatibility } from '@/lib/matching';
+import { isDiscoverable } from '@/lib/listingFreshness';
+import { isAccountActive } from '@/lib/accountStatus';
+import { isDemoProfile } from '@/lib/demoUsers';
+import { isPubliclyVisibleProfile, isPubliclyVisibleListing } from '@/lib/marketplaceVisibility';
 
 export { calculateCompatibility, getActiveStatus } from '@/lib/matching';
 
@@ -48,7 +52,15 @@ export function useMatches() {
    * Queries users in the same city, computes compatibility, sorts by score.
    */
   const findMatches = useCallback(
-    async (currentUser: UserProfile, uiCity?: string, filters?: any, isLoadMore = false): Promise<MatchedUser[]> => {
+    async (
+      currentUser: UserProfile,
+      uiCity?: string,
+      filters?: any,
+      isLoadMore = false,
+      // Sprint 2E: cross-city expansion is EXPLICIT — the caller is notified
+      // whenever a city-scoped search returned nothing and we widened it.
+      onCrossCityFallback?: (requestedCity: string) => void
+    ): Promise<MatchedUser[]> => {
       const targetCity = uiCity !== undefined ? uiCity : currentUser.city;
 
       const constraints: any[] = [where('onboardingComplete', '==', true)];
@@ -76,10 +88,10 @@ export function useMatches() {
       try {
         const q = query(collection(db, 'users'), ...constraints);
         const snap = await getDocs(q);
-        
+
         const newLastDoc = snap.docs[snap.docs.length - 1];
         lastDocRef.current = newLastDoc || null;
-        
+
         if (!isLoadMore) {
           setPage(1);
         } else {
@@ -109,7 +121,15 @@ export function useMatches() {
         }
       }
 
-      const candidates = candidateDocs.filter((u) => u.uid !== currentUser.uid && !skippedIds.has(u.uid || '') && !blockedIds.has(u.uid || ''));
+      // Sprint 2C (M2): suspended/banned accounts are never eligible candidates.
+      // Sprint 2E (P0): demo accounts (fabricated profiles) are never eligible either.
+      const candidates = candidateDocs.filter((u) =>
+        u.uid !== currentUser.uid
+        && !skippedIds.has(u.uid || '')
+        && !blockedIds.has(u.uid || '')
+        && isAccountActive((u as any).status)
+        && !isDemoProfile(u as any)
+      );
 
       // If the seeker is looking for owners, fetch active listings and combine with owner profiles
       const listingMap = new Map<string, any>();
@@ -129,6 +149,9 @@ export function useMatches() {
             const ldata = { id: d.id, ...d.data() } as any;
             const ownerId = ldata.ownerId;
             if (!ownerId) continue;
+            // Sprint 2C (M1) + Security Gate: unverified/pending or expired/closed/paused
+            // listings must never appear as matches.
+            if (!isPubliclyVisibleListing(ldata)) continue;
 
             listingMap.set(ownerId, ldata);
 
@@ -138,21 +161,16 @@ export function useMatches() {
               try {
                 const ownerSnap = await getDoc(doc(db, 'users', ownerId));
                 if (ownerSnap.exists()) {
-                  candidates.push({ uid: ownerSnap.id, ...ownerSnap.data() } as UserProfile);
+                  const ownerData = { uid: ownerSnap.id, ...ownerSnap.data() } as UserProfile;
+                  // Sprint 2E hardening: non-public owners (demo/suspended/
+                  // incomplete) never surface as matches.
+                  if (!isPubliclyVisibleProfile(ownerData as any)) continue;
+                  candidates.push(ownerData);
                 } else {
-                  // Construct synthetic owner profile from listing metadata
-                  candidates.push({
-                    uid: ownerId,
-                    name: ldata.ownerName || 'Property Owner',
-                    avatar: ldata.ownerAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${ownerId}`,
-                    role: 'owner',
-                    city: ldata.city,
-                    locality: ldata.locality,
-                    localities: [ldata.locality],
-                    budget: ldata.partnerShare || ldata.totalRent || 10000,
-                    bio: ldata.description || 'Property owner offering rooms.',
-                    onboardingComplete: true,
-                  } as UserProfile);
+                  // Sprint 2E hardening — ORPHAN POLICY: the owner document no
+                  // longer exists. HIDE the listing from matching; we never
+                  // fabricate an owner identity from listing metadata.
+                  continue;
                 }
               } catch (err) {
                 console.warn('Failed to fetch owner profile for listing:', ownerId, err);
@@ -164,52 +182,13 @@ export function useMatches() {
         }
       }
 
-      // If no owner candidates found, provide verified fallback room owners for seekers
-      if (candidates.length === 0 && (oppositeRole === 'owner' || !oppositeRole)) {
-        candidates.push(
-          {
-            uid: 'owner_fallback_1',
-            name: 'Rohan Verma',
-            age: 26,
-            gender: 'Male',
-            role: 'owner',
-            city: targetCity || currentUser.city || 'Hyderabad',
-            locality: 'Kondapur',
-            localities: ['Kondapur', 'Madhapur'],
-            budget: 18000,
-            profession: 'Product Manager',
-            company: 'Google',
-            bio: 'Furnished 3BHK room with private bath available for a like-minded flatmate.',
-            avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80',
-            onboardingComplete: true,
-            isVerified: true,
-            quizAnswers: { q1: '2', q2: '1', q3: '3', q4: '2', q5: '1' },
-          } as unknown as UserProfile,
-          {
-            uid: 'owner_fallback_2',
-            name: 'Karthik Iyer',
-            age: 27,
-            gender: 'Male',
-            role: 'owner',
-            city: targetCity || currentUser.city || 'Chennai',
-            locality: 'Velachery',
-            localities: ['Velachery', 'Adyar'],
-            budget: 14000,
-            profession: 'Data Scientist',
-            company: 'Zoho',
-            bio: 'Master bedroom with attached bath available in Velachery 2BHK.',
-            avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&q=80',
-            onboardingComplete: true,
-            isVerified: true,
-            quizAnswers: { q1: '3', q2: '2', q3: '1', q4: '2', q5: '3' },
-          } as unknown as UserProfile
-        );
-      }
-
+      // NOTE: No fake/fallback profiles are injected when there are no real
+      // candidates. An empty result is rendered as an empty state by the UI —
+      // the production marketplace must never display fabricated users.
       let scored: MatchedUser[] = candidates.map((u) => {
         const listingData = listingMap.get(u.uid || '');
         const profileToUse = { ...u };
-        
+
         // Patch owner profile with listing data so filters and UI work correctly
         if (listingData) {
           if (!profileToUse.localities || profileToUse.localities.length === 0) {
@@ -259,7 +238,7 @@ export function useMatches() {
 
           // Localities
           if (filters.localities && filters.localities.length > 0) {
-            const hasMatch = filters.localities.some((loc: string) => 
+            const hasMatch = filters.localities.some((loc: string) =>
               p.localities?.includes(loc) || listing?.locality === loc
             );
             if (!hasMatch) return false;
@@ -287,20 +266,28 @@ export function useMatches() {
       }
 
       if (scored.length === 0 && targetCity && !isLoadMore) {
+        // Sprint 2E: the user's explicit city search found nothing. We widen to
+        // other cities ONLY while telling the caller, so the UI can display:
+        // "No matches in {city} yet — showing relevant people from other cities."
+        onCrossCityFallback?.(targetCity);
         return findMatches(currentUser, '', filters ? { ...filters, city: '' } : undefined, false);
       }
 
-      // Sort by Premium, Verified, then compatibility
+      // Sort by compatibility score first (primary), then Premium/Verified as tiebreakers.
+      // A 0% Premium user must never outrank a 90% non-Premium user.
       return scored.sort((a, b) => {
+        // Primary: compatibility score (highest first)
+        if (b.compatibilityScore !== a.compatibilityScore) {
+          return b.compatibilityScore - a.compatibilityScore;
+        }
+        // Tiebreaker 1: Premium
         const aPrem = a.profile.isPremium ? 1 : 0;
         const bPrem = b.profile.isPremium ? 1 : 0;
         if (aPrem !== bPrem) return bPrem - aPrem;
-
+        // Tiebreaker 2: Verified
         const aVer = a.profile.isVerified ? 1 : 0;
         const bVer = b.profile.isVerified ? 1 : 0;
-        if (aVer !== bVer) return bVer - aVer;
-
-        return b.compatibilityScore - a.compatibilityScore;
+        return bVer - aVer;
       });
     },
     []
@@ -367,14 +354,14 @@ export function useMatches() {
   const getProfilesByIds = useCallback(
     async (currentUser: UserProfile, uids: string[]): Promise<MatchedUser[]> => {
       if (!uids || uids.length === 0) return [];
-      
+
       const profiles = await Promise.all(
         uids.map(async (id) => {
           const snap = await getDoc(doc(db, 'users', id));
           if (!snap.exists()) return null;
-          
+
           const user = { uid: snap.id, ...snap.data() } as UserProfile;
-          
+
           let listingId;
           if (user.role === 'owner') {
             const lq = query(collection(db, 'listings'), where('ownerId', '==', user.uid), where('status', '==', 'active'));

@@ -4,13 +4,14 @@ import { useAdmin } from '@/hooks/useAdmin';
 import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Home, Flag, ShieldCheck,
-  Bell, Settings, LogOut, Menu, X, Loader2
+  Bell, Settings, LogOut, Menu, X, Loader2, BarChart3
 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { path: '/admin/users', label: 'Users', icon: Users },
   { path: '/admin/listings', label: 'Listings', icon: Home },
+  { path: '/admin/marketplace', label: 'Marketplace', icon: BarChart3 },
   { path: '/admin/reports', label: 'Reports', icon: Flag },
   { path: '/admin/verifications', label: 'Verifications', icon: ShieldCheck },
   { path: '/admin/notifications', label: 'Notifications', icon: Bell },
@@ -87,8 +88,8 @@ export default function AdminLayout() {
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg gradient-fire flex items-center justify-center">
               <svg viewBox="0 0 24 24" className="w-4 h-4 text-white" fill="currentColor">
-                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zM7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 2.88-2.88 7.19-5 9.88C9.92 16.21 7 11.85 7 9z"/>
-                <circle cx="12" cy="9" r="2.5"/>
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zM7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 2.88-2.88 7.19-5 9.88C9.92 16.21 7 11.85 7 9z" />
+                <circle cx="12" cy="9" r="2.5" />
               </svg>
             </div>
             <div>
@@ -105,9 +106,8 @@ export default function AdminLayout() {
             const active = isActive(item.path, item.exact);
             return (
               <Link key={item.path} to={item.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  active ? 'bg-fire text-white shadow-md' : 'text-white/60 hover:text-white hover:bg-white/5'
-                }`}>
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${active ? 'bg-fire text-white shadow-md' : 'text-white/60 hover:text-white hover:bg-white/5'
+                  }`}>
                 <Icon className="w-4.5 h-4.5" />
                 {item.label}
               </Link>
@@ -150,9 +150,8 @@ export default function AdminLayout() {
                 const active = isActive(item.path, item.exact);
                 return (
                   <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                      active ? 'bg-fire text-white' : 'text-white/60 hover:text-white hover:bg-white/5'
-                    }`}>
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${active ? 'bg-fire text-white' : 'text-white/60 hover:text-white hover:bg-white/5'
+                      }`}>
                     <Icon className="w-4.5 h-4.5" />
                     {item.label}
                   </Link>

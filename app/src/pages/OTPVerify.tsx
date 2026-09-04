@@ -73,10 +73,12 @@ export default function OTPVerify() {
     setLoading(true);
     setError('');
     try {
-      const { isNew, role } = await verifyOTP(verificationId, finalCode);
+      const { isNew, role, onboardingComplete } = await verifyOTP(verificationId, finalCode);
       setLoading(false);
       if (isNew || !role) {
         navigate('/role-select');
+      } else if (!onboardingComplete) {
+        navigate(role === 'owner' ? '/onboarding/owner' : '/onboarding/seeker');
       } else {
         navigate(role === 'owner' ? '/owner-dashboard' : '/dashboard');
       }
@@ -111,7 +113,7 @@ export default function OTPVerify() {
                 <path d="M7 11V7a5 5 0 0110 0v4" />
               </svg>
             </div>
-            <h2 className="text-2xl font-display italic mb-2">Verify your number</h2>
+            <h2 className="type-h2 mb-2">Verify your number</h2>
             <p className="text-sm text-ink/60">
               Code sent to <span className="font-medium text-ink">{phone}</span>
             </p>

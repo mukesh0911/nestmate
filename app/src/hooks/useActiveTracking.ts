@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 
@@ -22,9 +22,12 @@ export function useActiveTracking() {
         pendingUpdateRef.current = true;
         try {
           const userRef = doc(db, 'users', user.uid);
-          await updateDoc(userRef, {
+          // Sprint 7 fix: merge-set instead of updateDoc so a missing profile
+          // document is created rather than denied (update on missing doc is
+          // PERMISSION_DENIED even for the owner).
+          await setDoc(userRef, {
             lastActiveAt: serverTimestamp(),
-          });
+          }, { merge: true });
           lastUpdateRef.current = now;
         } catch (e) {
           console.error('Failed to update activity status:', e);

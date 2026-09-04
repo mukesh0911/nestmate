@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, Heart, MessageCircle, ShieldCheck, Check, 
+import {
+  ArrowLeft, Heart, MessageCircle, ShieldCheck, Check,
   Star, Loader2, Home as HomeIcon, MoreVertical, Flag, Ban, MapPin, X,
-  Moon, Sun, Utensils, Wind, Wine, Users, Sparkles, Briefcase, Dog, User, 
+  Moon, Sun, Utensils, Wind, Wine, Users, Sparkles, Briefcase, Dog, User,
   CheckCircle2, Calendar, MessageSquare, ChevronRight, Zap, Award, ExternalLink
 } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -16,6 +16,7 @@ import { useReviews } from '@/hooks/useReviews';
 import type { Connection } from '@/hooks/useConnections';
 import { useNotifications } from '@/hooks/useNotifications';
 import { calculateCompatibility, getActiveStatus } from '@/hooks/useMatches';
+import { getMatchReasons } from '@/lib/matching';
 import type { MatchedUser } from '@/hooks/useMatches';
 import { useGeocoding } from '@/hooks/useGeocoding';
 import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet';
@@ -91,7 +92,7 @@ export default function MatchDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+
   const [myConnections, setMyConnections] = useState<Connection[]>([]);
   const [chatRoomMap, setChatRoomMap] = useState<Record<string, string>>({});
 
@@ -110,13 +111,13 @@ export default function MatchDetail() {
 
   // Map state
   const { geocode } = useGeocoding();
-  const [mapLoc, setMapLoc] = useState<{lat: number, lng: number} | null>(null);
+  const [mapLoc, setMapLoc] = useState<{ lat: number, lng: number } | null>(null);
 
   // Fetch match details
   useEffect(() => {
     if (!id) return;
     setIsLoading(true);
-    
+
     Promise.all([
       getProfile(id).catch(() => null),
       getReviewsForUser(id).catch(() => [])
@@ -126,11 +127,11 @@ export default function MatchDetail() {
       if (targetProfile) {
         const score = profile?.quizAnswers
           ? calculateCompatibility(
-              profile.quizAnswers, 
-              targetProfile.quizAnswers || {},
-              profile.city,
-              targetProfile.city
-            )
+            profile.quizAnswers,
+            targetProfile.quizAnswers || {},
+            profile.city,
+            targetProfile.city
+          )
           : 0;
         setMatchedUser({ profile: targetProfile, compatibilityScore: score });
 
@@ -141,7 +142,7 @@ export default function MatchDetail() {
             if (!lsnap.empty) {
               const ldata = lsnap.docs[0].data();
               setListing({ id: lsnap.docs[0].id, ...ldata });
-              
+
               if (targetProfile.geoLocation) {
                 setMapLoc(targetProfile.geoLocation);
               } else if (targetProfile.city) {
@@ -341,13 +342,18 @@ export default function MatchDetail() {
     setConnecting(true);
     try {
       const connectionId = await sendRequest(user.uid, targetUid);
+      const isTargetOwner = matchedUser?.profile.role === 'owner';
+      const actionUrl = isTargetOwner
+        ? `/owner-dashboard?request=${connectionId}`
+        : `/match/${user.uid}`;
+
       await createNotification({
         userId: targetUid,
         type: 'connect',
         title: 'New Connect Request!',
         description: `${profile?.name || 'Someone'} wants to connect with you.`,
         read: false,
-        actionUrl: `/owner-dashboard?request=${connectionId}`,
+        actionUrl,
       });
       toast.success('Connect request sent successfully!');
     } catch (err) {
@@ -401,13 +407,27 @@ export default function MatchDetail() {
   const breakdownRows = quizQuestions.map(q => {
     const myAnsId = myAnswers[q.id];
     const theirAnsId = theirAnswers[q.id];
-    
+
     const myLabel = q.options.find(o => o.id === myAnsId)?.label || 'Not answered';
     const theirLabel = q.options.find(o => o.id === theirAnsId)?.label || 'Not specified';
     const isMatched = Boolean(myAnsId && myAnsId === theirAnsId);
-    
+
     return { id: q.id, question: q.question, myLabel, theirLabel, isMatched };
   });
+
+  // Sprint 4A (truth): the "why you match" section is driven ONLY by real,
+  // data-backed reasons from the existing explanation engine. When there are
+  // insufficient signals we render a neutral state instead of an invented claim.
+  const matchWhy = getMatchReasons(
+    myAnswers,
+    theirAnswers,
+    {
+      myCity: profile?.city,
+      theirCity: p.city,
+      myBudget: profile?.budget || 0,
+      theirBudget: p.budget || 0,
+    }
+  );
 
   // Dynamic Rating & Review Count
   const reviewCount = reviews.length;
@@ -425,13 +445,13 @@ export default function MatchDetail() {
 
   return (
     <div className="min-h-screen bg-[#F8F7F4] pb-28 lg:pb-12 text-ink font-sans page-transition overflow-x-hidden">
-      
+
       {/* ── Page Container ─────────────────────────────────────────── */}
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 xl:px-8 py-4 sm:py-6">
-        
+
         {/* Navigation Breadcrumb & Context Menu */}
         <div className="flex items-center justify-between mb-6">
-          <button 
+          <button
             onClick={() => navigate(-1)}
             aria-label="Go back"
             className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink/55 hover:text-ink transition-colors cursor-pointer group"
@@ -459,24 +479,31 @@ export default function MatchDetail() {
 
         {/* ── Two-Column Editorial Details Grid ───────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 xl:gap-12 items-start">
-          
+
           {/* ════ LEFT COLUMN: Main Detail Content ════════════════ */}
           <div className="space-y-8 min-w-0">
-            
+
             {/* ── 1. Editorial Profile Hero Card ────────────────── */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-150 shadow-xs relative overflow-hidden">
+            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-150 shadow-xs relative overflow-hidden">
               <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6">
-                
+
                 {/* Avatar + Main Identity Info */}
                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 text-center sm:text-left flex-1 min-w-0">
-                  
+
                   {/* Avatar Container */}
                   <div className="relative shrink-0">
-                    <img 
-                      src={p.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} 
-                      alt={p.name} 
-                      className="w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-white bg-cream object-cover shadow-md" 
-                    />
+                    {/* Sprint 5C: no external avatar services — local initial fallback */}
+                    {p.avatar ? (
+                      <img
+                        src={p.avatar}
+                        alt={p.name}
+                        className="w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-white bg-cream object-cover shadow-md"
+                      />
+                    ) : (
+                      <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-white bg-fire/10 flex items-center justify-center text-3xl font-bold text-fire shadow-md">
+                        {(p.name || 'U').charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     {p.isVerified && (
                       <div className="absolute bottom-1 right-1 bg-white rounded-full p-1 shadow-sm border border-emerald-200" title="Verified Identity">
                         <CheckCircle2 className="w-5 h-5 text-emerald-600 fill-emerald-50" />
@@ -487,12 +514,12 @@ export default function MatchDetail() {
                   {/* Name, Role & Location Metadata */}
                   <div className="flex-1 min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
-                      <h1 className="text-2xl sm:text-3xl font-bold text-ink tracking-tight font-display">
+                      {/* Sprint 5C: sans voice for page headings */}
+                      <h1 className="type-h1 text-ink">
                         {p.name}{p.age ? `, ${p.age}` : ''}
                       </h1>
-                      <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
-                        p.role === 'owner' ? 'bg-teal-50 text-teal-800 border-teal-200' : 'bg-amber-50 text-amber-800 border-amber-200'
-                      }`}>
+                      <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${p.role === 'owner' ? 'bg-teal-50 text-teal-800 border-teal-200' : 'bg-amber-50 text-amber-800 border-amber-200'
+                        }`}>
                         {p.role === 'owner' ? 'Room Owner' : 'Flat Seeker'}
                       </span>
                     </div>
@@ -534,32 +561,58 @@ export default function MatchDetail() {
                     {matchedUser.compatibilityScore}%
                   </span>
                   <span className="text-[11px] font-bold text-ink/70 mt-1 bg-white/80 px-2.5 py-0.5 rounded-full border border-border/40">
-                    {matchedUser.compatibilityScore >= 80 ? 'Ideal Match' : matchedUser.compatibilityScore >= 60 ? 'Good Match' : 'Potential Match'}
+                    {matchedUser.compatibilityScore === 0
+                      ? 'No quiz data yet'
+                      : matchedUser.compatibilityScore >= 80
+                        ? 'Ideal Match'
+                        : matchedUser.compatibilityScore >= 60
+                          ? 'Good Match'
+                          : 'Potential Match'}
                   </span>
                 </div>
 
               </div>
             </div>
 
-            {/* ── 2. "Why You Match" Feature Banner ────────────── */}
-            <div className="bg-gradient-to-br from-fire-light/60 via-amber-50/40 to-teal-light/40 rounded-2xl p-5 border border-fire/15 flex items-start gap-4 shadow-xs">
-              <div className="w-10 h-10 rounded-xl bg-white text-fire flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-                <Sparkles className="w-5 h-5" />
+            {/* ── 2. "Why You Match" Feature Banner (data-gated) ── */}
+            {/* Sprint 4A (truth): shown ONLY when real reasons exist; otherwise an
+                explicit neutral state replaces the old unconditional claim. */}
+            {matchWhy.reasons.length > 0 ? (
+              <div className="bg-gradient-to-br from-fire-light/60 via-amber-50/40 to-teal-light/40 rounded-2xl p-5 border border-fire/15 flex items-start gap-4 shadow-xs">
+                <div className="w-10 h-10 rounded-xl bg-white text-fire flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-ink mb-1">
+                    Why you and {p.name} match
+                  </h3>
+                  <ul className="text-xs text-ink/70 leading-relaxed font-medium space-y-0.5">
+                    {matchWhy.reasons.map(r => (
+                      <li key={r}>• {r}</li>
+                    ))}
+                  </ul>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-sm sm:text-base text-ink mb-1">
-                  Why you and {p.name} match
-                </h3>
-                <p className="text-xs text-ink/70 leading-relaxed font-medium">
-                  You share compatible lifestyle expectations, work modes, and budget preferences{p.city ? ` in ${p.city}` : ''}.
-                </p>
+            ) : (
+              <div className="bg-white rounded-2xl p-5 border border-gray-150 flex items-start gap-4 shadow-xs">
+                <div className="w-10 h-10 rounded-xl bg-[#F8F7F4] text-ink/40 flex items-center justify-center shrink-0 mt-0.5">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-ink mb-1">
+                    Match with {p.name}
+                  </h3>
+                  <p className="text-xs text-ink/50 leading-relaxed font-medium italic">
+                    Not enough information to explain this match yet. Complete your lifestyle quiz or view the breakdown below.
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* ── 3. Compatibility Breakdown Comparison ──────────── */}
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-gray-150">
-                <h2 className="text-lg font-bold text-ink tracking-tight font-display">
+                <h2 className="type-h3 text-ink">
                   Compatibility Breakdown
                 </h2>
                 <span className="text-xs font-semibold text-ink/50">
@@ -650,7 +703,7 @@ export default function MatchDetail() {
             {/* ── 4. Lifestyle & Preferences Grid ──────────────── */}
             <div className="space-y-4 pt-2">
               <div className="pb-2 border-b border-gray-150">
-                <h2 className="text-lg font-bold text-ink tracking-tight font-display">
+                <h2 className="type-h3 text-ink">
                   {p.name}'s Lifestyle & Preferences
                 </h2>
               </div>
@@ -662,8 +715,8 @@ export default function MatchDetail() {
                   const IconComp = CATEGORY_ICONS[q.id] || Sparkles;
 
                   return (
-                    <div 
-                      key={q.id} 
+                    <div
+                      key={q.id}
                       className="bg-white border border-gray-150 rounded-xl p-3.5 flex flex-col justify-between gap-2 shadow-xs hover:border-fire/40 transition-all min-h-[95px]"
                     >
                       <div className="flex items-center gap-1.5 text-ink/40">
@@ -695,7 +748,10 @@ export default function MatchDetail() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-2 border-y border-gray-150">
                   <div>
                     <h4 className="font-bold text-base text-ink">{listing.title || `${listing.locality}, ${listing.city}`}</h4>
-                    <p className="text-xs text-ink/60 capitalize mt-0.5">{listing.furnishing || 'Semi-Furnished'} • Available {listing.availableFrom || 'Immediately'}</p>
+                    {/* Sprint 4A (truth): no invented furnishing/availability defaults. */}
+                    <p className="text-xs text-ink/60 capitalize mt-0.5">
+                      {listing.furnishing ? `${listing.furnishing} • ` : ''}Available {listing.availableFrom || 'date not specified'}
+                    </p>
                   </div>
                   <div className="text-left sm:text-right">
                     <p className="text-[10px] font-bold text-ink/40 uppercase tracking-wider">Your Rent Share</p>
@@ -703,8 +759,8 @@ export default function MatchDetail() {
                   </div>
                 </div>
 
-                <button 
-                  onClick={() => navigate(`/room/${listing.id}`)} 
+                <button
+                  onClick={() => navigate(`/room/${listing.id}`)}
                   className="w-full py-3 bg-fire text-white font-bold text-xs rounded-xl shadow-xs hover:bg-fire-dark transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <span>View Full Room Details</span>
@@ -717,9 +773,9 @@ export default function MatchDetail() {
             {p.city && (
               <div className="space-y-3 pt-2">
                 <div className="pb-2 border-b border-gray-150">
-                  <h2 className="text-lg font-bold text-ink tracking-tight font-display">Location</h2>
+                  <h2 className="type-h3 text-ink">Location</h2>
                   <p className="text-xs text-ink/60 mt-0.5 font-medium flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-fire" /> 
+                    <MapPin className="w-3.5 h-3.5 text-fire" />
                     <span>{listing?.locality || p.locality || p.localities?.[0] || p.city}, {p.city}</span>
                   </p>
                 </div>
@@ -748,7 +804,7 @@ export default function MatchDetail() {
             {/* ── 7. Community Reviews & Vouches ─────────────────── */}
             <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between pb-2 border-b border-gray-150">
-                <h2 className="text-lg font-bold text-ink tracking-tight font-display">
+                <h2 className="type-h3 text-ink">
                   Community Reviews & Vouches {reviewCount > 0 ? `(${averageRating} · ${reviewCount})` : ''}
                 </h2>
                 {!isSelf && (
@@ -817,12 +873,12 @@ export default function MatchDetail() {
           {/* ════ RIGHT COLUMN: Sticky Conversion Sidebar ──────── */}
           <div className="hidden lg:block w-[360px] shrink-0">
             <div className="sticky top-24 space-y-6">
-              
-              <div className="bg-white rounded-3xl p-6 border border-gray-150 shadow-[0_8px_40px_rgba(0,0,0,0.10)] space-y-5">
-                
+
+              <div className="bg-white rounded-2xl p-6 border border-gray-150 shadow-[0_8px_40px_rgba(0,0,0,0.10)] space-y-5">
+
                 {/* Sidebar Header */}
                 <div className="pb-3 border-b border-gray-150 flex items-center justify-between">
-                  <h3 className="font-bold text-lg text-ink font-display">At a Glance</h3>
+                  <h3 className="type-h3 text-ink">At a Glance</h3>
                   {p.isVerified ? (
                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                       Verified User
@@ -833,7 +889,7 @@ export default function MatchDetail() {
                     </span>
                   )}
                 </div>
-                
+
                 <div className="space-y-4 text-xs">
                   {/* Community Rating */}
                   <div className="flex justify-between items-center">
@@ -856,13 +912,13 @@ export default function MatchDetail() {
                       <span className="font-extrabold text-fire">{matchedUser.compatibilityScore}%</span>
                     </div>
                     <div className="w-full bg-cream h-2 rounded-full overflow-hidden border border-border/40">
-                      <div 
-                        className="bg-fire h-full rounded-full transition-all duration-500" 
-                        style={{ width: `${matchedUser.compatibilityScore}%` }} 
+                      <div
+                        className="bg-fire h-full rounded-full transition-all duration-500"
+                        style={{ width: `${matchedUser.compatibilityScore}%` }}
                       />
                     </div>
                   </div>
-                  
+
                   {/* Budget */}
                   <div className="flex justify-between items-center">
                     <span className="text-ink/60 font-medium">Budget Alignment</span>
@@ -891,18 +947,17 @@ export default function MatchDetail() {
                   <button
                     onClick={handleConnectOrChat}
                     disabled={connecting || connectState === 'pending_sent'}
-                    className={`w-full py-3.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer ${
-                      connectState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
+                    className={`w-full py-3.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer ${connectState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
                       connectState === 'pending_received' ? 'bg-teal text-white hover:opacity-90' :
-                      connectState === 'connected' ? 'bg-emerald-600 text-white hover:bg-emerald-700' :
-                      'btn-fire text-white'
-                    }`}
+                        connectState === 'connected' ? 'bg-emerald-600 text-white hover:bg-emerald-700' :
+                          'btn-fire text-white'
+                      }`}
                   >
                     <MessageCircle className="w-4 h-4" />
                     <span>
                       {connectState === 'pending_sent' ? 'Request Sent' :
-                       connectState === 'pending_received' ? 'Accept Request' :
-                       connectState === 'connected' ? 'Message User' : 'Connect & Chat'}
+                        connectState === 'pending_received' ? 'Accept Request' :
+                          connectState === 'connected' ? 'Message User' : 'Connect & Chat'}
                     </span>
                   </button>
 
@@ -915,7 +970,7 @@ export default function MatchDetail() {
                       <X className="w-3.5 h-3.5" /> Decline Request
                     </button>
                   )}
-                  
+
                   <button
                     onClick={handleToggleSave}
                     disabled={saving}
@@ -956,17 +1011,16 @@ export default function MatchDetail() {
         <button
           onClick={handleConnectOrChat}
           disabled={connecting || connectState === 'pending_sent'}
-          className={`flex-1 min-h-[44px] py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer ${
-            connectState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
+          className={`flex-1 min-h-[44px] py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer ${connectState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
             connectState === 'pending_received' ? 'bg-teal text-white' :
-            'btn-fire text-white'
-          }`}
+              'btn-fire text-white'
+            }`}
         >
           <MessageCircle className="w-4 h-4" />
           <span>
             {connectState === 'pending_sent' ? 'Request Sent' :
-             connectState === 'pending_received' ? 'Accept Request' :
-             connectState === 'connected' ? 'Message' : 'Connect & Chat'}
+              connectState === 'pending_received' ? 'Accept Request' :
+                connectState === 'connected' ? 'Message' : 'Connect & Chat'}
           </span>
         </button>
       </div>
@@ -1036,9 +1090,8 @@ export default function MatchDetail() {
                     className="p-1.5 focus:outline-none hover:scale-110 transition-transform cursor-pointer"
                   >
                     <Star
-                      className={`w-8 h-8 ${
-                        star <= reviewRating ? 'fill-amber-400 text-amber-400' : 'text-gray-200'
-                      }`}
+                      className={`w-8 h-8 ${star <= reviewRating ? 'fill-amber-400 text-amber-400' : 'text-gray-200'
+                        }`}
                     />
                   </button>
                 ))}

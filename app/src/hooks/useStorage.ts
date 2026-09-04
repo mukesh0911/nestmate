@@ -141,6 +141,20 @@ export function useStorage() {
     []
   );
 
+  /**
+   * Upload an owner identity verification document to a protected Storage path.
+   * Path: verificationDocs/{userId}/{timestamp}_{filename}
+   * Storage rules should restrict read to the owner and admins.
+   */
+  const uploadVerificationDocument = useCallback(
+    async (file: File, userId: string, onProgress?: (pct: number) => void): Promise<string> => {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const filename = `${Date.now()}.${ext}`;
+      return uploadFile(file, `verificationDocs/${userId}/${filename}`, onProgress);
+    },
+    []
+  );
+
   return {
     uploadProfilePicture,
     uploadListingImage,
@@ -148,6 +162,7 @@ export function useStorage() {
     deleteFile,
     uploadGenericImage,
     uploadChatImage,
+    uploadVerificationDocument,
   };
 }
 

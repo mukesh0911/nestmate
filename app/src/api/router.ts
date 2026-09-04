@@ -22,6 +22,8 @@ export const trpcRouterConfig: TRPCRouterConfig = {
   ],
 };
 
+import { calculateCompatibility } from '@/lib/matching';
+
 // Procedure definitions scaffold
 export const appRouter = {
   user: {
@@ -34,20 +36,14 @@ export const appRouter = {
   },
   match: {
     computeScore: (user1Quiz: Record<string, string>, user2Quiz: Record<string, string>) => {
-      let score = 0;
-      const keys = Object.keys(user1Quiz);
-      if (keys.length === 0) return 85; // default fallback
-      keys.forEach((k) => {
-        if (user1Quiz[k] === user2Quiz[k]) score += 10;
-      });
-      return Math.min(99, Math.max(50, score));
+      return calculateCompatibility(user1Quiz, user2Quiz);
     },
   },
   verification: {
-    submitDoc: (docData: { userId: string; aadhaarNumber: string }) => ({
-      status: 'VERIFIED',
-      method: 'DigiLocker e-KYC',
-      verifiedAt: new Date().toISOString(),
+    submitDoc: (docData: { userId: string; docType: string }) => ({
+      status: 'pending',
+      method: 'Admin Document Review',
+      submittedAt: new Date().toISOString(),
     }),
   },
 };

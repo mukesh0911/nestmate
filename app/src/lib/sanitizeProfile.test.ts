@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizePublicProfile } from '@/lib/sanitizeProfile';
+import { sanitizePublicProfile } from './sanitizeProfile';
 
 describe('sanitizePublicProfile', () => {
   it('clears phone, email, and workEmail', () => {

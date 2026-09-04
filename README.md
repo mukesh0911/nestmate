@@ -1,4 +1,4 @@
-# 🏠 NestMate — AI-Powered Roommate & Room Discovery Platform
+# 🏠 NestMate — Roommate & Room Discovery Platform
 
 > **Version**: 1.0.0-rc1  
 > **Status**: Production Release Candidate (RC1)  
@@ -8,10 +8,10 @@
 
 ## 📌 Overview
 
-NestMate is an AI-powered roommate matching and verified property discovery platform built specifically for young professionals and students in urban India.
+NestMate is a compatibility-based roommate matching and room discovery platform built specifically for young professionals and students in urban India.
 
 ### Key Features
-- **Smart Roommate Matching**: Compatibility scoring based on lifestyle preferences, habits, budget, and location.
+- **Compatibility-Based Matching**: Transparent compatibility scoring based on lifestyle preferences, habits, budget, and location.
 - **Verified Property Listings**: Detailed property posts with multi-photo carousels, amenity tags, and verified owner trust badges.
 - **Real-Time Communication**: In-app real-time chat with typing indicators, photo attachments, and controlled phone number exchange.
 - **Privacy & PII Protection**: Client-side PII isolation architecture keeping phone/email numbers in owner-accessible collection stores.

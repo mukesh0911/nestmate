@@ -2,6 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ─────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────
+
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -10,11 +14,33 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Admin = a document exists at admins/{verified auth email}.
+    // The email comes from the Firebase Auth token (server-verified),
+    // never from client-supplied data. Bootstrap: create admins/<email>
+    // manually in the Firebase console (see docs/security/ADMIN_BOOTSTRAP.md).
+    function adminEmail() {
+      return request.auth.token.email.lower();
+    }
     function isAdmin() {
-      return isAuthenticated() && request.auth.token.email.matches('.*@nestmate\\.com$');
+      return isAuthenticated()
+        && request.auth.token.email != null
+        && exists(/databases/$(database)/documents/admins/$(adminEmail()));
     }
 
-    // Trust / billing fields — only admins (or Future Production Integration via Cloud Functions) may set these
+    function myUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Moderation status enforcement. Legacy docs without a `status`
+    // field are treated as active.
+    function isActiveUser() {
+      return isAuthenticated() && (
+        !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        myUserDoc().get('status', 'active') == 'active'
+      );
+    }
+
+    // Trust / billing fields — only admins may set these.
     function trustFieldsUnchanged() {
       return !request.resource.data.diff(resource.data).affectedKeys()
         .hasAny(['isVerified', 'isPremium', 'workEmailVerified', 'verificationLevel', 'verificationDetails', 'premiumSince', 'isAadhaarVerified', 'isWorkIdVerified', 'isStudentIdVerified']);
@@ -27,16 +53,65 @@ service cloud.firestore {
         && (!('verificationLevel' in request.resource.data) || request.resource.data.verificationLevel == 0 || request.resource.data.verificationLevel == 1);
     }
 
-    // Admin override for maintenance and system tasks
+    // Moderation status is immutable except by admins (prevents self-reinstatement).
+    function statusUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']);
+    }
+
+    // Onboarding completion requires meaningful profile data so that
+    // compatibility discovery cannot be gamed with empty profiles.
+    function onboardingDataValid() {
+      return request.resource.data.get('name', '') is string
+        && request.resource.data.get('name', '').size() > 0
+        && request.resource.data.get('role', '') in ['seeker', 'owner']
+        && request.resource.data.get('quizAnswers', {}) is map
+        && request.resource.data.get('quizAnswers', {}).size() >= 5;
+    }
+
+    function onboardingFlipValid() {
+      return !(request.resource.data.keys().hasAny(['onboardingComplete']))
+        || request.resource.data.onboardingComplete != true
+        || resource.data.get('onboardingComplete', false) == true
+        || onboardingDataValid();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Admin override for maintenance and system tasks.
+    // Secure because isAdmin() now requires an admins/{email} doc.
+    // ─────────────────────────────────────────────────────────────
     match /{document=**} {
       allow read, write, delete: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Admin registry. Keyed by lowercased admin email.
+    // Only existing admins can manage the registry; a user can read
+    // their own entry (to confirm admin status).
+    // ─────────────────────────────────────────────────────────────
+    match /admins/{email} {
+      allow get: if isAuthenticated() && request.auth.token.email != null && request.auth.token.email.lower() == email;
+      allow list: if false;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Admin config (display lists). Readable by authenticated users,
+    // writable by admins only. NOTE: rules enforce authorization via
+    // /admins/{email}; config/admin.adminEmails is informational only.
+    match /config/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
     // Users: public browse profile — contact PII lives in privateUserData
     match /users/{userId} {
       allow read: if true;
       allow create: if (isOwner(userId) && trustFieldsSafeOnCreate()) || isAdmin();
-      allow update: if (isOwner(userId) && trustFieldsUnchanged()) || isAdmin();
+      allow update: if isAdmin() || (
+        isOwner(userId)
+        && trustFieldsUnchanged()
+        && statusUnchanged()
+        && onboardingFlipValid()
+      );
       allow delete: if isOwner(userId) || isAdmin();
     }
 
@@ -45,30 +120,117 @@ service cloud.firestore {
       allow read, write: if isOwner(userId) || isAdmin();
     }
 
-    // Listings: public read access so visitors can browse room listings
+    // Listings: public read access so visitors can browse room listings.
+    // Creation requires an active, onboarded owner and self-owned ownerId.
+    // Sprint 2A: status is restricted to the known lifecycle values and
+    // suspended/banned owners cannot modify their listings. Availability
+    // confirmation (`lastConfirmedAt`) may only be set by the owner or an
+    // admin — seekers can never confirm someone else's room.
+    function listingStatusValid() {
+      return request.resource.data.get('status', 'pending_verification')
+        in ['active', 'paused', 'filled', 'closed', 'pending_verification'];
+    }
+
+    // A new listing MUST start with ownerVerified=false and status=pending_verification.
+    // Owners cannot self-grant ownerVerified=true — only admin approval can set it.
+    function newListingFieldsSafe() {
+      return (!('ownerVerified' in request.resource.data) || request.resource.data.ownerVerified == false)
+        && request.resource.data.get('status', 'pending_verification')
+             in ['pending_verification', 'paused'];
+    }
+
+    // An owner update cannot set status→'active' unless ownerVerified is already true.
+    // This prevents a direct Firestore write bypass by a non-admin unverified owner.
+    function listingStatusUpdateSafe() {
+      // Allow any status change if listing is already ownerVerified
+      return resource.data.get('ownerVerified', false) == true
+        // Allow setting status to non-active values regardless of ownerVerified
+        || request.resource.data.get('status', '') != 'active'
+        // Allow if ownerVerified is not being changed and status is not active
+        || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status'])
+        // Never allow status→active for unverified owners (admin path below covers that)
+        || false;
+    }
+
+    // ownerVerified can only be set by admin (enforced below).
+    // An owner update must never change ownerVerified.
+    function ownerVerifiedUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerVerified']);
+    }
+
     match /listings/{listingId} {
       allow read: if true;
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated()
+        && isActiveUser()
+        && request.resource.data.ownerId == request.auth.uid
+        && listingStatusValid()
+        && newListingFieldsSafe();
       allow update: if isAuthenticated() && (
-        request.auth.uid == resource.data.ownerId ||
+        // View count increments — no auth check needed beyond authenticated
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'updatedAt']) ||
-        isAdmin()
+        // Admin can do anything
+        isAdmin() ||
+        // Owner update: must own listing, must not modify ownerVerified,
+        // and must not set status→active on an unverified listing
+        (
+          isActiveUser()
+          && request.auth.uid == resource.data.ownerId
+          && listingStatusValid()
+          && ownerVerifiedUnchanged()
+          && listingStatusUpdateSafe()
+        )
       );
       allow delete: if isAuthenticated() && (request.auth.uid == resource.data.ownerId || isAdmin());
     }
 
-    // Connections: only the participants or admin can read/write
+    // Connections: participants or admin.
+    // - Sender creates pending requests only (and must be an active user).
+    // - Accept/reject decisions belong to the RECIPIENT (no self-accept).
+    // - Either participant may block.
+    // - Sender withdraws via delete.
+    // Sprint 3C — Listing attribution: a connection MAY carry an optional
+    // `listingId` recording which listing the interest originated from.
+    // Enforcement boundary: if listingId is present it MUST reference an
+    // existing listing OWNED BY THE RECIPIENT. A client therefore cannot
+    // claim another owner's listing on its own connection.
+    // Sprint FINAL — an attributed connection may only target a listing that
+    // is still ACTIVE in the lifecycle sense (not closed/paused/filled).
+    // Staleness (time-based freshness) cannot be expressed here without the
+    // lastConfirmedAt→updatedAt→createdAt fallback chain duplicating client
+    // policy; staleness is enforced by the client guard (isDiscoverable) and
+    // documented as a known limitation.
+    function connectionListingAttributionValid() {
+      return !('listingId' in request.resource.data) || (
+        request.resource.data.listingId is string
+        && request.resource.data.listingId.size() > 0
+        && request.resource.data.listingId.size() <= 128
+        && exists(/databases/$(database)/documents/listings/$(request.resource.data.listingId))
+        && get(/databases/$(database)/documents/listings/$(request.resource.data.listingId)).data.ownerId
+            == request.resource.data.toUserId
+        && get(/databases/$(database)/documents/listings/$(request.resource.data.listingId)).data.get('status', 'active') == 'active'
+      );
+    }
+
     match /connections/{connectionId} {
       allow read: if isAuthenticated() && (
         request.auth.uid == resource.data.fromUserId ||
         request.auth.uid == resource.data.toUserId ||
         isAdmin()
       );
-      allow create: if isAuthenticated() && (request.resource.data.fromUserId == request.auth.uid || isAdmin());
-      allow update: if isAuthenticated() && (
-        request.auth.uid == resource.data.fromUserId ||
-        request.auth.uid == resource.data.toUserId ||
-        isAdmin()
+      allow create: if isAuthenticated()
+        && isActiveUser()
+        && request.resource.data.fromUserId == request.auth.uid
+        && request.resource.data.toUserId != request.auth.uid
+        && request.resource.data.status == 'pending'
+        && connectionListingAttributionValid();
+      allow update: if isAdmin() || (
+        isAuthenticated()
+        && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && (
+          request.resource.data.status == 'blocked'
+          || (request.auth.uid == resource.data.toUserId && request.resource.data.status in ['accepted', 'rejected'])
+        )
       );
       allow delete: if isAuthenticated() && (
         request.auth.uid == resource.data.fromUserId ||
@@ -77,17 +239,24 @@ service cloud.firestore {
       );
     }
 
-    // Chat rooms: only participants or admin can read/write
+    // Chat rooms: only participants or admin can read/write.
+    // Creation requires exactly two participants including the caller,
+    // and an active (non-suspended) creator.
     match /chatRooms/{roomId} {
       allow read: if isAuthenticated() && (request.auth.uid in resource.data.participants || isAdmin());
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated()
+        && isActiveUser()
+        && request.resource.data.participants.size() == 2
+        && request.auth.uid in request.resource.data.participants;
       allow update: if isAuthenticated() && (request.auth.uid in resource.data.participants || isAdmin());
       allow delete: if isAuthenticated() && (request.auth.uid in resource.data.participants || isAdmin());
 
       // Messages subcollection
       match /messages/{messageId} {
         allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants || isAdmin());
-        allow create: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants || isAdmin());
+        allow create: if isAuthenticated()
+          && isActiveUser()
+          && (request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants || isAdmin());
         // Participants may mark read; sender may edit own message content; admins unrestricted
         allow update: if isAdmin() || (
           isAuthenticated()
@@ -109,10 +278,15 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
     }
 
-    // Listing views analytics: anyone authenticated can read/write
+    // Listing views analytics: authenticated users may record views only.
+    // Field-restricted to prevent analytics tampering.
     match /listingViews/{docId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow create: if isAuthenticated()
+        && request.resource.data.keys().hasOnly(['listingId', 'date', 'count'])
+        && request.resource.data.count == 1;
+      allow update: if isAuthenticated()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count']);
     }
 
     // Ratings: authenticated users can read all; only create (no update/delete to prevent tampering)
@@ -121,19 +295,35 @@ service cloud.firestore {
       allow create: if isAuthenticated();
     }
 
-    // Reviews (Vouches)
+    // Reviews (Vouches). Sprint 2B integrity:
+    //   - reviewer identity bound to the auth token (no spoofing)
+    //   - no self-reviews
+    //   - rating must be an integer 1..5; optional text capped at 1000 chars
+    // Duplicate prevention remains client-side (rules cannot query); abuse is
+    // handled via the report/moderation flow.
     match /reviews/{reviewId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (request.auth.uid == resource.data.reviewerId || isAdmin());
-      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.reviewerId || isAdmin());
+      allow create: if isAuthenticated()
+        && request.resource.data.reviewerId == request.auth.uid
+        && request.resource.data.targetUserId is string
+        && request.resource.data.targetUserId.size() > 0
+        && request.resource.data.targetUserId != request.auth.uid
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && (!('text' in request.resource.data) || (request.resource.data.text is string && request.resource.data.text.size() <= 1000));
+      allow update: if isAdmin()
+        || (isAuthenticated() && request.auth.uid == resource.data.reviewerId);
+      allow delete: if isAdmin()
+        || (isAuthenticated() && request.auth.uid == resource.data.reviewerId);
     }
 
-    // Skipped users (legacy)
+    // Skipped users: append-only, bound to the caller
     match /skippedUsers/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
     }
-    
+
     // Agreement OTPs
     match /agreementOTPs/{agreementId} {
       allow read: if isAuthenticated();
@@ -155,17 +345,96 @@ service cloud.firestore {
       );
     }
 
-    // Verifications (User ID Verification uploads)
+    // Verifications (User ID Verification uploads) — legacy document-style verifications
     match /verifications/{verificationId} {
       allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
-    
+
+    // Owner Identity Verifications — the authoritative verification state machine.
+    // Each document is keyed by the owner's UID.
+    // SECURITY CRITICAL:
+    //   - Owners may read their own document and create/update when submitting.
+    //   - Only ADMINS may set status→APPROVED/REJECTED/UNDER_REVIEW/RESUBMISSION_REQUIRED.
+    //   - Only ADMINS may set ownerVerified on listings (enforced in listings rules above).
+    //   - Owners CANNOT self-approve. Even a direct Firestore write by the owner cannot
+    //     set status to APPROVED (the rule below rejects it).
+    function ownerVerificationStatusSafeForOwner() {
+      return request.resource.data.get('status', 'NOT_STARTED') in ['SUBMITTED', 'NOT_STARTED'];
+    }
+
+    match /ownerVerifications/{userId} {
+      // Owner reads own verification state; admin reads all
+      allow read: if isOwner(userId) || isAdmin();
+      // Owner can create their own submission record
+      allow create: if isOwner(userId)
+        && request.resource.data.userId == request.auth.uid
+        && ownerVerificationStatusSafeForOwner();
+      // Owner can update when submitting/resubmitting
+      // Admin can update to any state
+      allow update: if isAdmin() ||
+        (
+          isOwner(userId)
+          && (resource.data.status == 'REJECTED' || resource.data.status == 'RESUBMISSION_REQUIRED'
+              || resource.data.status == 'NOT_STARTED' || resource.data.status == 'SUBMITTED')
+          && ownerVerificationStatusSafeForOwner()
+        );
+      allow delete: if isAdmin();
+    }
+
+    // Reports: any ACTIVE authenticated user may file a report about
+    // someone else. Identity of the reporter is server-enforced from the
+    // auth token — it cannot be spoofed. Only admins can read or act on
+    // reports. Users can never modify or delete moderation records.
+    match /reports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated()
+        && isActiveUser()
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.targetId is string
+        && request.resource.data.targetId.size() > 0
+        && request.resource.data.targetId != request.auth.uid
+        && request.resource.data.reason in ['spam', 'spam_or_scam', 'harassment', 'inappropriate', 'inappropriate_behavior', 'fake', 'fake_profile', 'other']
+        && (!('description' in request.resource.data) || (request.resource.data.description is string && request.resource.data.description.size() <= 2000))
+        && request.resource.data.status == 'pending';
+      allow update, delete: if isAdmin();
+    }
+
     // Email Verifications (OTPs)
     match /emailOTPs/{userId} {
       allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Sprint 2D — Product analytics events.
+    //
+    // PRIVACY & SECURITY:
+    //  - Any ACTIVE authenticated user may CREATE an event, but only with
+    //    a whitelisted event name, their OWN uid as actorId, and small
+    //    optional fields. No free-text, no PII keys.
+    //  - Only ADMINS may read events or aggregates. Users can never read
+    //    anyone's behavioral history (not even their own), modify, or
+    //    delete events — analytics records are immutable audit data.
+    // ─────────────────────────────────────────────────────────────
+    function validAnalyticsEvent() {
+      return request.resource.data.name in [
+        'search_performed', 'listing_viewed', 'interest_sent', 'interest_accepted',
+        'interest_rejected', 'connection_created', 'chat_started', 'contact_shared',
+        'listing_created', 'listing_closed', 'availability_confirmed', 'match_explanation_viewed'
+      ]
+      && request.resource.data.actorId == request.auth.uid
+      && request.resource.data.actorId is string
+      && (!('entityId' in request.resource.data) || (request.resource.data.entityId is string && request.resource.data.entityId.size() <= 128))
+      && (!('city' in request.resource.data) || (request.resource.data.city is string && request.resource.data.city.size() > 0 && request.resource.data.city.size() <= 64))
+      && (!('resultCount' in request.resource.data) || (request.resource.data.resultCount is int && request.resource.data.resultCount >= 0));
+    }
+
+    match /analyticsEvents/{eventId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isActiveUser() && validAnalyticsEvent();
+      allow update, delete: if false; // immutable — admin cleanup via console/scripts only
     }
   }
 }

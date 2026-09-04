@@ -80,8 +80,13 @@ export default function LandingPage() {
 
   const handleHeroSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    // Sprint 4B (truth): the locality input is now actually applied as a
+    // filter. Previously it was collected but silently discarded, so a user
+    // searching "Koramangala" got city-wide results.
+    const locality = localityQuery.trim();
     useStore.getState().updateFilters({
       city: selectedCity,
+      localities: locality ? [locality] : [],
     });
     if (searchTab === 'rooms') {
       navigate('/explore?tab=rooms');
@@ -119,12 +124,12 @@ export default function LandingPage() {
   }, []);
 
   const popularCities = [
-    { name: 'Bengaluru', rooms: '3,200+ Rooms', image: 'https://images.unsplash.com/photo-1596176530529-78163a4f7af2?w=600&q=80' },
-    { name: 'Mumbai', rooms: '2,800+ Rooms', image: 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&q=80' },
-    { name: 'Delhi NCR', rooms: '2,400+ Rooms', image: 'https://images.unsplash.com/photo-1587474260584-136574528ed5?w=600&q=80' },
-    { name: 'Hyderabad', rooms: '1,900+ Rooms', image: 'https://images.unsplash.com/photo-1605007493699-af65834f8a00?w=600&q=80' },
-    { name: 'Pune', rooms: '1,500+ Rooms', image: 'https://images.unsplash.com/photo-1602941525421-8f8b81d3189e?w=600&q=80' },
-    { name: 'Chennai', rooms: '1,200+ Rooms', image: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?w=600&q=80' },
+    { name: 'Bengaluru', rooms: 'Explore rooms', image: 'https://images.unsplash.com/photo-1596176530529-78163a4f7af2?w=600&q=80' },
+    { name: 'Mumbai', rooms: 'Explore rooms', image: 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&q=80' },
+    { name: 'Delhi NCR', rooms: 'Explore rooms', image: 'https://images.unsplash.com/photo-1587474260584-136574528ed5?w=600&q=80' },
+    { name: 'Hyderabad', rooms: 'Explore rooms', image: 'https://images.unsplash.com/photo-1605007493699-af65834f8a00?w=600&q=80' },
+    { name: 'Pune', rooms: 'Explore rooms', image: 'https://images.unsplash.com/photo-1602941525421-8f8b81d3189e?w=600&q=80' },
+    { name: 'Chennai', rooms: 'Explore rooms', image: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?w=600&q=80' },
   ];
 
   return (
@@ -135,33 +140,34 @@ export default function LandingPage() {
         <div className="flex-1 flex flex-col justify-center px-4 sm:px-10 lg:px-16 xl:px-20 pt-8 sm:pt-12 lg:pt-16 pb-10 sm:pb-12">
           <div className="max-w-2xl">
             {/* Eyebrow Tag */}
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-fire/10 rounded-full mb-6 border border-fire/20 shadow-xs">
-              <Sparkles className="w-4 h-4 text-fire animate-pulse" />
-              <span className="text-xs sm:text-sm font-bold text-fire">India's #1 Roommate & Flat Finder Platform</span>
+            {/* Sprint 5B: eyebrow is quiet metadata — no pulsing decoration */}
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-fire/10 rounded-full mb-6 border border-fire/20">
+              <Sparkles className="w-3.5 h-3.5 text-fire" />
+              <span className="type-label">Roommate & Flat Finder Platform</span>
             </div>
 
-            {/* Headline */}
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-display italic leading-[1.1] mb-5 tracking-tight">
+            {/* Sprint 5B: serif display reserved for the single hero statement */}
+            <h1 className="type-display mb-5">
               Find compatible <span className="text-fire underline decoration-fire/30">flatmates</span>, rooms & PGs
             </h1>
 
             {/* Description */}
-            <p className="text-base sm:text-lg text-ink/70 mb-8 leading-relaxed">
-              NestMate matches you with compatible roommates based on lifestyle, sleep habits & budget. Verified profiles, zero brokerage, and safe in-app chat.
+            <p className="type-body-lg mb-8">
+              NestMate matches you with compatible roommates based on lifestyle, sleep habits & budget. Zero brokerage, consent-based contact, and transparent trust signals.
             </p>
 
-            {/* Premium Hero Search Box */}
-            <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-2xl border border-border/80 mb-8">
+            {/* Sprint 5B: search is a product control — hairline border, one
+                elevation level, radius from the ladder (no 3xl/shadow-2xl) */}
+            <div className="card-nestmate p-4 sm:p-5 mb-8">
               {/* Sleek SVG Vector Tabs */}
               <div className="flex items-center gap-2 p-1.5 bg-cream/70 rounded-2xl mb-4 w-full sm:w-fit border border-border/40">
                 <button
                   type="button"
                   onClick={() => setSearchTab('rooms')}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                    searchTab === 'rooms'
-                      ? 'bg-fire text-white shadow-md'
-                      : 'text-ink/60 hover:text-ink hover:bg-white/50'
-                  }`}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${searchTab === 'rooms'
+                    ? 'bg-fire text-white shadow-sm'
+                    : 'text-ink/60 hover:text-ink hover:bg-white/50'
+                    }`}
                 >
                   <Building2 className={`w-4 h-4 ${searchTab === 'rooms' ? 'text-white' : 'text-fire'}`} />
                   <span>Find Rooms & Flats</span>
@@ -169,11 +175,10 @@ export default function LandingPage() {
                 <button
                   type="button"
                   onClick={() => setSearchTab('seekers')}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                    searchTab === 'seekers'
-                      ? 'bg-fire text-white shadow-md'
-                      : 'text-ink/60 hover:text-ink hover:bg-white/50'
-                  }`}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${searchTab === 'seekers'
+                    ? 'bg-fire text-white shadow-sm'
+                    : 'text-ink/60 hover:text-ink hover:bg-white/50'
+                    }`}
                 >
                   <Users className={`w-4 h-4 ${searchTab === 'seekers' ? 'text-white' : 'text-navy'}`} />
                   <span>Find Flatmates</span>
@@ -211,7 +216,7 @@ export default function LandingPage() {
 
                 <button
                   type="submit"
-                  className="w-full sm:w-auto btn-fire px-6 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg sm:mt-5 transition-all"
+                  className="w-full sm:w-auto btn-fire px-6 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm sm:mt-5 transition-all"
                 >
                   <Search className="w-4 h-4" />
                   Search
@@ -257,22 +262,11 @@ export default function LandingPage() {
               </button>
             </div>
 
-            {/* Social Proof */}
-            <div className="flex items-start gap-3 min-w-0">
-              <div className="flex -space-x-2 shrink-0">
-                {[
-                  'https://api.dicebear.com/7.x/avataaars/svg?seed=Priya&backgroundColor=c0aede',
-                  'https://api.dicebear.com/7.x/avataaars/svg?seed=Arjun&backgroundColor=b6e3f4',
-                  'https://api.dicebear.com/7.x/avataaars/svg?seed=Divya&backgroundColor=ffd5dc',
-                  'https://api.dicebear.com/7.x/avataaars/svg?seed=Rohan&backgroundColor=d1f4e0',
-                ].map((src, i) => (
-                  <img key={i} src={src} alt="" className="w-9 h-9 rounded-full border-2 border-parchment object-cover" />
-                ))}
-              </div>
-              <p className="text-xs sm:text-sm text-ink/60 min-w-0 flex-1 leading-snug">
-                <span className="font-bold text-ink">12,400+</span>
-                <span className="sm:hidden"> verified matches across top cities</span>
-                <span className="hidden sm:inline"> verified room matches in Bengaluru, Mumbai & Delhi NCR</span>
+            {/* Trust line — no fabricated user avatars or counts */}
+            <div className="flex items-center gap-2 min-w-0">
+              <ShieldCheck className="w-4 h-4 text-teal shrink-0" aria-hidden />
+              <p className="text-xs sm:text-sm text-ink/60 leading-snug">
+                Real rooms with owner-confirmed availability, across India
               </p>
             </div>
           </div>
@@ -292,7 +286,7 @@ export default function LandingPage() {
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-navy/10 text-navy font-bold text-xs mb-3">
                 <MapPin className="w-3.5 h-3.5" /> Popular Destinations
               </div>
-              <h2 className="text-3xl sm:text-4xl font-display italic tracking-tight text-ink">
+              <h2 className="type-h1">
                 View Rooms in Popular Cities
               </h2>
             </div>
@@ -310,7 +304,7 @@ export default function LandingPage() {
               <div
                 key={city.name}
                 onClick={() => handleCityClick(city.name)}
-                className="group relative h-48 rounded-2xl overflow-hidden cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                className="group relative h-48 rounded-2xl overflow-hidden cursor-pointer shadow-xs hover:shadow-md transition-all duration-200"
               >
                 <img
                   src={city.image}
@@ -330,18 +324,18 @@ export default function LandingPage() {
       {/* Feature Banners Section (Inspired by Competitor Layout in image2.png) */}
       <section className="py-20 sm:py-28 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto space-y-16">
-          
+
           {/* Banner 1: Verified & Trusted Community */}
-          <div className="bg-white rounded-3xl p-8 sm:p-12 shadow-xl border border-border/80 flex flex-col md:flex-row items-center justify-between gap-8 overflow-hidden relative">
+          <div className="card-nestmate p-8 sm:p-12 flex flex-col md:flex-row items-center justify-between gap-8 overflow-hidden relative">
             <div className="max-w-xl z-10">
               <div className="w-12 h-12 bg-teal/10 rounded-2xl flex items-center justify-center mb-5">
                 <ShieldCheck className="w-6 h-6 text-teal" />
               </div>
-              <h2 className="text-2xl sm:text-3xl font-display italic text-ink mb-4 leading-tight">
-                Every profile is verified. Every connection is safe.
+              <h2 className="type-h2 mb-4">
+                Know what each profile has actually verified.
               </h2>
-              <p className="text-ink/70 text-sm sm:text-base leading-relaxed mb-6">
-                NestMate uses 3-tier verification — Phone, Work Email, and Government ID — to ensure every person you connect with is real, genuine, and trustworthy.
+              <p className="type-body-lg mb-6">
+                NestMate shows an honest trust ladder — phone verification at sign-in, plus optional admin-reviewed work email and government ID checks — so you can see exactly what each person has verified before you connect.
               </p>
               <button
                 onClick={() => navigate('/how-it-works')}
@@ -355,23 +349,23 @@ export default function LandingPage() {
                 <div className="w-10 h-10 bg-teal/10 rounded-full flex items-center justify-center mx-auto text-teal">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
-                <p className="text-xs font-bold text-ink">3-Tier Verified Profile</p>
-                <p className="text-[11px] text-ink/50">Phone · Work Email · Aadhaar</p>
-                <span className="inline-block px-3 py-1 bg-teal/10 text-teal text-[10px] font-bold rounded-full">100% Trusted</span>
+                <p className="text-xs font-bold text-ink">3-Step Trust Ladder</p>
+                <p className="text-[11px] text-ink/50">Phone · Work Email · Govt ID review</p>
+                <span className="inline-block px-3 py-1 bg-teal/10 text-teal text-[10px] font-bold rounded-full">Consent-based contact</span>
               </div>
             </div>
           </div>
 
           {/* Banner 2: Premium Properties & Zero Brokerage */}
           <div className="grid md:grid-cols-2 gap-8">
-            <div className="bg-gradient-to-br from-white to-cream rounded-3xl p-8 shadow-xl border border-border/80 flex flex-col justify-between">
+            <div className="card-nestmate p-8 flex flex-col justify-between">
               <div>
                 <div className="w-10 h-10 bg-fire/10 rounded-xl flex items-center justify-center mb-4">
                   <Building2 className="w-5 h-5 text-fire" />
                 </div>
-                <h3 className="text-xl sm:text-2xl font-display italic mb-3">Looking for Premium Properties?</h3>
-                <p className="text-ink/70 text-sm leading-relaxed mb-6">
-                  Explore verified 1BHK, 2BHK and luxury gated society rooms with modular kitchens, AC, gym, and 24/7 security.
+                <h3 className="type-h2 mb-3">Looking for Premium Properties?</h3>
+                <p className="type-body mb-6">
+                  Explore 1BHK, 2BHK and luxury gated society rooms with modular kitchens, AC, gym, and 24/7 security.
                 </p>
               </div>
               <button
@@ -382,14 +376,16 @@ export default function LandingPage() {
               </button>
             </div>
 
-            <div className="bg-gradient-to-br from-white to-cream rounded-3xl p-8 shadow-xl border border-border/80 flex flex-col justify-between">
+            <div className="card-nestmate p-8 flex flex-col justify-between">
               <div>
                 <div className="w-10 h-10 bg-navy/10 rounded-xl flex items-center justify-center mb-4">
                   <Award className="w-5 h-5 text-navy" />
                 </div>
-                <h3 className="text-xl sm:text-2xl font-display italic mb-3">Zero Brokerage Guarantee</h3>
-                <p className="text-ink/70 text-sm leading-relaxed mb-6">
-                  Save ₹10,000 to ₹30,000 on broker fees. Connect directly with owners and flatmates with transparent rent splits.
+                <h3 className="type-h2 mb-3">Zero Brokerage</h3>
+                {/* Sprint 4B (truth): no invented savings figures — actual savings
+                     depend on local broker rates, so we state the mechanism only. */}
+                <p className="type-body mb-6">
+                  No broker, no brokerage fee. Connect directly with owners and flatmates with transparent rent splits.
                 </p>
               </div>
               <button
@@ -408,8 +404,8 @@ export default function LandingPage() {
       <section id="how-it-works" className="py-20 sm:py-28 px-4 sm:px-6 bg-white border-t border-border/60">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-display italic mb-4">How It Works</h2>
-            <p className="text-ink/60 max-w-lg mx-auto">Three simple steps to find your perfect roommate match</p>
+            <h2 className="type-h1 mb-4">How It Works</h2>
+            <p className="type-body-lg max-w-lg mx-auto">Three simple steps to find your perfect roommate match</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
@@ -433,13 +429,13 @@ export default function LandingPage() {
                 desc: 'Chat safely in-app and share phone numbers only when both of you agree.',
               },
             ].map((item, i) => (
-              <div key={i} className="card-nestmate-hover p-8 text-center bg-parchment/40 border border-border/60 rounded-3xl">
-                <div className="w-16 h-16 mx-auto mb-6 bg-fire/10 rounded-2xl flex items-center justify-center">
-                  <item.icon className="w-7 h-7 text-fire" />
+              <div key={i} className="card-nestmate-hover p-8 text-center">
+                <div className="w-14 h-14 mx-auto mb-5 bg-fire/10 rounded-2xl flex items-center justify-center">
+                  <item.icon className="w-6 h-6 text-fire" />
                 </div>
-                <p className="text-xs font-bold text-fire mb-2">STEP {item.step}</p>
-                <h3 className="text-xl font-display italic mb-3">{item.title}</h3>
-                <p className="text-sm text-ink/60 leading-relaxed">{item.desc}</p>
+                <p className="type-label mb-2">Step {item.step}</p>
+                <h3 className="type-h3 mb-3">{item.title}</h3>
+                <p className="type-body">{item.desc}</p>
               </div>
             ))}
           </div>
@@ -450,8 +446,8 @@ export default function LandingPage() {
       <section id="features" className="py-20 sm:py-28 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-display italic mb-4">Everything You Need</h2>
-            <p className="text-ink/60 max-w-lg mx-auto">Tools designed for finding, sharing, and living together</p>
+            <h2 className="type-h1 mb-4">Everything You Need</h2>
+            <p className="type-body-lg max-w-lg mx-auto">Tools designed for finding, sharing, and living together</p>
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -463,63 +459,12 @@ export default function LandingPage() {
               { icon: Map, title: 'Map Discovery', desc: 'Explore listings on an interactive map across Chennai, Bengaluru, Hyderabad, Pune, Mumbai, and Delhi NCR.' },
               { icon: Zap, title: 'Smart Filters', desc: 'Narrow by gender, budget, furnishing, amenities, and verified-only profiles in seconds.' },
             ].map((feat, i) => (
-              <div key={i} className="card-nestmate-hover p-6 bg-white border border-border/70 rounded-2xl shadow-xs">
-                <div className="w-12 h-12 bg-fire/10 rounded-xl flex items-center justify-center mb-4">
-                  <feat.icon className="w-6 h-6 text-fire" />
+              <div key={i} className="card-nestmate-hover p-6">
+                <div className="w-11 h-11 bg-fire/10 rounded-xl flex items-center justify-center mb-4">
+                  <feat.icon className="w-5 h-5 text-fire" />
                 </div>
-                <h3 className="font-semibold text-lg mb-2">{feat.title}</h3>
-                <p className="text-sm text-ink/60 leading-relaxed">{feat.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="py-20 sm:py-28 px-4 sm:px-6 bg-white border-t border-border/60">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-display italic mb-4">Loved by Roommates</h2>
-            <p className="text-ink/60 max-w-lg mx-auto">Real stories from people who found their perfect match</p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              {
-                name: 'Ananya Krishnan',
-                city: 'Bengaluru',
-                avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&q=80',
-                quote: 'Found my flatmate in 3 days. The compatibility quiz actually works — we matched on sleep schedule, food habits, and work mode. Could not be happier!',
-                highlight: 'Found in 3 days',
-              },
-              {
-                name: 'Vikram Patel',
-                city: 'Chennai',
-                avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&q=80',
-                quote: 'I was paying ₹18,000 for a 1BHK alone. Now I pay ₹9,000 and share a much nicer 2BHK with someone I actually get along with.',
-                highlight: 'Saves ₹9,000/month',
-              },
-              {
-                name: 'Meera Joshi',
-                city: 'Hyderabad',
-                avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&q=80',
-                quote: 'As a woman moving to a new city, safety was my top concern. The verification badges and safe chat made me feel secure the whole time.',
-                highlight: 'Felt safe throughout',
-              },
-            ].map((t, i) => (
-              <div key={i} className="card-nestmate p-6 flex flex-col bg-parchment/30 border border-border/60 rounded-2xl">
-                <div className="flex items-center gap-3 mb-4">
-                  <img src={t.avatar} alt={t.name} className="w-12 h-12 rounded-full object-cover border-2 border-fire/20" />
-                  <div>
-                    <h4 className="font-semibold text-sm">{t.name}</h4>
-                    <p className="text-xs text-ink/50">{t.city}</p>
-                  </div>
-                </div>
-                <div className="badge-fire mb-3 w-fit text-[11px] font-bold">{t.highlight}</div>
-                <p className="text-sm text-ink/70 leading-relaxed flex-1">"{t.quote}"</p>
-                <div className="flex gap-0.5 mt-4">
-                  {[1,2,3,4,5].map(s => <Star key={s} className="w-4 h-4 fill-gold text-gold" />)}
-                </div>
+                <h3 className="type-h3 mb-2">{feat.title}</h3>
+                <p className="type-body">{feat.desc}</p>
               </div>
             ))}
           </div>
@@ -530,8 +475,8 @@ export default function LandingPage() {
       <section id="pricing" className="py-20 sm:py-28 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-display italic mb-4">Simple Pricing</h2>
-            <p className="text-ink/60 max-w-lg mx-auto">Start free, upgrade when you are ready</p>
+            <h2 className="type-h1 mb-4">Simple Pricing</h2>
+            <p className="type-body-lg max-w-lg mx-auto">Start free, upgrade when you are ready</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
@@ -545,7 +490,9 @@ export default function LandingPage() {
                 </div>
               </div>
               <ul className="space-y-3 mb-8 flex-1">
-                {['5 connect requests/month', 'View all matches', '1 active listing', 'Basic chat', 'Trust badges'].map(f => (
+                {/* Sprint 4C (truth): connects are unlimited during beta — no
+                    enforcement exists, and this must match PricingPage. */}
+                {['Unlimited connects (beta)', 'View all matches', '1 active listing', 'Basic chat', 'Trust badges'].map(f => (
                   <li key={f} className="flex items-center gap-2 text-sm text-ink/70">
                     <Check className="w-4 h-4 text-teal flex-shrink-0" />
                     {f}
@@ -556,7 +503,7 @@ export default function LandingPage() {
             </div>
 
             {/* Premium - Highlighted */}
-            <div className="relative card-nestmate p-6 flex flex-col bg-white rounded-2xl border-2 border-fire shadow-xl">
+            <div className="relative card-nestmate p-6 flex flex-col border-2 border-fire">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                 <span className="bg-fire text-white text-xs font-bold px-3.5 py-1 rounded-full shadow-sm">Most Popular</span>
               </div>
@@ -569,14 +516,18 @@ export default function LandingPage() {
                 <p className="text-xs text-ink/50 mt-1">Or ₹2,499/year (Save 30%)</p>
               </div>
               <ul className="space-y-3 mb-8 flex-1">
-                {['Unlimited connects', 'See who viewed your profile', 'Priority placement', 'Map discovery', 'Profile boost', 'Multiple listings'].map(f => (
+                {/* Sprint 4C (truth): unbuilt premium features are disclosed,
+                    not sold as available today. */}
+                {['Everything in Free', 'Map discovery', 'Multiple listings', 'See who viewed your profile (coming soon)', 'Priority placement (coming soon)', 'Profile boost (coming soon)'].map(f => (
                   <li key={f} className="flex items-center gap-2 text-sm text-ink/70">
                     <Check className="w-4 h-4 text-fire flex-shrink-0" />
                     {f}
                   </li>
                 ))}
               </ul>
-              <button onClick={() => navigate('/login')} className="btn-fire w-full text-sm font-bold shadow-md">Upgrade to Premium</button>
+              {/* Sprint 4C (truth): Premium is not purchasable yet — CTA is an
+                  honest waitlist action, not a purchase promise. */}
+              <button onClick={() => navigate('/login')} className="btn-outline w-full text-sm font-bold">Premium — Coming Soon</button>
             </div>
 
             {/* Corporate */}
@@ -596,7 +547,8 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <button className="btn-navy w-full text-sm font-bold">Talk to Sales</button>
+              {/* Sprint 4C (truth): dead button replaced with a real mailto link. */}
+              <a href="mailto:hello@nestmate.in?subject=Corporate%20Plan%20Inquiry" className="btn-navy w-full text-sm font-bold flex items-center justify-center">Email Sales</a>
             </div>
           </div>
         </div>
@@ -604,14 +556,16 @@ export default function LandingPage() {
 
       {/* CTA Banner */}
       <section className="py-20 px-4 sm:px-6">
-        <div className="max-w-4xl mx-auto gradient-dark rounded-[24px] p-10 sm:p-16 text-center shadow-2xl relative overflow-hidden">
-          <h2 className="text-3xl sm:text-4xl font-display italic text-white mb-4">
+        {/* Sprint 5B: final CTA is an editorial moment — display face allowed,
+             but no decorative mega-shadow on a flat banner */}
+        <div className="max-w-4xl mx-auto gradient-dark rounded-2xl p-10 sm:p-16 text-center relative overflow-hidden">
+          <h2 className="type-display text-white mb-4">
             Start finding your roommate today
           </h2>
-          <p className="text-white/70 mb-8 max-w-md mx-auto text-sm sm:text-base">
-            Join 12,000+ people who found their perfect living situation through NestMate
+          <p className="text-white/70 mb-8 max-w-md mx-auto type-body-lg">
+            Find your perfect living situation through NestMate
           </p>
-          <button onClick={() => navigate('/login')} className="btn-fire text-base font-bold px-8 py-3.5 rounded-xl shadow-lg">
+          <button onClick={() => navigate('/login')} className="btn-fire text-base font-bold px-8 py-3.5 rounded-xl shadow-sm">
             Get Started — It's Free
           </button>
         </div>
@@ -626,14 +580,14 @@ export default function LandingPage() {
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-8 h-8 rounded-lg gradient-fire flex items-center justify-center">
                   <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor">
-                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zM7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 2.88-2.88 7.19-5 9.88C9.92 16.21 7 11.85 7 9z"/>
-                    <circle cx="12" cy="9" r="2.5"/>
+                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zM7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 2.88-2.88 7.19-5 9.88C9.92 16.21 7 11.85 7 9z" />
+                    <circle cx="12" cy="9" r="2.5" />
                   </svg>
                 </div>
                 <span className="text-lg font-bold text-ink">NestMate</span>
               </div>
               <p className="text-sm text-ink/50 max-w-xs">
-                India's first people-first roommate matching platform. Find compatible roommates, not just empty rooms.
+                A people-first roommate matching platform. Find compatible roommates, not just empty rooms.
               </p>
             </div>
 
@@ -652,8 +606,8 @@ export default function LandingPage() {
               <h4 className="font-bold text-sm mb-4">Company</h4>
               <ul className="space-y-2">
                 <li><Link to="/about" className="text-sm text-ink/50 hover:text-ink transition-colors">About Us</Link></li>
-                <li><a href="mailto:hello@nestmate.in" className="text-sm text-ink/50 hover:text-ink transition-colors">Blog</a></li>
-                <li><a href="mailto:hello@nestmate.in" className="text-sm text-ink/50 hover:text-ink transition-colors">Careers</a></li>
+                {/* Sprint 4C (truth): Blog/Careers pages do not exist — placeholder
+                    links removed rather than faked. */}
               </ul>
             </div>
 
@@ -663,7 +617,8 @@ export default function LandingPage() {
               <ul className="space-y-2">
                 <li><Link to="/privacy" className="text-sm text-ink/50 hover:text-ink transition-colors">Privacy Policy</Link></li>
                 <li><Link to="/terms" className="text-sm text-ink/50 hover:text-ink transition-colors">Terms of Service</Link></li>
-                <li><Link to="/privacy" className="text-sm text-ink/50 hover:text-ink transition-colors">Cookie Policy</Link></li>
+                {/* Sprint 4C (truth): no Cookie Policy page exists; linking it to
+                    Privacy was misleading — removed. */}
               </ul>
             </div>
           </div>

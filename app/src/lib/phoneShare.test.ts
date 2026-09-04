@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assignSharedPhones } from '@/lib/phoneShare';
+import { assignSharedPhones } from './phoneShare';
 
 describe('assignSharedPhones', () => {
   it('maps owner requester correctly', () => {

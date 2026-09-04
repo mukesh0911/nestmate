@@ -10,6 +10,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { validateReview } from '@/lib/reviewValidation';
 
 export interface Review {
   id: string;
@@ -55,8 +56,12 @@ export function useReviews() {
       rating: number,
       text: string
     ) => {
-      if (reviewerId === targetUserId) {
-        throw new Error('You cannot review your own profile.');
+      // Sprint 2B: authoritative validation mirroring Firestore rules —
+      // reviewer identity must match the signed-in user, no self-reviews,
+      // rating 1..5, capped text.
+      const check = validateReview({ reviewerId, targetUserId, rating, text }, reviewerId);
+      if (!check.ok) {
+        throw new Error(check.reason);
       }
 
       // Check if user has already reviewed this target
@@ -85,7 +90,7 @@ export function useReviews() {
           text,
           createdAt: serverTimestamp(),
         });
-        
+
         const newReview: Review = {
           id: ref.id,
           targetUserId,
@@ -96,7 +101,7 @@ export function useReviews() {
           text,
           createdAt: Timestamp.now(),
         };
-        
+
         setReviews(prev => [newReview, ...prev.filter(r => r.reviewerId !== reviewerId)]);
         return ref.id;
       } catch (err) {

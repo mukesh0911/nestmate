@@ -10,7 +10,7 @@ const translations: Record<string, Record<string, string>> = {
     notifications: 'Notifications',
 
     findRoommate: 'Find Your Perfect Roommate',
-    tagline: 'Connect with verified roommates and owners in India.',
+    tagline: 'Connect with roommates and owners across India.',
     verified: 'Verified',
     exploreMatches: 'Explore Matches',
     lifestyles: 'Lifestyles',
@@ -32,7 +32,7 @@ const translations: Record<string, Record<string, string>> = {
     notifications: 'सूचनाएं',
 
     findRoommate: 'अपना आदर्श रूममेट ढूंढें',
-    tagline: 'भारत में सत्यापित रूममेट्स और मालिकों से जुड़ें।',
+    tagline: 'भारत में अनुकूल रूममेट्स और मालिकों से जुड़ें।',
     verified: 'सत्यापित',
     exploreMatches: 'मैच खोजें',
     lifestyles: 'जीवन शैली',
@@ -54,7 +54,7 @@ const translations: Record<string, Record<string, string>> = {
     notifications: 'அறிவிப்புகள்',
 
     findRoommate: 'உங்கள் சிறந்த அறை தோழரைக் கண்டறியவும்',
-    tagline: 'இந்தியாவில் சரிபார்க்கப்பட்ட அறை தோழர்கள் மற்றும் உரிமையாளர்களுடன் இணையுங்கள்.',
+    tagline: 'இந்தியாவில் பொருத்தமான அறை தோழர்கள் மற்றும் உரிமையாளர்களுடன் இணையுங்கள்.',
     verified: 'சரிபார்க்கப்பட்டது',
     exploreMatches: 'பொருத்தங்களை ஆராயுங்கள்',
     lifestyles: 'வாழ்க்கை முறைகள்',
@@ -76,7 +76,7 @@ const translations: Record<string, Record<string, string>> = {
     notifications: 'నోటిఫికేషన్‌లు',
 
     findRoommate: 'మీ పరిపూర్ణ రూమ్‌మేట్‌ను కనుగొనండి',
-    tagline: 'భారతదేశంలో ధృవీకరించబడిన రూమ్‌మేట్స్ మరియు యజమానులతో కనెక్ట్ అవ్వండి.',
+    tagline: 'భారతదేశంలో సరిపోయే రూమ్‌మేట్స్ మరియు యజమానులతో కనెక్ట్ అవ్వండి.',
     verified: 'ధృవీకరించబడింది',
     exploreMatches: 'పొంతనలను అన్వేషించండి',
     lifestyles: 'జీవనశైలి',

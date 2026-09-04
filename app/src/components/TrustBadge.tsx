@@ -4,8 +4,8 @@
  * Tiers:
  *   Bronze       — Phone verified (every user starts here)
  *   Silver       — Profile ≥60% complete (photo + bio + profession)
- *   Gold         — Work email or LinkedIn verified
- *   Verified Pro — Aadhaar / Government ID verified
+ *   Gold         — Work email verified (admin-reviewed)
+ *   Verified Pro — Government ID verified via NestMate document review
  *
  * Usage: <TrustBadge profile={profile} size="sm" showLabel />
  */
@@ -34,7 +34,19 @@ interface TrustStep {
 
 // ─── Trust computation ────────────────────────────────────────────────────────
 
-export function computeTrustScore(profile: UserProfile | null): TrustScore {
+/**
+ * Compute the trust ladder.
+ *
+ * @param profile        Firestore user document
+ * @param authProviders  Firebase Auth provider IDs for the signed-in user
+ *                       (e.g. ['phone'], ['google.com']). Phone verification is
+ *                       REAL only when the user authenticated via phone OTP —
+ *                       Google/email signups have NOT verified any phone.
+ */
+export function computeTrustScore(
+  profile: UserProfile | null,
+  authProviders: string[] = []
+): TrustScore {
   if (!profile) {
     return { tier: 'bronze', score: 0, label: 'Bronze', steps: [] };
   }
@@ -43,15 +55,15 @@ export function computeTrustScore(profile: UserProfile | null): TrustScore {
     {
       id: 'phone',
       label: 'Phone Verified',
-      description: 'Your phone number is verified via OTP',
-      done: true,           // Every signed-in user has phone verified
+      description: 'Your phone number was verified via OTP at sign-in',
+      done: authProviders.includes('phone'),
       points: 20,
     },
     {
       id: 'photo',
       label: 'Profile Photo',
       description: 'Add a real photo so people can recognise you',
-      done: !!profile.avatar && !profile.avatar.includes('dicebear'),
+      done: typeof profile.avatar === 'string' && profile.avatar.length > 0 && !profile.avatar.includes('dicebear'),
       points: 15,
     },
     {
@@ -72,7 +84,7 @@ export function computeTrustScore(profile: UserProfile | null): TrustScore {
       id: 'quiz',
       label: 'Compatibility Quiz',
       description: 'Complete the 10-question lifestyle quiz',
-      done: Object.keys(profile.quizAnswers || {}).length >= 5,
+      done: !!profile.quizAnswers && typeof profile.quizAnswers === 'object' && !Array.isArray(profile.quizAnswers) && Object.keys(profile.quizAnswers).length >= 5,
       points: 15,
     },
     {
@@ -85,7 +97,7 @@ export function computeTrustScore(profile: UserProfile | null): TrustScore {
     {
       id: 'aadhaar',
       label: 'Government ID Verified',
-      description: 'Verify your Aadhaar or government-issued ID',
+      description: 'Upload a government ID — reviewed by the NestMate team',
       done: !!profile.isVerified,
       points: 15,
     },
@@ -149,6 +161,8 @@ const TIER_CONFIG: Record<TrustTier, {
 
 interface TrustBadgeProps {
   profile: UserProfile | null;
+  /** Auth provider IDs (e.g. ['phone'], ['google.com']) for truthful phone signal */
+  authProviders?: string[];
   size?: 'xs' | 'sm' | 'md' | 'lg';
   showLabel?: boolean;
   showTooltip?: boolean;   // open breakdown panel on click
@@ -159,13 +173,14 @@ interface TrustBadgeProps {
 
 export default function TrustBadge({
   profile,
+  authProviders,
   size = 'sm',
   showLabel = false,
   showTooltip = false,
   className = '',
 }: TrustBadgeProps) {
   const [open, setOpen] = useState(false);
-  const trust = computeTrustScore(profile);
+  const trust = computeTrustScore(profile, authProviders);
   const cfg = TIER_CONFIG[trust.tier];
 
   const sizeMap = {
@@ -225,7 +240,7 @@ function TrustBreakdownPanel({
   const nextTierMap: Record<TrustTier, string | null> = {
     bronze: 'Silver — complete your profile to 55 points',
     silver: 'Gold — verify your work or college email',
-    gold: 'Verified Pro — verify your Aadhaar ID',
+    gold: 'Verified Pro — get your government ID reviewed by NestMate',
     pro: null,
   };
 
@@ -266,11 +281,10 @@ function TrustBreakdownPanel({
             </div>
             <div className="h-2 bg-cream rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all duration-700 ${
-                  trust.tier === 'pro' ? 'bg-teal' :
+                className={`h-full rounded-full transition-all duration-700 ${trust.tier === 'pro' ? 'bg-teal' :
                   trust.tier === 'gold' ? 'bg-yellow-400' :
-                  trust.tier === 'silver' ? 'bg-slate-400' : 'bg-amber-400'
-                }`}
+                    trust.tier === 'silver' ? 'bg-slate-400' : 'bg-amber-400'
+                  }`}
                 style={{ width: `${trust.score}%` }}
               />
             </div>
@@ -281,13 +295,11 @@ function TrustBreakdownPanel({
             {trust.steps.map(step => (
               <div
                 key={step.id}
-                className={`flex items-start gap-2.5 p-2.5 rounded-xl transition-colors ${
-                  step.done ? 'bg-teal/5' : 'bg-cream/50'
-                }`}
+                className={`flex items-start gap-2.5 p-2.5 rounded-xl transition-colors ${step.done ? 'bg-teal/5' : 'bg-cream/50'
+                  }`}
               >
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                  step.done ? 'bg-teal text-white' : 'bg-ink/10 text-ink/30'
-                }`}>
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${step.done ? 'bg-teal text-white' : 'bg-ink/10 text-ink/30'
+                  }`}>
                   {step.done ? (
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />

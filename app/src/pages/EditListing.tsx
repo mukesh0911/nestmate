@@ -6,13 +6,18 @@ import type { Listing } from '@/hooks/useListings';
 import { useStorage } from '@/hooks/useStorage';
 import { resolveEntityCoordinates } from '@/lib/locationResolver';
 import { cities, localitiesByCity, flatTypes, furnishingTypes, amenitiesList } from '@/lib/staticData';
-import { ArrowLeft, Save, Trash2, ToggleLeft, ToggleRight, Loader2, AlertTriangle, Upload, X, Image as ImageIcon, GripVertical } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, ToggleLeft, ToggleRight, Loader2, AlertTriangle, Upload, X, Image as ImageIcon, GripVertical, ShieldAlert } from 'lucide-react';
+import OwnerVerificationGate from '@/components/OwnerVerificationGate';
+import { subscribeToOwnerVerification, type OwnerVerification } from '@/lib/ownerVerification';
 
 export default function EditListing() {
   const { id } = useParams<{ id: string }>();
+  // Sprint 2E: id === 'new' means "create a listing" — an already-onboarded
+  // owner can publish directly without re-running the onboarding wizard.
+  const isNew = id === 'new';
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { getListingById, updateListing, deleteListing } = useListings();
+  const { getListingById, updateListing, deleteListing, createListing } = useListings();
   const { uploadListingImages } = useStorage();
 
   const [loading, setLoading] = useState(true);
@@ -20,6 +25,8 @@ export default function EditListing() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [ownerVerified, setOwnerVerified] = useState<boolean | undefined>(undefined);
+  const [ownerVerification, setOwnerVerification] = useState<OwnerVerification | null>(null);
 
   // Photo management state
   const [existingImages, setExistingImages] = useState<string[]>([]);
@@ -42,11 +49,21 @@ export default function EditListing() {
     availableFrom: '',
     genderPreference: 'any',
     amenities: [] as string[],
-    status: 'active' as 'active' | 'paused' | 'filled',
+    status: 'active' as 'active' | 'paused' | 'filled' | 'closed' | 'pending_verification',
   });
 
   useEffect(() => {
+    if (!user?.uid) return;
+    const unsub = subscribeToOwnerVerification(user.uid, setOwnerVerification);
+    return unsub;
+  }, [user?.uid]);
+
+  useEffect(() => {
     if (!id) return;
+    if (isNew) {
+      setLoading(false);
+      return;
+    }
     getListingById(id).then((listing) => {
       if (!listing) {
         setError('Listing not found');
@@ -73,46 +90,71 @@ export default function EditListing() {
         amenities: listing.amenities || [],
         status: listing.status || 'active',
       });
+      setOwnerVerified(listing.ownerVerified);
       setExistingImages(listing.images || []);
       setLoading(false);
     });
   }, [id, user?.uid]);
 
   const handleSave = async () => {
-    if (!id) return;
+    if (!id || !user?.uid) return;
+
+    // Sprint 2E: required-field validation before any write for new listings
+    if (isNew && (!form.title.trim() || !form.city || !form.locality || !(form.monthlyRent > 0))) {
+      setError('Please fill in title, city, locality and monthly rent.');
+      return;
+    }
+
     setSaving(true);
     setError('');
     try {
+      const { monthlyRent, ...restForm } = form;
+      const share = Math.round(monthlyRent / (form.partnersNeeded + 1));
+
+      // Create first so we have a real listing id for image uploads
+      let listingId = id;
+      if (isNew) {
+        listingId = await createListing(user.uid, {
+          ...restForm,
+          totalRent: monthlyRent,
+          partnerShare: share,
+          images: [],
+        } as any);
+      }
+
       let finalImages = [...existingImages];
 
       // Upload new photos if any
       if (newFiles.length > 0) {
         setIsUploading(true);
-        const uploadedUrls = await uploadListingImages(newFiles, id, (pct) => setUploadProgress(pct));
+        const uploadedUrls = await uploadListingImages(newFiles, listingId, (pct) => setUploadProgress(pct));
         finalImages = [...finalImages, ...uploadedUrls];
         setIsUploading(false);
       }
 
-      const { monthlyRent, ...restForm } = form;
-      const share = Math.round(monthlyRent / (form.partnersNeeded + 1));
-
       const coords = resolveEntityCoordinates({
-        id,
+        id: listingId,
         city: form.city,
         locality: form.locality,
       });
 
-      await updateListing(id, {
-        ...restForm,
+      // Security: unverified owner cannot update status to active
+      const isApproved = ownerVerified === true || ownerVerification?.status === 'APPROVED';
+      const safeStatus = !isApproved
+        ? (form.status === 'paused' ? 'paused' : 'pending_verification')
+        : form.status;
+
+      await updateListing(listingId, {
+        ...(isNew ? {} : { ...restForm, status: safeStatus }),
         totalRent: monthlyRent,
         partnerShare: share,
         images: finalImages,
         ...(coords && { lat: coords.lat, lng: coords.lng }),
       } as any);
-      setSuccess('Listing updated successfully!');
-      setTimeout(() => navigate('/owner-dashboard'), 1500);
+      setSuccess(isNew ? 'Listing created! Identity verification required before it goes live.' : 'Listing updated successfully!');
+      setTimeout(() => navigate('/owner-dashboard'), 1800);
     } catch (err: any) {
-      setError(err.message || 'Failed to update');
+      setError(err.message || 'Failed to save listing');
     } finally {
       setSaving(false);
       setIsUploading(false);
@@ -120,7 +162,7 @@ export default function EditListing() {
   };
 
   const handleDelete = async () => {
-    if (!id) return;
+    if (!id || isNew) return;
     setSaving(true);
     try {
       await deleteListing(id);
@@ -131,10 +173,14 @@ export default function EditListing() {
     }
   };
 
+  const isPendingVerification = form.status === 'pending_verification' || ownerVerified === false;
+
   const toggleStatus = async () => {
+    if (isPendingVerification) return;
     const next = form.status === 'active' ? 'paused' : 'active';
     setForm({ ...form, status: next });
-    if (id) {
+    // Never write to the placeholder 'new' id — status persists on save
+    if (id && !isNew) {
       await updateListing(id, { status: next } as any);
     }
   };
@@ -192,24 +238,38 @@ export default function EditListing() {
             <ArrowLeft className="w-4 h-4" /> Back to Dashboard
           </button>
           <div className="flex items-center gap-3">
-            <button
-              onClick={toggleStatus}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                form.status === 'active'
-                  ? 'bg-teal/10 text-teal border border-teal/20'
-                  : 'bg-ink/5 text-ink/50 border border-ink/10'
-              }`}
-            >
-              {form.status === 'active' ? (
-                <><ToggleRight className="w-5 h-5" /> Active</>
-              ) : (
-                <><ToggleLeft className="w-5 h-5" /> Paused</>
-              )}
-            </button>
+            {!isNew && (
+              <button
+                onClick={toggleStatus}
+                disabled={isPendingVerification}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                  isPendingVerification
+                    ? 'bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed opacity-80'
+                    : form.status === 'active'
+                      ? 'bg-teal/10 text-teal border border-teal/20'
+                      : 'bg-ink/5 text-ink/50 border border-ink/10'
+                }`}
+                title={isPendingVerification ? 'Listing is held pending identity verification' : undefined}
+              >
+                {isPendingVerification ? (
+                  <><ShieldAlert className="w-5 h-5 text-amber-500" /> Pending Verification</>
+                ) : form.status === 'active' ? (
+                  <><ToggleRight className="w-5 h-5" /> Active</>
+                ) : (
+                  <><ToggleLeft className="w-5 h-5" /> Paused</>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
-        <h1 className="text-2xl font-display italic mb-6">Edit Listing</h1>
+        <h1 className="type-h2 mb-6">{isNew ? 'Add Property' : 'Edit Listing'}</h1>
+
+        {isPendingVerification && ownerVerification?.status !== 'APPROVED' && (
+          <div className="mb-6">
+            <OwnerVerificationGate listingTitle={form.title || 'Your Listing'} />
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-4 mb-4 text-sm">{error}</div>
@@ -400,9 +460,8 @@ export default function EditListing() {
                 <button
                   key={a}
                   onClick={() => toggleAmenity(a)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    form.amenities.includes(a) ? 'bg-fire text-white' : 'bg-cream/50 text-ink/60 hover:bg-fire/10'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${form.amenities.includes(a) ? 'bg-fire text-white' : 'bg-cream/50 text-ink/60 hover:bg-fire/10'
+                    }`}
                 >
                   {a}
                 </button>
@@ -416,9 +475,11 @@ export default function EditListing() {
               {saving || isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {isUploading ? `Uploading (${uploadProgress}%)...` : 'Save Changes'}
             </button>
-            <button onClick={() => setShowDeleteConfirm(true)} className="px-6 py-3 border-2 border-red-200 text-red-500 rounded-xl font-medium hover:bg-red-50 transition-all flex items-center gap-2">
-              <Trash2 className="w-4 h-4" /> Delete
-            </button>
+            {!isNew && (
+              <button onClick={() => setShowDeleteConfirm(true)} className="px-6 py-3 border-2 border-red-200 text-red-500 rounded-xl font-medium hover:bg-red-50 transition-all flex items-center gap-2">
+                <Trash2 className="w-4 h-4" /> Delete
+              </button>
+            )}
           </div>
         </div>
 

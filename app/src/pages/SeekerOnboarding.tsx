@@ -8,49 +8,52 @@ import { resolveEntityCoordinates } from '@/lib/locationResolver';
 import { useStorage } from '@/hooks/useStorage';
 import { useMatches } from '@/hooks/useMatches';
 import {
-  ArrowLeft, Camera, Loader2,
+  ArrowLeft, ArrowRight, Camera, Loader2,
   MapPin, Building2, User, Users, Calendar, Briefcase,
-  Phone, Home, Wallet, Sparkles, ShieldCheck, Moon, Sun, Utensils, Wind, Wine, Heart
+  Phone, Home, Wallet, Sparkles, ShieldCheck, Moon, MoonStar, Sun, Sunrise, Utensils, Wind, Wine, Heart,
+  CheckCircle2, Check, MessageCircle, Cigarette, Laptop, PawPrint,
+  Ban, Coffee, BedDouble, Salad, Drumstick, Leaf, Building, RefreshCw, PartyPopper, Smile, Frown, ThumbsUp
 } from 'lucide-react';
 
-// Question emoji map
-const QUESTION_ICONS: Record<string, string> = {
-  sleep_time: '🌙', wake_time: '☀️', food_pref: '🍽️', smoking: '🚭',
-  drinking: '🥂', guests: '🏠', cleanliness: '✨', work_mode: '💻',
-  pets: '🐾', roommate_gender: '👥',
+// Sprint 5A: functional question icons are Lucide components — no emoji in UI chrome
+const QUESTION_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  sleep_time: Moon, wake_time: Sun, food_pref: Utensils, smoking: Cigarette,
+  drinking: Wine, guests: Home, cleanliness: Sparkles, work_mode: Laptop,
+  pets: PawPrint, roommate_gender: Users,
 };
 
-const OPTION_ICONS: Record<string, string> = {
+// Sprint 6B: quiz option icons are Lucide components — no emoji in UI chrome
+const OPTION_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   // sleep_time
-  before_10: '🌙', '10_to_12': '😴', after_12: '🦉', varies: '🔄',
+  before_10: Moon, '10_to_12': MoonStar, after_12: Sparkles, varies: RefreshCw,
   // wake_time
-  before_6: '🌅', '6_to_8': '☕', '8_to_10': '🌤️', after_10: '🛌',
+  before_6: Sunrise, '6_to_8': Coffee, '8_to_10': Sun, after_10: BedDouble,
   // food_pref
-  veg: '🥗', non_veg: '🍗', vegan: '🌱',
+  veg: Salad, non_veg: Drumstick, vegan: Leaf,
   // smoking / drinking
-  never: '❌', outside: '💨', socially: '👯', regularly: '🚬', occasionally: '🥃',
+  never: Ban, outside: Wind, socially: Users, regularly: Cigarette, occasionally: Wine,
   // guests
-  rarely: '🏡', sometimes: '👫', often: '🎉', very_often: '🥳',
+  rarely: Home, sometimes: Users, often: PartyPopper, very_often: PartyPopper,
   // cleanliness
-  very: '🧹', somewhat: '😊', relaxed: '😌', messy: '😅',
+  very: Sparkles, somewhat: Smile, relaxed: Coffee, messy: Frown,
   // work_mode
-  wfo: '🏢', wfh: '🏠', hybrid: '🔄', flexible: '📅',
+  wfo: Building, wfh: Home, hybrid: RefreshCw, flexible: Calendar,
   // pets
-  love: '❤️', ok: '👍', no: '🚫', allergic: '🤧',
+  love: Heart, ok: ThumbsUp, no: Ban, allergic: Wind,
   // gender
-  any: '💫', female: '👩', male: '👨',
+  any: Users, female: User, male: User,
 };
 
-const getOptionIcon = (qId: string, optId: string) => {
-  if (qId === 'food_pref' && optId === 'no_pref') return '🍜';
-  if (qId === 'roommate_gender' && optId === 'no_pref') return '🤝';
-  return OPTION_ICONS[optId] || '✅';
+const getOptionIcon = (qId: string, optId: string): React.ComponentType<{ className?: string }> => {
+  if (qId === 'food_pref' && optId === 'no_pref') return Utensils;
+  if (qId === 'roommate_gender' && optId === 'no_pref') return Users;
+  return OPTION_ICONS[optId] || CheckCircle2;
 };
 
 const GENDER_OPTIONS = [
-  { id: 'female', label: 'Female', icon: '👩' },
-  { id: 'male', label: 'Male', icon: '👨' },
-  { id: 'other', label: 'Other / Prefer not to say', icon: '🤝' },
+  { id: 'female', label: 'Female', Icon: User },
+  { id: 'male', label: 'Male', Icon: User },
+  { id: 'other', label: 'Other / Prefer not to say', Icon: Users },
 ];
 
 const CITY_SVG_ICONS: Record<string, React.ReactNode> = {
@@ -182,16 +185,21 @@ export default function SeekerOnboarding() {
         localities,
       });
 
+      const parsedAge = parseInt(age, 10);
+      const safeAge = isNaN(parsedAge) ? 0 : parsedAge;
+      const parsedBudget = typeof budget === 'number' ? budget : parseInt(budget, 10);
+      const safeBudget = isNaN(parsedBudget) ? 10000 : parsedBudget;
+
       await updateProfile(user.uid, {
         name: name.trim(),
-        age: parseInt(age),
-        gender,
-        profession,
-        city,
-        localities,
-        budget,
-        moveInDate: moveIn,
-        quizAnswers,
+        age: safeAge,
+        gender: gender || '',
+        profession: profession || '',
+        city: city || '',
+        localities: localities || [],
+        budget: safeBudget,
+        moveInDate: moveIn || '',
+        quizAnswers: quizAnswers || {},
         onboardingComplete: true,
         role: 'seeker',
         ...(resolvedGeo && { geoLocation: { lat: resolvedGeo.lat, lng: resolvedGeo.lng, formattedAddress: `${localities?.[0] || city}, ${city}` } }),
@@ -199,7 +207,7 @@ export default function SeekerOnboarding() {
 
       if (avatarFile) {
         try {
-          const url = await uploadProfilePicture(avatarFile, user.uid, () => {});
+          const url = await uploadProfilePicture(avatarFile, user.uid, () => { });
           if (url) await updateProfile(user.uid, { avatar: url });
         } catch { /* non-blocking */ }
       }
@@ -228,17 +236,17 @@ export default function SeekerOnboarding() {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
           <div className="relative w-20 h-20">
-            <div className="w-20 h-20 rounded-full bg-fire/10 flex items-center justify-center animate-pulse">
-              <span className="text-4xl">🏠</span>
+            <div className="w-20 h-20 rounded-full bg-fire/10 flex items-center justify-center animate-pulse-dot">
+              <Home className="w-8 h-8 text-fire" />
             </div>
           </div>
           <div className="text-center">
-            <h2 className="text-2xl font-display italic mb-2">Finding your matches…</h2>
+            <h2 className="type-h2 mb-2">Finding your matches…</h2>
             <p className="text-ink/50 text-sm">Analysing lifestyle compatibility</p>
           </div>
           <div className="flex gap-1.5">
             {[0, 1, 2].map(i => (
-              <div key={i} className="w-2 h-2 rounded-full bg-fire animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+              <div key={i} className="w-2 h-2 rounded-full bg-fire animate-pulse-dot" style={{ animationDelay: `${i * 150}ms` }} />
             ))}
           </div>
         </div>
@@ -248,9 +256,11 @@ export default function SeekerOnboarding() {
     if (currentScreen === 'success') {
       return (
         <div className="flex flex-col items-center justify-center min-h-[70vh] gap-6 text-center px-4">
-          <div className="text-6xl animate-bounce">🎉</div>
+          <div className="w-20 h-20 rounded-full bg-teal/10 flex items-center justify-center animate-fade-up">
+            <CheckCircle2 className="w-10 h-10 text-teal" />
+          </div>
           <div>
-            <h2 className="text-3xl font-display italic mb-2">You're all set, {name.split(' ')[0]}!</h2>
+            <h2 className="type-h1 mb-2">You're all set, {name.split(' ')[0]}!</h2>
             <p className="text-ink/60 text-base mb-1">
               We found <span className="font-bold text-fire text-xl">{matchCount}</span> compatible roommates for you.
             </p>
@@ -260,16 +270,16 @@ export default function SeekerOnboarding() {
             {Object.entries(quizAnswers).slice(0, 5).map(([qId, ansId]) => {
               const q = quizQuestions.find(q => q.id === qId);
               const opt = q?.options.find(o => o.id === ansId);
-              const icon = getOptionIcon(qId, ansId);
+              const BadgeIcon = getOptionIcon(qId, ansId);
               return opt ? (
                 <span key={qId} className="badge-teal flex items-center gap-1">
-                  {icon} {opt.label}
+                  <BadgeIcon className="w-3 h-3" /> {opt.label}
                 </span>
               ) : null;
             })}
           </div>
           <button
-            onClick={() => { window.location.href = '/dashboard'; }}
+            onClick={() => navigate('/dashboard', { replace: true })}
             className="btn-fire text-base px-10 py-3.5 mt-2"
           >
             View My Matches →
@@ -280,8 +290,9 @@ export default function SeekerOnboarding() {
 
     // Photo screen
     if (currentScreen === 'photo') return (
+      // Sprint 6B truth fix: the "3× more connects" statistic was fabricated — no such measurement exists
       <Screen
-        emoji="📸" title="Add your photo" subtitle="Profiles with photos get 3× more connects"
+        emoji="📸" title="Add your photo" subtitle="A clear photo helps others recognize and trust you"
         onNext={() => next()} nextLabel="Continue" onBack={null}
         error={error}
       >
@@ -302,8 +313,8 @@ export default function SeekerOnboarding() {
           </label>
         </div>
         {!avatarPreview && (
-          <button onClick={() => go(1)} className="w-full text-sm text-ink/40 hover:text-ink/60 transition-colors py-2">
-            Skip for now →
+          <button onClick={() => go(1)} className="w-full text-sm text-ink/40 hover:text-ink/60 transition-colors py-2 flex items-center justify-center gap-1">
+            Skip for now <ArrowRight className="w-3.5 h-3.5" />
           </button>
         )}
       </Screen>
@@ -337,9 +348,12 @@ export default function SeekerOnboarding() {
           {GENDER_OPTIONS.map(opt => (
             <button key={opt.id} onClick={() => setGender(opt.id)}
               className={`w-full p-4 rounded-2xl border-2 text-left flex items-center gap-4 transition-all ${gender === opt.id ? 'border-fire bg-fire/5' : 'border-border bg-white hover:border-fire/30'}`}>
-              <span className="text-2xl">{opt.icon}</span>
+              {/* Sprint 6B: Lucide icon replaces emoji */}
+              <span className="w-10 h-10 rounded-xl bg-cream/70 flex items-center justify-center shrink-0 border border-border/60">
+                <opt.Icon className="w-5 h-5 text-fire" />
+              </span>
               <span className="font-medium">{opt.label}</span>
-              {gender === opt.id && <span className="ml-auto text-fire">✓</span>}
+              {gender === opt.id && <Check className="ml-auto w-4 h-4 text-fire shrink-0" />}
             </button>
           ))}
         </div>
@@ -390,7 +404,7 @@ export default function SeekerOnboarding() {
     // City screen
     if (currentScreen === 'city') return (
       <Screen
-        emoji="🏙️" title="Which city?" subtitle="We match you with verified room seekers in the same city"
+        emoji="🏙️" title="Which city?" subtitle="We match you with room seekers in the same city"
         onNext={() => next(() => !city ? 'Please select a city' : null)}
         onBack={() => go(-1)} error={error}
       >
@@ -401,29 +415,25 @@ export default function SeekerOnboarding() {
               <label
                 key={c}
                 onClick={() => { setCity(c); setLocalities([]); }}
-                className={`group relative bg-white border rounded-2xl p-4 flex items-center gap-4 cursor-pointer transition-all duration-200 ${
-                  isSelected
-                    ? 'border-brand-orange shadow-md bg-orange-50/20'
-                    : 'border-slate-100 hover:border-brand-orange hover:shadow-sm'
-                }`}
+                className={`group relative bg-white border rounded-2xl p-4 flex items-center gap-4 cursor-pointer transition-all duration-200 ${isSelected
+                  ? 'border-brand-orange shadow-md bg-orange-50/20'
+                  : 'border-slate-100 hover:border-brand-orange hover:shadow-sm'
+                  }`}
               >
-                <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
-                  isSelected ? 'bg-orange-100' : 'bg-orange-50 group-hover:bg-orange-100'
-                }`}>
+                <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${isSelected ? 'bg-orange-100' : 'bg-orange-50 group-hover:bg-orange-100'
+                  }`}>
                   {CITY_SVG_ICONS[c] || (
                     <svg className="w-7 h-7 stroke-brand-orange fill-none stroke-[1.5]" viewBox="0 0 24 24">
                       <path d="M4 22V6M20 22V6M4 10h16M2 22h20" />
                     </svg>
                   )}
                 </div>
-                <span className={`font-semibold text-lg transition-colors ${
-                  isSelected ? 'text-brand-orange font-bold' : 'text-slate-800 group-hover:text-brand-orange'
-                }`}>
+                <span className={`font-semibold text-lg transition-colors ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-800 group-hover:text-brand-orange'
+                  }`}>
                   {c}
                 </span>
-                <div className={`absolute inset-0 border-2 rounded-2xl pointer-events-none transition-all ${
-                  isSelected ? 'border-brand-orange' : 'border-transparent'
-                }`} />
+                <div className={`absolute inset-0 border-2 rounded-2xl pointer-events-none transition-all ${isSelected ? 'border-brand-orange' : 'border-transparent'
+                  }`} />
               </label>
             );
           })}
@@ -467,7 +477,8 @@ export default function SeekerOnboarding() {
       >
         <div className="mt-8 space-y-6">
           <div className="text-center">
-            <span className="text-5xl font-display italic text-fire">₹{budget.toLocaleString()}</span>
+            {/* Sprint 6B: functional numbers use the sans voice — no italic serif */}
+            <span className="text-5xl font-bold text-fire">₹{budget.toLocaleString()}</span>
             <span className="text-ink/40 text-sm ml-1">/month</span>
           </div>
           <input
@@ -532,35 +543,37 @@ export default function SeekerOnboarding() {
           <div className="text-center mb-8">
             <div className="relative inline-block mb-3">
               <div className="absolute inset-0 bg-fire/20 rounded-2xl blur-lg animate-pulse" />
-              <div className="w-16 h-16 relative bg-white/90 backdrop-blur-md rounded-2xl border border-fire/30 shadow-md flex items-center justify-center text-3xl transition-all duration-300 hover:scale-105">
-                <span className="drop-shadow-xs">{QUESTION_ICONS[q.id] || '💬'}</span>
+              <div className="w-16 h-16 bg-white rounded-2xl border border-border flex items-center justify-center transition-colors duration-200">
+                {(() => {
+                  const QIcon = QUESTION_ICONS[q.id] || MessageCircle;
+                  return <QIcon className="w-7 h-7 text-fire" />;
+                })()}
               </div>
             </div>
-            <h2 className="text-2xl font-display italic mb-2">{q.question}</h2>
+            <h2 className="type-h2 mb-2">{q.question}</h2>
             <p className="text-xs text-ink/50 bg-white/80 border border-border/60 px-3 py-1.5 rounded-full inline-block shadow-2xs">{q.why}</p>
           </div>
 
           <div className="space-y-3">
             {q.options.map(opt => {
-              const icon = getOptionIcon(q.id, opt.id);
+              const OptIcon = getOptionIcon(q.id, opt.id);
               const selected = answered === opt.id;
               return (
                 <button key={opt.id} onClick={() => {
-                    if (isLast) {
-                      setQuizAnswers(prev => ({ ...prev, [q.id]: opt.id }));
-                      handleFinish();
-                    } else {
-                      handleQuizAnswer(q.id, opt.id);
-                    }
-                  }}
-                  className={`w-full p-3.5 rounded-2xl border-2 text-left flex items-center gap-3.5 transition-all ${
-                    selected ? 'border-fire bg-fire/5 font-semibold text-fire shadow-xs' : 'border-border bg-white hover:border-fire/30'
-                  }`}>
-                  <span className="w-10 h-10 rounded-xl bg-cream/70 flex items-center justify-center text-xl shrink-0 border border-border/60 shadow-2xs">
-                    {icon}
+                  if (isLast) {
+                    setQuizAnswers(prev => ({ ...prev, [q.id]: opt.id }));
+                    handleFinish();
+                  } else {
+                    handleQuizAnswer(q.id, opt.id);
+                  }
+                }}
+                  className={`w-full p-3.5 rounded-2xl border-2 text-left flex items-center gap-3.5 transition-all ${selected ? 'border-fire bg-fire/5 font-semibold text-fire shadow-xs' : 'border-border bg-white hover:border-fire/30'
+                    }`}>
+                  <span className="w-10 h-10 rounded-xl bg-cream/70 flex items-center justify-center shrink-0 border border-border/60 shadow-2xs">
+                    <OptIcon className="w-5 h-5 text-fire" />
                   </span>
                   <span className="text-sm font-medium flex-1">{opt.label}</span>
-                  {selected && <div className="w-5 h-5 rounded-full bg-fire text-white flex items-center justify-center text-xs">✓</div>}
+                  {selected && <div className="w-5 h-5 rounded-full bg-fire text-white flex items-center justify-center"><Check className="w-3 h-3" /></div>}
                 </button>
               );
             })}
@@ -590,7 +603,7 @@ export default function SeekerOnboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FBF9F6] flex flex-col justify-between select-none">
+    <div className="min-h-screen bg-brand-bg flex flex-col justify-between select-none">
       {/* Top Progress & Header */}
       <div className="w-full bg-white border-b border-gray-100 sticky top-0 z-50">
         {/* Progress Bar */}
@@ -664,16 +677,17 @@ function Screen({
   return (
     <div className="animate-fade-up max-w-md mx-auto w-full">
       <div className="text-center mb-6">
-        {/* Glowing Soft Badge */}
-        <div className="w-20 h-20 bg-white rounded-3xl border border-orange-100 flex items-center justify-center shadow-[0_10px_35px_rgba(255,90,54,0.18)] mb-5 mx-auto transition-transform hover:scale-105">
+        {/* Step badge — Sprint 6B: restrained elevation, no decorative glow/scale */}
+        <div className="w-20 h-20 bg-white rounded-3xl border border-orange-100 flex items-center justify-center shadow-card mb-5 mx-auto">
           <IconComp className="w-9 h-9 text-brand-orange" />
         </div>
-        
+
         {/* Title */}
-        <h2 className="text-2xl sm:text-3xl font-serif italic text-slate-900 text-center tracking-tight mb-2 leading-snug">
+        {/* Sprint 5B: sans voice for ordinary headings */}
+        <h2 className="type-h2 text-slate-900 text-center mb-2">
           {title}
         </h2>
-        
+
         {/* Subtitle */}
         <p className="text-xs sm:text-sm text-slate-500 font-normal text-center max-w-sm mx-auto leading-relaxed">
           {subtitle}
@@ -692,10 +706,10 @@ function Screen({
       <button
         type="button"
         onClick={onNext}
-        className="w-full bg-[#ff5a36] hover:bg-orange-600 active:scale-[0.98] text-white font-bold text-sm sm:text-base py-4 rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-orange-500/25 transition-all cursor-pointer mt-6"
+        className="w-full bg-brand-orange hover:bg-orange-600 active:scale-[0.98] text-white font-bold text-sm sm:text-base py-4 rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-orange-500/25 transition-all cursor-pointer mt-6"
       >
         <span>{nextLabel}</span>
-        <span>→</span>
+        <ArrowRight className="w-4 h-4" />
       </button>
 
       {/* Back Link */}
@@ -705,7 +719,7 @@ function Screen({
           onClick={onBack}
           className="w-full mt-3 text-xs sm:text-sm font-semibold text-slate-400 hover:text-slate-700 flex items-center justify-center gap-1.5 py-2 transition-colors cursor-pointer"
         >
-          <span>← Back</span>
+          <ArrowLeft className="w-3.5 h-3.5" /> Back
         </button>
       )}
     </div>

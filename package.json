@@ -5,6 +5,8 @@
     "dev": "npm --prefix app run dev",
     "build": "npm --prefix app run build",
     "check": "npm --prefix app run check",
-    "test": "npm --prefix app run test"
+    "test": "npx -y vitest@4.1.11 run",
+    "test:rules": "cd app && npx -y firebase-tools emulators:exec --only firestore --project demo-nestmate \"node ../scripts/run-rules-tests.cjs\"",
+    "test:storage-rules": "cd app && npx -y firebase-tools emulators:exec --only storage --project demo-nestmate \"node ../scripts/run-storage-rules-tests.cjs\""
   }
 }

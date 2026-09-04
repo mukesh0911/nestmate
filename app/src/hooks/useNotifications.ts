@@ -62,7 +62,7 @@ export function useNotifications() {
               if (!newNotif.read) {
                 new Notification(newNotif.title, {
                   body: newNotif.description,
-                  icon: '/favicon.ico', // Placeholder for actual app icon
+                  icon: '/favicon.svg',
                 });
               }
             }

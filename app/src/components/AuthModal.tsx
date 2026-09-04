@@ -40,6 +40,9 @@ export default function AuthModal({
       await setDoc(doc(db, 'users', uid), {
         uid,
         name: role === 'seeker' ? 'Rohan (Demo Seeker)' : 'Priya (Demo Owner)',
+        // Sprint 2E: quarantine flag — demo accounts are excluded from
+        // discovery, matching and analytics via lib/demoUsers.ts
+        isDemo: true,
         phone: '',
         email: '',
         role,
@@ -47,19 +50,20 @@ export default function AuthModal({
         gender: role === 'seeker' ? 'male' : 'female',
         ...(role === 'seeker'
           ? {
-              profession: 'Software Engineer',
-              company: 'Zoho',
-              localities: ['Velachery', 'Adyar'],
-              budget: 12000,
-              quizAnswers: { q1: '1', q2: '2', q3: '1', q4: '3', q5: '2', q6: '1', q7: '4', q8: '2', q9: '1', q10: '3' },
-            }
+            profession: 'Software Engineer',
+            company: 'Zoho',
+            localities: ['Velachery', 'Adyar'],
+            budget: 12000,
+            quizAnswers: { q1: '1', q2: '2', q3: '1', q4: '3', q5: '2', q6: '1', q7: '4', q8: '2', q9: '1', q10: '3' },
+          }
           : { savedRoomIds: [] }),
         city: '',
         bio: '',
         onboardingComplete: true,
         isPremium: false,
         isVerified: false,
-        verificationLevel: 1,
+        // Sprint 4A (truth): even demo accounts start unverified.
+        verificationLevel: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       });

@@ -101,7 +101,7 @@ const SAMPLE_PROFILES: ProfileCard[] = [
       { label: 'Weekend Golfer', active: true },
       { label: 'Occasional Drinker', active: true },
       { label: 'Full-time Office', active: true },
-      { label: 'Aadhaar Verified', active: true },
+      { label: 'Respects Privacy', active: true },
     ],
     yourShare: 16000,
     youSave: 11500,
@@ -160,7 +160,7 @@ export default function HeroMatchShowcase() {
       <div className="w-full flex flex-wrap items-center justify-between gap-2 px-0.5 min-w-0">
         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full shadow-sm border border-teal/30 text-[11px] sm:text-xs font-extrabold text-ink">
           <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-teal shrink-0" />
-          <span>Aadhaar Verified</span>
+          <span>Private Phone Sharing</span>
         </div>
 
         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-fire to-fire-dark text-white rounded-full shadow-md border border-fire/30 text-[11px] sm:text-xs font-extrabold">
@@ -168,6 +168,11 @@ export default function HeroMatchShowcase() {
           <span>{currentProfile.matchScore}% Match</span>
         </div>
       </div>
+
+      {/* Sample-preview disclaimer — these are illustrative examples, not real users */}
+      <p className="text-[10px] font-bold uppercase tracking-wider text-ink/40">
+        Example preview — not live listings
+      </p>
 
       {/* 2. Category filter — hide scrollbar (class must exist) */}
       <div className="w-full min-w-0 bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-border/80 shadow-xs flex items-center gap-1 overflow-x-auto scrollbar-hide">
@@ -185,11 +190,10 @@ export default function HeroMatchShowcase() {
               setActiveCategory(cat.id as any);
               setCurrentIndex(0);
             }}
-            className={`flex-1 min-w-[56px] sm:min-w-[64px] py-2 rounded-xl text-[11px] sm:text-xs font-extrabold transition-all text-center whitespace-nowrap ${
-              activeCategory === cat.id
-                ? 'bg-fire text-white shadow-sm'
-                : 'text-ink/75 hover:text-ink hover:bg-cream/60'
-            }`}
+            className={`flex-1 min-w-[56px] sm:min-w-[64px] py-2 rounded-xl text-[11px] sm:text-xs font-extrabold transition-all text-center whitespace-nowrap ${activeCategory === cat.id
+              ? 'bg-fire text-white shadow-sm'
+              : 'text-ink/75 hover:text-ink hover:bg-cream/60'
+              }`}
           >
             {cat.label}
           </button>
@@ -198,9 +202,8 @@ export default function HeroMatchShowcase() {
 
       {/* 3. Main Interactive Profile Card */}
       <div
-        className={`w-full min-w-0 bg-white rounded-3xl shadow-2xl p-4 sm:p-6 border border-border/80 transition-all duration-300 relative overflow-hidden ${
-          animating ? 'opacity-30 scale-[0.98]' : 'opacity-100 scale-100'
-        }`}
+        className={`w-full min-w-0 bg-white rounded-2xl shadow-md p-4 sm:p-6 border border-border/80 transition-all duration-300 relative overflow-hidden ${animating ? 'opacity-30 scale-[0.98]' : 'opacity-100 scale-100'
+          }`}
       >
         {/* Profile Card Top Section */}
         <div className="flex items-start gap-3 sm:gap-4 mb-4">
@@ -283,9 +286,8 @@ export default function HeroMatchShowcase() {
           <button
             type="button"
             onClick={handleConnect}
-            className={`w-full min-h-[48px] py-3 rounded-xl text-sm font-extrabold transition-all shadow-sm flex items-center justify-center gap-1.5 text-white ${
-              isLiked ? 'bg-teal hover:bg-teal-dark' : 'bg-fire hover:bg-fire-dark'
-            }`}
+            className={`w-full min-h-[48px] py-3 rounded-xl text-sm font-extrabold transition-all shadow-sm flex items-center justify-center gap-1.5 text-white ${isLiked ? 'bg-teal hover:bg-teal-dark' : 'bg-fire hover:bg-fire-dark'
+              }`}
           >
             {isLiked ? (
               <>
@@ -328,21 +330,21 @@ export default function HeroMatchShowcase() {
         </div>
       </div>
 
-      {/* 4. Bottom metrics */}
+      {/* 4. Bottom highlights — product facts only, no fabricated statistics */}
       <div className="w-full min-w-0 bg-white rounded-2xl px-2 py-3 sm:p-4 flex items-center justify-around text-center shadow-lg border border-border/80">
         <div className="flex-1 px-0.5 min-w-0">
-          <p className="text-base sm:text-xl font-black text-ink tracking-tight">12.4K+</p>
-          <p className="text-[9px] sm:text-[10px] text-ink/50 font-bold uppercase tracking-wider mt-0.5 leading-tight">Verified</p>
+          <p className="text-sm sm:text-base font-black text-ink tracking-tight">₹0</p>
+          <p className="text-[9px] sm:text-[10px] text-ink/50 font-bold uppercase tracking-wider mt-0.5 leading-tight">Brokerage</p>
         </div>
         <div className="h-6 w-px bg-border/60 shrink-0" />
         <div className="flex-1 px-0.5 min-w-0">
-          <p className="text-base sm:text-xl font-black text-fire tracking-tight">96%</p>
-          <p className="text-[9px] sm:text-[10px] text-ink/50 font-bold uppercase tracking-wider mt-0.5 leading-tight">Accuracy</p>
+          <p className="text-sm sm:text-base font-black text-fire tracking-tight">You Decide</p>
+          <p className="text-[9px] sm:text-[10px] text-ink/50 font-bold uppercase tracking-wider mt-0.5 leading-tight">Contact Sharing</p>
         </div>
         <div className="h-6 w-px bg-border/60 shrink-0" />
         <div className="flex-1 px-0.5 min-w-0">
-          <p className="text-base sm:text-xl font-black text-teal tracking-tight">₹8.5K</p>
-          <p className="text-[9px] sm:text-[10px] text-ink/50 font-bold uppercase tracking-wider mt-0.5 leading-tight">Avg Save</p>
+          <p className="text-sm sm:text-base font-black text-teal tracking-tight">Lifestyle</p>
+          <p className="text-[9px] sm:text-[10px] text-ink/50 font-bold uppercase tracking-wider mt-0.5 leading-tight">Matching</p>
         </div>
       </div>
 
@@ -355,7 +357,7 @@ export default function HeroMatchShowcase() {
             </div>
 
             <span className="inline-block bg-teal/10 text-teal text-xs font-extrabold px-3 py-1 rounded-full mb-2">
-              🎉 High Compatibility Match!
+              High Compatibility Match!
             </span>
 
             <h3 className="text-xl font-extrabold text-ink mb-2">

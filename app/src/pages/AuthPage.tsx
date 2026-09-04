@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, AlertCircle, ArrowRight } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, MapPin, Wallet } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function AuthPage() {
@@ -20,8 +20,14 @@ export default function AuthPage() {
   const handleGoogle = async () => {
     setError(''); setLoading(true);
     try {
-      const { isNew, role } = await signInWithGoogle();
-      navigate(isNew || !role ? '/role-select' : role === 'owner' ? '/owner-dashboard' : '/dashboard');
+      const { isNew, role, onboardingComplete } = await signInWithGoogle();
+      if (isNew || !role) {
+        navigate('/role-select');
+      } else if (!onboardingComplete) {
+        navigate(role === 'owner' ? '/onboarding/owner' : '/onboarding/seeker');
+      } else {
+        navigate(role === 'owner' ? '/owner-dashboard' : '/dashboard');
+      }
     } catch (e: any) { setError(e.message || 'Google sign-in failed.'); }
     finally { setLoading(false); }
   };
@@ -32,18 +38,19 @@ export default function AuthPage() {
     if (!password || password.length < 6) { setError('Password must be at least 6 characters'); return; }
     setLoading(true);
     try {
-      // Try sign-in first; if user not found, sign up
-      try {
-        const { isNew, role } = await signInWithEmail(email.trim(), password);
-        navigate(isNew || !role ? '/role-select' : role === 'owner' ? '/owner-dashboard' : '/dashboard');
-      } catch (signInErr: any) {
-        if (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential') {
-          await signUpWithEmail(email.trim(), password);
-          navigate('/role-select');
-        } else throw signInErr;
+      const { isNew, role, onboardingComplete } = await signInWithEmail(email.trim(), password);
+      if (isNew || !role) {
+        navigate('/role-select');
+      } else if (!onboardingComplete) {
+        navigate(role === 'owner' ? '/onboarding/owner' : '/onboarding/seeker');
+      } else {
+        navigate(role === 'owner' ? '/owner-dashboard' : '/dashboard');
       }
-    } catch (e: any) { setError(e.message || 'Authentication failed.'); }
-    finally { setLoading(false); }
+    } catch (e: any) {
+      setError(e.message || 'Authentication failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleForgot = async () => {
@@ -56,6 +63,14 @@ export default function AuthPage() {
     } catch (e: any) { setError(e.message || 'Failed to send reset email.'); }
     finally { setLoading(false); }
   };
+
+  // Sprint 5C: icon bullets instead of UI emoji
+  const brandBullets = [
+    { icon: ShieldCheck, text: 'Safe chat with phone privacy' },
+    { icon: null, text: '10-dimension lifestyle matching' },
+    { icon: MapPin, text: 'Map discovery across metros' },
+    { icon: Wallet, text: 'Direct connect — zero brokerage' },
+  ];
 
   return (
     <div className="min-h-screen bg-parchment flex page-transition">
@@ -73,27 +88,17 @@ export default function AuthPage() {
             Find your perfect<br /><span className="text-fire">roommate</span> today.
           </h2>
           <ul className="space-y-3 mb-8">
-            {[
-              '✅ Verified profiles — no fake accounts',
-              '🔒 Safe chat with phone privacy',
-              '🎯 10-dimension lifestyle matching',
-              '🗺️ Map discovery across 6 metros',
-              '💰 Direct connect — zero brokerage',
-            ].map(item => (
-              <li key={item} className="text-sm text-white/70">{item}</li>
+            {brandBullets.map(({ icon: Icon, text }) => (
+              <li key={text} className="flex items-center gap-2.5 text-sm text-white/70">
+                {Icon && <Icon className="w-4 h-4 text-white/40 shrink-0" aria-hidden />}
+                <span>{text}</span>
+              </li>
             ))}
           </ul>
-          <div className="flex -space-x-2">
-            {['Priya', 'Arjun', 'Divya', 'Rohan'].map(name => (
-              <img key={name} src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`}
-                className="w-9 h-9 rounded-full border-2 border-navy" alt="" />
-            ))}
-            <div className="w-9 h-9 rounded-full border-2 border-navy bg-fire flex items-center justify-center text-xs text-white font-bold">+8K</div>
-          </div>
-          <p className="text-white/50 text-xs mt-2">Trusted by 8,000+ young professionals</p>
+          <p className="text-white/50 text-xs">Find compatible roommates near you</p>
         </div>
 
-        <p className="text-xs text-white/30">© 2025 NestMate. India's #1 roommate platform.</p>
+        <p className="text-xs text-white/30">© 2025 NestMate.</p>
       </div>
 
       {/* Right: Auth Form */}
@@ -111,14 +116,14 @@ export default function AuthPage() {
 
           {mode === 'landing' && (
             <div>
-              <h1 className="text-2xl font-display italic mb-1">Welcome</h1>
+              <h1 className="type-h2 mb-1">Welcome</h1>
               <p className="text-sm text-ink/50 mb-8">Sign in or create an account to continue</p>
 
               {/* Dev hint */}
               {import.meta.env.DEV && (
                 <button onClick={() => { setEmail('test@nestmate.com'); setPassword('Test@1234'); setMode('email'); }}
                   className="w-full mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 hover:bg-blue-100 transition-colors text-left">
-                  🚀 <strong>Test Account:</strong> test@nestmate.com / Test@1234 — Click to prefill
+                  <strong>Test Account:</strong> test@nestmate.com / Test@1234 — Click to prefill
                 </button>
               )}
 
@@ -169,7 +174,7 @@ export default function AuthPage() {
               <button onClick={() => { setMode('landing'); setError(''); }} className="flex items-center gap-1 text-sm text-ink/50 hover:text-ink/70 mb-6 transition-colors">
                 ← Back
               </button>
-              <h1 className="text-2xl font-display italic mb-1">Your email</h1>
+              <h1 className="type-h2 mb-1">Your email</h1>
               <p className="text-sm text-ink/50 mb-6">We'll sign you in or create an account automatically</p>
 
               <div className="space-y-3">
@@ -177,6 +182,7 @@ export default function AuthPage() {
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
                   <input type="email" value={email} onChange={e => { setEmail(e.target.value); setError(''); }}
                     placeholder="you@example.com"
+                    aria-label="Email address"
                     className="w-full input-nestmate pl-9"
                     autoFocus onKeyDown={e => e.key === 'Enter' && document.getElementById('pw-input')?.focus()} />
                 </div>
@@ -185,17 +191,19 @@ export default function AuthPage() {
                   <input id="pw-input" type={showPass ? 'text' : 'password'} value={password}
                     onChange={e => { setPassword(e.target.value); setError(''); }}
                     placeholder="Password (min 6 chars)"
+                    aria-label="Password"
                     className="w-full input-nestmate pl-9 pr-10"
                     onKeyDown={e => e.key === 'Enter' && handleEmailSubmit()} />
                   <button type="button" onClick={() => setShowPass(!showPass)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/40 hover:text-ink/70">
+                    aria-label={showPass ? 'Hide password' : 'Show password'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/40 hover:text-ink/70 touch-target flex items-center justify-center">
                     {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
               {displayError && (
-                <p className="flex items-center gap-1.5 text-xs text-red-500 mt-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                <p className="flex items-center gap-1.5 text-xs text-red-500 mt-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2" role="alert">
                   <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{displayError}
                 </p>
               )}
@@ -217,15 +225,15 @@ export default function AuthPage() {
               <button onClick={() => { setMode('email'); setError(''); setSuccess(''); }} className="flex items-center gap-1 text-sm text-ink/50 hover:text-ink/70 mb-6 transition-colors">
                 ← Back
               </button>
-              <h1 className="text-2xl font-display italic mb-1">Reset password</h1>
+              <h1 className="type-h2 mb-1">Reset password</h1>
               <p className="text-sm text-ink/50 mb-6">Enter your email and we'll send a reset link</p>
               <div className="relative mb-4">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
                 <input type="email" value={email} onChange={e => { setEmail(e.target.value); setError(''); }}
-                  placeholder="you@example.com" className="w-full input-nestmate pl-9" autoFocus />
+                  placeholder="you@example.com" aria-label="Email address" className="w-full input-nestmate pl-9" autoFocus />
               </div>
-              {displayError && <p className="text-xs text-red-500 mb-3">{displayError}</p>}
-              {success && <p className="text-xs text-teal font-medium mb-3">{success}</p>}
+              {displayError && <p className="text-xs text-red-500 mb-3" role="alert">{displayError}</p>}
+              {success && <p className="text-xs text-teal font-medium mb-3" role="status">{success}</p>}
               <button onClick={handleForgot} disabled={loading}
                 className="w-full btn-fire disabled:opacity-50 flex items-center justify-center gap-2">
                 {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'Send Reset Link'}

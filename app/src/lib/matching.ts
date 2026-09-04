@@ -15,35 +15,19 @@ export function calculateCompatibility(
   const keysA = Object.keys(answersA || {});
   const keysB = Object.keys(answersB || {});
 
+  // Quiz answer IDs are opaque string tokens (e.g. 'before_10', '10_to_12', 'veg', 'wfh').
+  // They must ONLY be compared by exact string equality — never parsed as numbers.
+  // parseInt('10_to_12') === 10 and parseInt('6_to_8') === 6, which gives a
+  // false numeric diff score and completely wrong compatibility results.
   let score = 0;
   const commonKeys = keysA.filter((k) => keysB.includes(k));
 
   if (commonKeys.length > 0) {
-    let totalSimilarity = 0;
-    commonKeys.forEach((key) => {
-      const valA = parseInt(answersA[key], 10);
-      const valB = parseInt(answersB[key], 10);
-      if (!isNaN(valA) && !isNaN(valB)) {
-        const diff = Math.abs(valA - valB);
-        const similarity = 1 - Math.min(diff, 3) / 3;
-        totalSimilarity += similarity;
-      } else if (answersA[key] === answersB[key]) {
-        totalSimilarity += 1.0;
-      }
-    });
-    score = Math.round((totalSimilarity / commonKeys.length) * 100);
-  } else {
-    const unionKeys = Array.from(new Set([...keysA, ...keysB]));
-    if (unionKeys.length > 0) {
-      let matches = 0;
-      unionKeys.forEach((k) => {
-        if (answersA[k] && answersB[k] && answersA[k] === answersB[k]) {
-          matches += 1;
-        }
-      });
-      score = Math.round((matches / unionKeys.length) * 100);
-    }
+    // Score = fraction of shared questions where both users gave the exact same answer
+    const matches = commonKeys.filter((k) => answersA[k] === answersB[k]).length;
+    score = Math.round((matches / commonKeys.length) * 100);
   }
+  // If there are no common keys (one or both have no answers), score stays 0 — honest.
 
   // City Mismatch Adjustment:
   // If both cities are specified and they do NOT match (e.g. Chennai vs Hyderabad),
@@ -57,6 +41,69 @@ export function calculateCompatibility(
   }
 
   return score;
+}
+
+/**
+ * Truthful match explanation (Sprint 2C).
+ *
+ * Returns ONLY reasons supported by real data — never fabricated.
+ * Used by the compatibility breakdown UI so users can see WHY a
+ * candidate is a good match instead of a bare percentage.
+ */
+export interface MatchReasons {
+  score: number;
+  reasons: string[];      // positive, data-backed reasons
+  caveats: string[];      // honest limitations (missing data etc.)
+}
+
+export function getMatchReasons(
+  myAnswers: Record<string, string> = {},
+  theirAnswers: Record<string, string> = {},
+  opts: {
+    myCity?: string;
+    theirCity?: string;
+    myBudget?: number;
+    theirBudget?: number;
+    sharedAnswerCount?: number;
+  } = {}
+): MatchReasons {
+  const score = calculateCompatibility(myAnswers, theirAnswers, opts.myCity, opts.theirCity);
+  const reasons: string[] = [];
+  const caveats: string[] = [];
+
+  // Location — only when both cities are known and equal
+  if (opts.myCity && opts.theirCity) {
+    if (opts.myCity.toLowerCase().trim() === opts.theirCity.toLowerCase().trim()) {
+      reasons.push(`Same city (${opts.myCity})`);
+    } else {
+      caveats.push('Different cities');
+    }
+  } else {
+    caveats.push('Location not fully specified');
+  }
+
+  // Budget overlap — only when both budgets are known and positive
+  const myB = opts.myBudget || 0;
+  const theirB = opts.theirBudget || 0;
+  if (myB > 0 && theirB > 0) {
+    const gapPct = Math.abs(myB - theirB) / Math.max(myB, theirB);
+    if (gapPct <= 0.2) reasons.push('Budgets are close');
+    else caveats.push('Budgets differ significantly');
+  } else {
+    caveats.push('Budget not fully specified');
+  }
+
+  // Lifestyle — count genuinely shared answers (exact string equality only)
+  const commonKeys = Object.keys(myAnswers).filter(k => k in (theirAnswers || {}));
+  if (commonKeys.length > 0) {
+    const shared = commonKeys.filter(k => myAnswers[k] === theirAnswers[k]).length;
+    if (shared > 0) reasons.push(`${shared} lifestyle preference${shared === 1 ? '' : 's'} in common`);
+    if (commonKeys.length < 5) caveats.push('Few overlapping quiz answers — score is low-confidence');
+  } else {
+    caveats.push('No overlapping quiz answers yet');
+  }
+
+  return { score, reasons, caveats };
 }
 
 /**

@@ -14,7 +14,7 @@ import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import {
   Search, Crosshair, Loader2, MapPin, Users, Home,
-  ChevronUp, ChevronDown, X, List as ListIcon, Map as MapIcon
+  ChevronUp, ChevronDown, X, List as ListIcon, Map as MapIcon, Check
 } from 'lucide-react';
 import StateEmpty from '@/components/StateEmpty';
 
@@ -22,6 +22,7 @@ import StateEmpty from '@/components/StateEmpty';
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import { resolveEntityCoordinates, isValidCoord } from '@/lib/locationResolver';
+import { isPubliclyVisibleListing, isPubliclyVisibleProfile } from '@/lib/marketplaceVisibility';
 L.Icon.Default.mergeOptions({ iconUrl, shadowUrl });
 
 export interface MapPerson {
@@ -224,7 +225,11 @@ export default function MapView() {
       snap.docs.forEach(d => {
         const data = d.data() as UserProfile;
         if (user?.uid && d.id === user.uid) return;
-        
+
+        // Sprint 2E hardening: shared visibility rule — demo, suspended/banned
+        // and incomplete-onboarding profiles never appear on the map.
+        if (!isPubliclyVisibleProfile({ ...data, uid: d.id })) return;
+
         // Resolve coordinates from geoLocation, lat/lng, or city/locality fallback
         const coords = resolveEntityCoordinates({
           id: d.id,
@@ -239,9 +244,11 @@ export default function MapView() {
 
         if (!coords || !isValidCoord(coords.lat, coords.lng)) return;
 
+        // Sprint 2E hardening: no fabricated scores — missing preference data
+        // yields 0, never a fake default like the previous hardcoded 85.
         const compat = profile?.quizAnswers
           ? calculateCompatibility(profile.quizAnswers, data.quizAnswers || {}, profile.city, data.city)
-          : 85;
+          : 0;
         people.push({
           type: 'person', uid: d.id, name: data.name || 'User', avatar: data.avatar || '',
           profession: data.profession || '', role: data.role, compatibility: compat,
@@ -263,8 +270,21 @@ export default function MapView() {
     setItems([]);
     try {
       const results = await getListings();
+
+      // Sprint 2E hardening: ORPHAN POLICY — load real owner docs once so we
+      // can hide listings whose owner document no longer exists (we never
+      // fabricate an owner identity) and show the REAL owner name.
+      const ownersSnap = await getDocs(collection(db, 'users'));
+      const ownerDocs = new Map<string, UserProfile>(
+        ownersSnap.docs.map(d => [d.id, { uid: d.id, ...d.data() } as UserProfile])
+      );
+
       const rooms: MapRoom[] = [];
       results.forEach(l => {
+        // Shared visibility rule — paused/stale/non-discoverable listings are hidden.
+        if (!isPubliclyVisibleListing(l)) return;
+        // Orphaned listing (no owner doc) — hidden per policy.
+        if (!l.ownerId || !ownerDocs.has(l.ownerId)) return;
         const coords = resolveEntityCoordinates({
           id: l.id,
           lat: l.lat,
@@ -278,7 +298,7 @@ export default function MapView() {
         rooms.push({
           type: 'room', id: l.id, title: l.title || `${l.locality}, ${l.city}`, locality: l.locality, city: l.city,
           rent: l.partnerShare || l.totalRent, image: l.images?.[0] || '',
-          ownerId: l.ownerId, ownerName: l.ownerName || 'Owner',
+          ownerId: l.ownerId, ownerName: ownerDocs.get(l.ownerId)?.name || l.ownerName || 'Owner',
           lat: coords.lat, lng: coords.lng,
         });
       });
@@ -410,8 +430,8 @@ export default function MapView() {
       <button onClick={() => panToItem(item)} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-cream/50 transition-all text-left border border-transparent hover:border-border">
         <div className="w-10 h-10 rounded-full bg-cream overflow-hidden border border-border flex items-center justify-center shrink-0">
           {item.type === 'person' && item.avatar ? <img src={item.avatar} alt="" className="w-full h-full object-cover" /> :
-           item.type === 'room' && item.image ? <img src={item.image} alt="" className="w-full h-full object-cover" /> :
-           <MapPin className="w-4 h-4 text-ink/30" />}
+            item.type === 'room' && item.image ? <img src={item.image} alt="" className="w-full h-full object-cover" /> :
+              <MapPin className="w-4 h-4 text-ink/30" />}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold truncate">{item.type === 'person' ? item.name : item.title}</p>
@@ -440,15 +460,15 @@ export default function MapView() {
         </div>
         <div className="p-3 space-y-1">
           {loading ? Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 skeleton-shimmer rounded-xl" />) :
-           sortedItems.length === 0 ? (
-             <StateEmpty
-               compact
-               icon={MapPin}
-               title={`No ${mode} with valid locations`}
-               description="Try another location or switch mode"
-             />
-           ) :
-           sortedItems.map(item => <SidebarCard key={item.type === 'person' ? item.uid : item.id} item={item} />)}
+            sortedItems.length === 0 ? (
+              <StateEmpty
+                compact
+                icon={MapPin}
+                title={`No ${mode} with valid locations`}
+                description="Try another location or switch mode"
+              />
+            ) :
+              sortedItems.map(item => <SidebarCard key={item.type === 'person' ? item.uid : item.id} item={item} />)}
         </div>
       </div>
     );
@@ -462,7 +482,7 @@ export default function MapView() {
           <div className="p-4 border-b border-border">
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h2 className="font-display italic text-lg">
+                <h2 className="type-h3">
                   {sourceLabel || (mode === 'people' ? 'People Near You' : 'Rooms Near You')}
                 </h2>
                 {sourceLabel && (
@@ -479,16 +499,16 @@ export default function MapView() {
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
             {loading ? Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 skeleton-shimmer rounded-xl" />) :
-             sortedItems.length === 0 ? (
-              <div className="p-4">
-                <StateEmpty
-                  compact
-                  icon={MapPin}
-                  title={`No ${mode} with location data`}
-                  description="Try the search bar to explore a specific area"
-                />
-              </div>
-             ) : sortedItems.map(item => <SidebarCard key={item.type === 'person' ? item.uid : item.id} item={item} />)}
+              sortedItems.length === 0 ? (
+                <div className="p-4">
+                  <StateEmpty
+                    compact
+                    icon={MapPin}
+                    title={`No ${mode} with location data`}
+                    description="Try the search bar to explore a specific area"
+                  />
+                </div>
+              ) : sortedItems.map(item => <SidebarCard key={item.type === 'person' ? item.uid : item.id} item={item} />)}
           </div>
         </div>
       )}
@@ -505,7 +525,7 @@ export default function MapView() {
 
           {/* Search */}
           {isMobile && !searchExpanded ? (
-            <button onClick={() => setSearchExpanded(true)} className="w-8 h-8 sm:w-10 sm:h-10 bg-white rounded-full shadow-lg flex items-center justify-center pointer-events-auto border border-border shrink-0"><Search className="w-4 h-4 text-ink/60" /></button>
+            <button onClick={() => setSearchExpanded(true)} aria-label="Search location" className="w-11 h-11 sm:w-10 sm:h-10 bg-white rounded-full shadow-lg flex items-center justify-center pointer-events-auto border border-border shrink-0"><Search className="w-4 h-4 text-ink/60" /></button>
           ) : (
             <div className="w-full sm:flex-1 flex bg-white rounded-full shadow-lg overflow-hidden pointer-events-auto border border-border order-last sm:order-none mt-1 sm:mt-0">
               <div className="relative flex-1">
@@ -514,7 +534,7 @@ export default function MapView() {
                   placeholder="Search area, landmark..." className="w-full pl-9 pr-2 py-2 text-xs sm:text-sm outline-none bg-transparent" />
               </div>
               {searching ? <div className="px-3 flex items-center"><Loader2 className="w-4 h-4 animate-spin text-fire" /></div> :
-               searchQuery && <button onClick={() => { setSearchQuery(''); setSearchCenter(null); }} className="px-2 text-ink/40 hover:text-ink"><X className="w-4 h-4" /></button>}
+                searchQuery && <button onClick={() => { setSearchQuery(''); setSearchCenter(null); }} aria-label="Clear search" className="px-2 text-ink/40 hover:text-ink"><X className="w-4 h-4" /></button>}
               {isMobile && <button onClick={() => { setSearchExpanded(false); setSearchQuery(''); }} className="px-3 text-xs font-bold text-fire">Close</button>}
             </div>
           )}
@@ -523,16 +543,15 @@ export default function MapView() {
           <div className="bg-white rounded-full shadow-lg p-0.5 sm:p-1 flex pointer-events-auto border border-border shrink-0">
             <button
               onClick={() => setMapStyle(mapStyle === 'satellite' ? 'roadmap' : 'satellite')}
-              className={`px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${
-                mapStyle === 'satellite' ? 'bg-navy text-white shadow-sm' : 'text-ink/70 hover:text-ink'
-              }`}
+              className={`px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1 ${mapStyle === 'satellite' ? 'bg-navy text-white shadow-sm' : 'text-ink/70 hover:text-ink'
+                }`}
             >
-              {mapStyle === 'satellite' ? '🗺️ Map' : '🛰️ Satellite'}
+              {mapStyle === 'satellite' ? 'Map' : 'Satellite'}
             </button>
           </div>
 
           {/* Locate Me */}
-          <button onClick={handleLocateMe} className="w-8 h-8 sm:w-10 sm:h-10 bg-white rounded-full shadow-lg flex items-center justify-center pointer-events-auto border border-border hover:border-fire transition-colors" title="My location">
+          <button onClick={handleLocateMe} aria-label="My location" title="My location" className="w-11 h-11 sm:w-10 sm:h-10 bg-white rounded-full shadow-lg flex items-center justify-center pointer-events-auto border border-border hover:border-fire transition-colors">
             <Crosshair className="w-4 h-4 text-ink/60" />
           </button>
 
@@ -561,17 +580,16 @@ export default function MapView() {
                   setLegendFilter(next);
                   toast.info(next === 'all' ? 'Showing all markers' : 'Showing: Rooms only');
                 }}
-                className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left transition-all ${
-                  legendFilter === 'rooms'
-                    ? 'bg-fire/10 text-fire font-bold ring-1 ring-fire/30'
-                    : 'hover:bg-cream/60 text-ink/80'
-                }`}
+                className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left transition-all ${legendFilter === 'rooms'
+                  ? 'bg-fire/10 text-fire font-bold ring-1 ring-fire/30'
+                  : 'hover:bg-cream/60 text-ink/80'
+                  }`}
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-3 h-3 rounded-full bg-fire border border-white shadow-sm shrink-0" />
                   <span className="text-[11px] truncate">Rooms available</span>
                 </div>
-                {legendFilter === 'rooms' && <span className="text-[10px] font-bold text-fire">✓</span>}
+                {legendFilter === 'rooms' && <Check className="w-3 h-3 font-bold text-fire shrink-0" aria-hidden="true" />}
               </button>
 
               {/* Seekers looking — pure filter on current items, no re-fetch */}
@@ -581,17 +599,16 @@ export default function MapView() {
                   setLegendFilter(next);
                   toast.info(next === 'all' ? 'Showing all markers' : 'Showing: Seekers only');
                 }}
-                className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left transition-all ${
-                  legendFilter === 'seekers'
-                    ? 'bg-navy/10 text-navy font-bold ring-1 ring-navy/30'
-                    : 'hover:bg-cream/60 text-ink/80'
-                }`}
+                className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left transition-all ${legendFilter === 'seekers'
+                  ? 'bg-navy/10 text-navy font-bold ring-1 ring-navy/30'
+                  : 'hover:bg-cream/60 text-ink/80'
+                  }`}
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-3 h-3 rounded-full bg-[#1E3A5F] border border-white shadow-sm shrink-0" />
                   <span className="text-[11px] truncate">Seekers looking</span>
                 </div>
-                {legendFilter === 'seekers' && <span className="text-[10px] font-bold text-navy">✓</span>}
+                {legendFilter === 'seekers' && <Check className="w-3 h-3 font-bold text-navy shrink-0" aria-hidden="true" />}
               </button>
 
               {/* High compatibility — pure filter on current people items, no re-fetch */}
@@ -601,17 +618,16 @@ export default function MapView() {
                   setLegendFilter(next);
                   toast.info(next === 'all' ? 'Showing all markers' : 'Showing: High compatibility (80%+)');
                 }}
-                className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left transition-all ${
-                  legendFilter === 'high_compat'
-                    ? 'bg-teal/10 text-teal font-bold ring-1 ring-teal/30'
-                    : 'hover:bg-cream/60 text-ink/80'
-                }`}
+                className={`w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-left transition-all ${legendFilter === 'high_compat'
+                  ? 'bg-teal/10 text-teal font-bold ring-1 ring-teal/30'
+                  : 'hover:bg-cream/60 text-ink/80'
+                  }`}
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-3 h-3 rounded-full bg-teal border border-white shadow-sm shrink-0" />
                   <span className="text-[11px] truncate">High compat (80%+)</span>
                 </div>
-                {legendFilter === 'high_compat' && <span className="text-[10px] font-bold text-teal">✓</span>}
+                {legendFilter === 'high_compat' && <Check className="w-3 h-3 font-bold text-teal shrink-0" aria-hidden="true" />}
               </button>
 
               {/* Your location */}
@@ -623,7 +639,7 @@ export default function MapView() {
                   <div className="w-3 h-3 rounded-full bg-ink border-2 border-white shadow-sm shrink-0" />
                   <span className="text-[11px] truncate">Your location</span>
                 </div>
-                <span className="text-[10px] text-fire font-bold">Center 🎯</span>
+                <span className="text-[10px] text-fire font-bold">Center</span>
               </button>
             </div>
           </div>
@@ -645,8 +661,8 @@ export default function MapView() {
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <div className="w-11 h-11 rounded-full bg-cream overflow-hidden border border-border shrink-0 flex items-center justify-center">
                   {selectedItem.type === 'person' && selectedItem.avatar ? <img src={selectedItem.avatar} alt="" className="w-full h-full object-cover" /> :
-                   selectedItem.type === 'room' && selectedItem.image ? <img src={selectedItem.image} alt="" className="w-full h-full object-cover" /> :
-                   <MapPin className="w-4 h-4 text-ink/30" />}
+                    selectedItem.type === 'room' && selectedItem.image ? <img src={selectedItem.image} alt="" className="w-full h-full object-cover" /> :
+                      <MapPin className="w-4 h-4 text-ink/30" />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
@@ -741,7 +757,7 @@ export default function MapView() {
               >
                 <Popup className="match-popup">
                   <div className="p-1 text-center font-bold text-xs">
-                    📍 Your Location ({profile?.city || 'Current User'})
+                    Your Location ({profile?.city || 'Current User'})
                   </div>
                 </Popup>
               </CircleMarker>
@@ -781,8 +797,8 @@ export default function MapView() {
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full bg-cream overflow-hidden border border-border flex items-center justify-center shrink-0">
                         {item.type === 'person' && item.avatar ? <img src={item.avatar} className="w-full h-full object-cover" alt="" /> :
-                         item.type === 'room' && item.image ? <img src={item.image} className="w-full h-full object-cover" alt="" /> :
-                         <MapPin className="w-3 h-3 text-ink/30" />}
+                          item.type === 'room' && item.image ? <img src={item.image} className="w-full h-full object-cover" alt="" /> :
+                            <MapPin className="w-3 h-3 text-ink/30" />}
                       </div>
                       <div className="min-w-0">
                         <p className="font-bold text-sm leading-tight truncate">{item.type === 'person' ? item.name : item.title}</p>
@@ -791,7 +807,7 @@ export default function MapView() {
                     </div>
                     <div className="flex items-center justify-between">
                       {item.type === 'person' ? <span className="badge-teal text-[10px]">{item.compatibility}% match</span> :
-                       <span className="text-xs font-bold text-fire">₹{item.rent?.toLocaleString()}/mo</span>}
+                        <span className="text-xs font-bold text-fire">₹{item.rent?.toLocaleString()}/mo</span>}
                       {/* Marker → entity navigation uses canonical uid / listing id */}
                       <button
                         onClick={() => navigate(item.type === 'person' ? `/match/${item.uid}` : `/room/${item.id}`)}

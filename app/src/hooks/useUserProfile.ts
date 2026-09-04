@@ -14,6 +14,7 @@ import { db } from '@/lib/firebase';
 import type { UserProfile } from './useAuth';
 import { sanitizePublicProfile } from '@/lib/sanitizeProfile';
 import { savePrivateUserData, stripPiiFromWrite } from '@/lib/privateUserData';
+import { validateReport } from '@/lib/reportValidation';
 
 export function useUserProfile() {
   /** Public profile only — contact PII stripped. */
@@ -85,12 +86,9 @@ export function useUserProfile() {
         avatar?: string;
       }
     ) => {
-      await updateDoc(doc(db, 'users', userId), {
-        ...data,
-        updatedAt: serverTimestamp(),
-      });
+      await updateProfile(userId, data);
     },
-    []
+    [updateProfile]
   );
 
   const saveLocationPreferences = useCallback(
@@ -103,12 +101,9 @@ export function useUserProfile() {
         moveInDate: string;
       }
     ) => {
-      await updateDoc(doc(db, 'users', userId), {
-        ...data,
-        updatedAt: serverTimestamp(),
-      });
+      await updateProfile(userId, data);
     },
-    []
+    [updateProfile]
   );
 
   /**
@@ -176,6 +171,8 @@ export function useUserProfile() {
 
   /**
    * Create a report document in the 'reports' collection.
+   * Validated client-side; the Firestore rules re-validate authoritatively
+   * (reporterId must equal the auth token uid — spoofing is impossible).
    */
   const reportUser = useCallback(
     async (data: {
@@ -184,9 +181,12 @@ export function useUserProfile() {
       reason: string;
       description?: string;
     }): Promise<void> => {
+      const result = validateReport(data, data.reporterId);
+      if (!result.valid || !result.payload) {
+        throw new Error(result.error || 'Invalid report.');
+      }
       await addDoc(collection(db, 'reports'), {
-        ...data,
-        status: 'pending',
+        ...result.payload,
         createdAt: serverTimestamp(),
       });
     },

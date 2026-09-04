@@ -90,8 +90,8 @@ export default function Layout() {
   const links = !isAuthenticated
     ? guestLinks
     : effectiveRole === 'owner'
-    ? ownerLinks
-    : seekerLinks;
+      ? ownerLinks
+      : seekerLinks;
 
   const handleLogout = async () => {
     setProfileDropdown(false);
@@ -104,7 +104,7 @@ export default function Layout() {
     if (!isAuthenticated) {
       openAuthModal({
         title: 'Post Your Room Listing',
-        subtitle: 'Sign in or use a 1-click demo account to list your room and find verified flatmates.',
+        subtitle: 'Sign in or use a 1-click demo account to list your room and find compatible flatmates.',
         redirect: '/owner-dashboard',
       });
     } else {
@@ -125,9 +125,8 @@ export default function Layout() {
       />
 
       {/* Navigation Bar */}
-      <nav aria-label="Main navigation" className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 pt-safe ${
-        scrolled ? 'frosted-glass shadow-sm border-b border-border/40' : 'bg-parchment/90 backdrop-blur-lg border-b border-border/30'
-      }`}>
+      <nav aria-label="Main navigation" className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 pt-safe ${scrolled ? 'frosted-glass shadow-sm border-b border-border/40' : 'bg-parchment/90 backdrop-blur-lg border-b border-border/30'
+        }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-[60px]">
             {/* Logo */}
@@ -150,11 +149,10 @@ export default function Layout() {
                   <Link
                     key={link.path}
                     to={link.path}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${
-                      isActive
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${isActive
                         ? 'bg-ink text-white shadow-xs'
                         : 'text-ink/70 hover:text-ink hover:bg-ink/5'
-                    }`}
+                      }`}
                   >
                     <Icon className="w-4 h-4" />
                     {link.label}
@@ -197,11 +195,17 @@ export default function Layout() {
                       className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-ink/5 transition-all border border-border/50 bg-white/60"
                     >
                       <div className="relative">
-                        <img
-                          src={profile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.name}`}
-                          alt={profile.name}
-                          className="w-7 h-7 rounded-full border-2 border-fire/30 object-cover"
-                        />
+                        {profile.avatar && !profile.avatar.includes('dicebear') ? (
+                          <img
+                            src={profile.avatar}
+                            alt={profile.name}
+                            className="w-7 h-7 rounded-full border-2 border-fire/30 object-cover"
+                          />
+                        ) : (
+                          <div aria-hidden="true" className="w-7 h-7 rounded-full border-2 border-fire/30 bg-fire/10 text-fire flex items-center justify-center text-[11px] font-bold">
+                            {profile.name?.trim().charAt(0).toUpperCase() || 'U'}
+                          </div>
+                        )}
                         {profile.isPremium && (
                           <Crown className="absolute -top-1 -right-1 w-3.5 h-3.5 text-gold" />
                         )}
@@ -305,9 +309,8 @@ export default function Layout() {
                     key={link.path}
                     to={link.path}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                      isActive ? 'bg-ink text-white' : 'text-ink/80 hover:bg-ink/5'
-                    }`}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${isActive ? 'bg-ink text-white' : 'text-ink/80 hover:bg-ink/5'
+                      }`}
                   >
                     <Icon className="w-5 h-5" />
                     {link.label}
@@ -357,11 +360,10 @@ export default function Layout() {
       {/* Main Content — extra bottom pad on mobile for bottom nav + safe area */}
       <main
         id="main-content"
-        className={`pt-[60px] ${
-          location.pathname === '/map'
+        className={`pt-[60px] ${location.pathname === '/map'
             ? 'pb-0 h-[calc(100dvh-60px-68px-env(safe-area-inset-bottom,0px))] md:h-[calc(100dvh-60px)] overflow-hidden'
             : 'pb-[calc(68px+env(safe-area-inset-bottom,0px))] md:pb-0 min-h-screen overflow-x-hidden'
-        }`}
+          }`}
       >
         <div key={location.pathname} className={`page-transition ${location.pathname === '/map' ? 'h-full w-full flex flex-col' : ''}`}>
           <Outlet />
@@ -378,9 +380,8 @@ export default function Layout() {
               <Link
                 key={link.path}
                 to={link.path}
-                className={`relative flex flex-col items-center justify-center min-w-[56px] min-h-[48px] flex-1 max-w-[72px] h-full transition-all ${
-                  isActive ? 'text-brand-orange font-bold' : 'text-slate-400 hover:text-slate-700'
-                }`}
+                className={`relative flex flex-col items-center justify-center min-w-[56px] min-h-[48px] flex-1 max-w-[72px] h-full transition-all ${isActive ? 'text-brand-orange font-bold' : 'text-slate-400 hover:text-slate-700'
+                  }`}
               >
                 {isActive && (
                   <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-brand-orange rounded-b-full shadow-2xs" />
@@ -393,9 +394,8 @@ export default function Layout() {
           {isAuthenticated ? (
             <Link
               to="/profile"
-              className={`relative flex flex-col items-center justify-center min-w-[56px] min-h-[48px] flex-1 max-w-[72px] h-full transition-all ${
-                location.pathname === '/profile' ? 'text-brand-orange font-bold' : 'text-slate-400 hover:text-slate-700'
-              }`}
+              className={`relative flex flex-col items-center justify-center min-w-[56px] min-h-[48px] flex-1 max-w-[72px] h-full transition-all ${location.pathname === '/profile' ? 'text-brand-orange font-bold' : 'text-slate-400 hover:text-slate-700'
+                }`}
             >
               {location.pathname === '/profile' && (
                 <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-brand-orange rounded-b-full shadow-2xs" />

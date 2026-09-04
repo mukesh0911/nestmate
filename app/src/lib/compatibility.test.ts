@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateCompatibility, getActiveStatus } from '@/lib/matching';
+import { calculateCompatibility, getActiveStatus } from './matching';
 
 describe('calculateCompatibility', () => {
   it('returns 100 for identical numeric answers', () => {
@@ -7,16 +7,15 @@ describe('calculateCompatibility', () => {
     expect(calculateCompatibility(a, { ...a })).toBe(100);
   });
 
-  it('gives partial credit for nearby ordinal answers', () => {
+  it('requires exact token match on quiz answers', () => {
     const score = calculateCompatibility(
       { sleep_time: '0' },
       { sleep_time: '1' }
     );
-    // diff 1 → similarity 2/3 → ~67%
-    expect(score).toBe(67);
+    expect(score).toBe(0);
   });
 
-  it('returns 0 for max distance (>=3) on a single question', () => {
+  it('returns 0 for non-matching answer on a single question', () => {
     expect(
       calculateCompatibility({ sleep_time: '0' }, { sleep_time: '3' })
     ).toBe(0);
@@ -50,7 +49,7 @@ describe('calculateCompatibility', () => {
     const scoreFromListing = calculateCompatibility(seekerProfile.quizAnswers, listing.ownerQuizAnswers, seekerProfile.city, listing.city);
 
     expect(scoreFromListing).toBe(scoreFromProfile);
-    expect(scoreFromListing).toBe(83);
+    expect(scoreFromListing).toBe(50);
   });
 });
 

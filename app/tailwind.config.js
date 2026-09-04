@@ -97,18 +97,28 @@ module.exports = {
         body: ['Inter', 'Sora', 'system-ui', 'sans-serif'],
         sans: ['Inter', 'Sora', 'system-ui', 'sans-serif'],
       },
+      /*
+       * Sprint 5A radius ladder (architectural, not bubbly):
+       *   sm 6 · md 8 · lg 10 · xl 14 · 2xl 16 (cards/sheets) · 3xl 20 (hero surfaces only)
+       * Full rounding is reserved for avatars/dots/pills via rounded-full.
+       */
       borderRadius: {
-        '2xl': '22px',
+        '3xl': '1.25rem',
+        '2xl': '1rem',
         xl: "calc(var(--radius) + 4px)",
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
         xs: "calc(var(--radius) - 6px)",
       },
+      /*
+       * Sprint 5A elevation policy: most surfaces are flat or subtle;
+       * strong elevation is reserved for true overlays (modals/drawers/popovers).
+       */
       boxShadow: {
         xs: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
-        card: "0 4px 24px rgba(0, 0, 0, 0.08)",
-        lift: "0 8px 40px rgba(0, 0, 0, 0.12)",
+        card: "0 2px 12px rgba(0, 0, 0, 0.06)",
+        lift: "0 8px 32px rgba(0, 0, 0, 0.10)",
       },
       keyframes: {
         "accordion-down": {

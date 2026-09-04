@@ -13,17 +13,19 @@ export default function PricingPage() {
   const [showMockCheckout, setShowMockCheckout] = useState(false);
   const [selectedPrice, setSelectedPrice] = useState(299);
 
-  const features = [
-    { name: 'Connect Requests', free: 'Unlimited*', premium: 'Unlimited', corporate: 'Unlimited' },
+  // Sprint 4C (truth): features with no implementation behind them are
+  // explicitly annotated "coming soon" instead of being sold as available.
+  const features: { name: string; free: boolean | string; premium: boolean | string; corporate: boolean | string; soon?: 'premium' | 'corporate' }[] = [
+    { name: 'Connect Requests', free: 'Unlimited (beta)', premium: 'Unlimited', corporate: 'Unlimited' },
     { name: 'View Matches', free: true, premium: true, corporate: true },
     { name: 'Active Listings', free: '1', premium: '5', corporate: 'Unlimited' },
     { name: 'Basic Chat', free: true, premium: true, corporate: true },
     { name: 'Trust Badges', free: true, premium: true, corporate: true },
-    { name: 'See who viewed you', free: false, premium: true, corporate: true },
-    { name: 'Priority Placement', free: false, premium: true, corporate: true },
-    { name: 'Profile Boost', free: false, premium: true, corporate: true },
-    { name: 'HR Dashboard', free: false, premium: false, corporate: true },
-    { name: 'Bulk Listings', free: false, premium: false, corporate: true },
+    { name: 'See who viewed you', free: false, premium: true, corporate: true, soon: 'premium' },
+    { name: 'Priority Placement', free: false, premium: true, corporate: true, soon: 'premium' },
+    { name: 'Profile Boost', free: false, premium: true, corporate: true, soon: 'premium' },
+    { name: 'HR Dashboard', free: false, premium: false, corporate: true, soon: 'corporate' },
+    { name: 'Bulk Listings', free: false, premium: false, corporate: true, soon: 'corporate' },
   ];
 
   const faqs = [
@@ -82,7 +84,7 @@ export default function PricingPage() {
       <div className="gradient-dark py-20 px-4 text-center">
         <h1 className="text-4xl sm:text-5xl font-display italic text-white mb-4">Simple Pricing</h1>
         <p className="text-white/60 max-w-lg mx-auto mb-8">Start free, upgrade when you are ready. No hidden fees.</p>
-        
+
         {/* Billing Toggle */}
         <div className="inline-flex items-center gap-3 bg-white/10 rounded-full p-1">
           <button onClick={() => setIsAnnual(false)} className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${!isAnnual ? 'bg-white text-ink' : 'text-white/60'}`}>Monthly</button>
@@ -134,22 +136,28 @@ export default function PricingPage() {
             <div className="mb-6 mt-2">
               <p className="text-sm font-medium text-fire mb-1">Premium</p>
               <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-bold">₹{isAnnual ? Math.round(2499/12) : 299}</span>
+                <span className="text-4xl font-bold">₹{isAnnual ? Math.round(2499 / 12) : 299}</span>
                 <span className="text-sm text-ink/50">/month</span>
               </div>
               {isAnnual && <p className="text-xs text-ink/40 mt-1">Billed annually at ₹2,499 (Save ₹1,089)</p>}
             </div>
+            {/* Sprint 4C (truth): Premium is NOT purchasable yet — the checkout
+                flow honestly discloses this, so the card must not present an
+                "Upgrade Now" purchase CTA. */}
+            <div className="mb-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gold/15 text-[11px] font-bold text-amber-700 border border-gold/30">
+              <Crown className="w-3 h-3" /> Coming Soon — not purchasable yet
+            </div>
             <button
               onClick={() => handleUpgrade(isAnnual ? 2499 : 299)}
               disabled={paying || profile?.isPremium}
-              className="w-full btn-fire mb-6 flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full btn-outline mb-6 flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {paying ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> Upgrading...</>
               ) : profile?.isPremium ? (
-                'Premium Active 🎉'
+                'Premium Active'
               ) : (
-                'Upgrade Now'
+                'Get Notified at Launch'
               )}
             </button>
             <ul className="space-y-3">
@@ -162,6 +170,7 @@ export default function PricingPage() {
                   )}
                   <span className={typeof f.premium === 'boolean' && !f.premium ? 'text-ink/30' : 'text-ink/70'}>
                     {f.name} {typeof f.premium === 'string' && <span className="text-fire font-medium">({f.premium})</span>}
+                    {f.soon === 'premium' && <span className="ml-1 text-[10px] font-bold text-amber-600">(coming soon)</span>}
                   </span>
                 </li>
               ))}
@@ -177,7 +186,9 @@ export default function PricingPage() {
               </div>
               <p className="text-xs text-ink/40 mt-1">For companies with 10+ employees</p>
             </div>
-            <button onClick={() => toast.success('Contact request sent! Our sales team will email you shortly.')} className="w-full btn-navy mb-6">Talk to Sales</button>
+            {/* Sprint 4C (truth): nothing is transmitted by this button, so it
+                must not claim "request sent". An honest mailto link instead. */}
+            <a href="mailto:hello@nestmate.in?subject=Corporate%20Plan%20Inquiry" className="w-full btn-navy mb-6 flex items-center justify-center">Email Sales</a>
             <ul className="space-y-3">
               {features.map(f => (
                 <li key={f.name} className="flex items-center gap-2.5 text-sm">
@@ -188,6 +199,7 @@ export default function PricingPage() {
                   )}
                   <span className={typeof f.corporate === 'boolean' && !f.corporate ? 'text-ink/30' : 'text-ink/70'}>
                     {f.name} {typeof f.corporate === 'string' && <span className="text-navy font-medium">({f.corporate})</span>}
+                    {f.soon === 'corporate' && <span className="ml-1 text-[10px] font-bold text-amber-600">(coming soon)</span>}
                   </span>
                 </li>
               ))}
@@ -197,7 +209,7 @@ export default function PricingPage() {
 
         {/* FAQ */}
         <div className="max-w-2xl mx-auto mb-16">
-          <h2 className="text-2xl font-display italic text-center mb-8">Frequently Asked Questions</h2>
+          <h2 className="type-h2 text-center mb-8">Frequently Asked Questions</h2>
           <div className="space-y-3">
             {faqs.map((faq, i) => (
               <div key={i} className="card-nestmate p-4">
@@ -213,12 +225,14 @@ export default function PricingPage() {
 
         {/* Trust Signals */}
         <div className="text-center pb-16">
-          <div className="flex items-center justify-center gap-6 text-sm text-ink/40">
-            <span>Cancel anytime</span>
+          {/* Sprint 4C (truth): payments are not live and no 24/7 support
+              system exists — claims replaced with honest facts. */}
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-ink/40">
+            <span>No payment required today</span>
             <span>•</span>
-            <span>Secure payment via Razorpay</span>
+            <span>Payments via Razorpay when Premium launches</span>
             <span>•</span>
-            <span>24/7 support</span>
+            <span>Email support: hello@nestmate.in</span>
           </div>
         </div>
       </div>
@@ -226,7 +240,7 @@ export default function PricingPage() {
       {/* Mock Razorpay Checkout Modal */}
       {showMockCheckout && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl animate-fade-in border border-border">
+          <div className="bg-white rounded-2xl max-w-sm w-full overflow-hidden shadow-2xl animate-fade-in border border-border">
             {/* Header */}
             <div className="bg-[#E05A47] text-white p-6 relative">
               <button
@@ -241,7 +255,7 @@ export default function PricingPage() {
               </div>
               <p className="text-xs text-white/80">{isAnnual ? 'Annual Subscription' : 'Monthly Subscription'}</p>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-3xl font-extrabold font-display">₹{selectedPrice}</span>
+                <span className="text-3xl font-extrabold">₹{selectedPrice}</span>
                 <span className="text-xs text-white/80">total</span>
               </div>
             </div>
@@ -257,11 +271,11 @@ export default function PricingPage() {
                 <div className="bg-cream/40 rounded-xl p-3 text-xs space-y-1.5">
                   <div className="flex justify-between">
                     <span className="text-ink/50">Name:</span>
-                    <span className="font-medium text-ink">{profile?.name || 'Test User'}</span>
+                    <span className="font-medium text-ink">{profile?.name || user?.displayName || 'User'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-ink/50">Email:</span>
-                    <span className="font-medium text-ink">{profile?.email || 'test@nestmate.com'}</span>
+                    <span className="font-medium text-ink">{profile?.email || user?.email || '—'}</span>
                   </div>
                   {profile?.phone && (
                     <div className="flex justify-between">

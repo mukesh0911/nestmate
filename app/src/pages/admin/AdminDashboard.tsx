@@ -59,7 +59,7 @@ export default function AdminDashboard() {
     },
     {
       label: 'Chat Rooms', value: metrics.totalChats,
-      icon: MessageSquare, color: 'bg-purple-50 text-purple-600',
+      icon: MessageSquare, color: 'bg-navy/10 text-navy',
     },
   ];
 

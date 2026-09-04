@@ -9,6 +9,7 @@ import { getDoc, doc, query, collection, where, getDocs } from 'firebase/firesto
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { sanitizePublicProfile } from '@/lib/sanitizeProfile';
+import { useAnalytics } from '@/hooks/useAnalytics';
 import {
   Search, Phone, Send, Smile, Paperclip, Shield, Loader2,
   Home, User as UserIcon, X, CheckCircle2, PhoneCall, Check, CheckCheck, ChevronLeft, MessageCircle
@@ -34,6 +35,7 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [imageUploading, setImageUploading] = useState(false);
   const { uploadChatImage } = useStorage();
+  const { logEvent } = useAnalytics();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Phone share modal
@@ -47,6 +49,16 @@ export default function ChatPage() {
       setPhoneInput((prev) => prev || myProfile.phone);
     }
   }, [myProfile?.phone]);
+
+  // Sprint 2D: funnel event — one chat_started per room per session window
+  useEffect(() => {
+    if (activeRoom && user?.uid) {
+      logEvent(
+        { name: 'chat_started', actorId: user.uid, entityId: activeRoom },
+        { dedupeKey: `chat:${activeRoom}`, dedupeWindowMs: 60_000 }
+      );
+    }
+  }, [activeRoom, user?.uid, logEvent]);
 
   // Typing debounce
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -83,6 +95,11 @@ export default function ChatPage() {
     };
   }, [user?.uid]);
 
+  // BUG-6 FIX: Use a ref so subscription callbacks always see the current activeRoom
+  // instead of a stale closure value.
+  const activeRoomRef = useRef(activeRoom);
+  activeRoomRef.current = activeRoom;
+
   // Subscribe to messages for all rooms to track unread counts
   useEffect(() => {
     if (!user?.uid || chatRooms.length === 0) return;
@@ -99,8 +116,8 @@ export default function ChatPage() {
     chatRooms.forEach(room => {
       if (!currentUnsubs[room.id]) {
         currentUnsubs[room.id] = subscribeToMessages(room.id, (msgs) => {
-          // Only count unread messages NOT sent by us
-          if (room.id !== activeRoom) {
+          // BUG-6 FIX: read activeRoom from ref to avoid stale closure
+          if (room.id !== activeRoomRef.current) {
             const unread = msgs.filter(m => !m.read && m.senderId !== user.uid && m.senderId !== 'system').length;
             setUnreadCounts(prev => ({ ...prev, [room.id]: unread }));
           } else {
@@ -109,8 +126,8 @@ export default function ChatPage() {
         });
       }
     });
-    return () => {}; // cleanup handled by roomIds check above
-  }, [chatRooms, user?.uid, activeRoom]);
+    return () => { }; // cleanup handled by roomIds check above + unmount effect
+  }, [chatRooms, user?.uid]);
 
   // Cleanup all unread subscriptions on unmount
   useEffect(() => {
@@ -187,7 +204,7 @@ export default function ChatPage() {
     const lastActive = profile.lastActiveAt?.toDate ? profile.lastActiveAt.toDate() : new Date(profile.lastActiveAt);
     const diffMs = Date.now() - lastActive.getTime();
     const diffMin = Math.floor(diffMs / 60000);
-    
+
     if (diffMin < 5) return { isOnline: true, lastSeen: 'Online' };
     if (diffMin < 60) return { isOnline: false, lastSeen: `Active ${diffMin}m ago` };
     if (diffMin < 1440) return { isOnline: false, lastSeen: `Active ${Math.floor(diffMin / 60)}h ago` };
@@ -286,6 +303,9 @@ export default function ChatPage() {
         myProfile.role
       );
       setShowPhoneModal(false);
+      // Sprint 2D: funnel event — mutual consent COMPLETED. No phone numbers
+      // are ever written to analytics; only the room ID.
+      logEvent({ name: 'contact_shared', actorId: user.uid, entityId: activeRoom });
       toast.success('Phone numbers shared!');
     } catch {
       toast.error('Failed to share number');
@@ -356,7 +376,7 @@ export default function ChatPage() {
       <div className={`w-full sm:w-[320px] border-r border-border bg-white/50 flex-col ${isMobileChatOpen ? 'hidden sm:flex' : 'flex'}`}>
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-display italic">Messages</h2>
+            <h2 className="type-h3">Messages</h2>
             {chatRooms.length > 0 && (
               <span className="bg-fire text-white text-xs font-bold px-2 py-0.5 rounded-full">{chatRooms.length}</span>
             )}
@@ -381,9 +401,8 @@ export default function ChatPage() {
             const typing = getOtherTyping(room);
             return (
               <button key={room.id} onClick={() => { setActiveRoom(room.id); setIsMobileChatOpen(true); }}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${
-                  activeRoom === room.id ? 'bg-fire/5 border border-fire/20' : 'hover:bg-cream/50'
-                }`}>
+                className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeRoom === room.id ? 'bg-fire/5 border border-fire/20' : 'hover:bg-cream/50'
+                  }`}>
                 <div className="relative w-11 h-11 flex-shrink-0">
                   <div className="w-11 h-11 rounded-full bg-cream overflow-hidden border border-border flex items-center justify-center">
                     {otherUser?.avatar ? (
@@ -455,8 +474,9 @@ export default function ChatPage() {
                 ) : (() => {
                   const status = getOnlineStatus(activeOtherProfile);
                   return (
-                    <p className={`text-xs ${status.isOnline ? 'text-emerald-600 font-medium' : 'text-ink/50'}`}>
-                      {status.isOnline ? '🟢 Online' : status.lastSeen || (activeOtherProfile?.role ? `${activeOtherProfile.role}` : 'User')}
+                    <p className={`text-xs flex items-center gap-1.5 ${status.isOnline ? 'text-emerald-600 font-medium' : 'text-ink/50'}`}>
+                      {status.isOnline && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden />}
+                      {status.isOnline ? 'Online' : status.lastSeen || (activeOtherProfile?.role ? `${activeOtherProfile.role}` : 'User')}
                     </p>
                   );
                 })()}
@@ -514,9 +534,22 @@ export default function ChatPage() {
               <div className="bg-teal/5 border-b border-teal/10 px-3 sm:px-4 py-2 flex items-center justify-center gap-2 sm:gap-4">
                 <PhoneCall className="w-3.5 h-3.5 text-teal shrink-0" />
                 <span className="text-[10px] sm:text-xs text-teal/80 font-medium truncate">
-                  {phoneSharing?.ownerPhone && `Owner: ${phoneSharing.ownerPhone}`}
-                  {phoneSharing?.ownerPhone && phoneSharing?.seekerPhone && ' · '}
-                  {phoneSharing?.seekerPhone && `Seeker: ${phoneSharing.seekerPhone}`}
+                  {(() => {
+                    const isBothSeekers = myProfile?.role === 'seeker' && activeOtherProfile?.role === 'seeker';
+                    const isBothOwners = myProfile?.role === 'owner' && activeOtherProfile?.role === 'owner';
+                    if (isBothSeekers || isBothOwners) {
+                      const p1Name = myProfile?.name || 'You';
+                      const p2Name = activeOtherProfile?.name || 'Match';
+                      return `${p1Name}: ${phoneSharing?.ownerPhone || '—'} · ${p2Name}: ${phoneSharing?.seekerPhone || '—'}`;
+                    }
+                    return (
+                      <>
+                        {phoneSharing?.ownerPhone && `Owner: ${phoneSharing.ownerPhone}`}
+                        {phoneSharing?.ownerPhone && phoneSharing?.seekerPhone && ' · '}
+                        {phoneSharing?.seekerPhone && `Seeker: ${phoneSharing.seekerPhone}`}
+                      </>
+                    );
+                  })()}
                 </span>
               </div>
             ) : (
@@ -544,9 +577,8 @@ export default function ChatPage() {
 
                 return (
                   <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl ${
-                      isMe ? 'bg-fire text-white rounded-br-md' : 'bg-white shadow-sm rounded-bl-md'
-                    }`}>
+                    <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl ${isMe ? 'bg-fire text-white rounded-br-md' : 'bg-white shadow-sm rounded-bl-md'
+                      }`}>
                       {msg.imageUrl && (
                         <div className="mb-2 rounded-lg overflow-hidden">
                           <img src={msg.imageUrl} alt="Chat attachment" className="max-w-full h-auto" />
@@ -620,7 +652,7 @@ export default function ChatPage() {
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-ink/40">
-            <p className="text-lg font-display italic mb-2">Select a conversation</p>
+            <p className="text-lg font-semibold mb-2">Select a conversation</p>
             <p className="text-sm">or connect with a match to start chatting</p>
           </div>
         )}

@@ -130,14 +130,14 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
 
   // If no location after trying, show empty state
   const hasAttemptedUserLocation = isIntersecting && !isGeocoding && !userLocation && !currentUser.geoLocation;
-  
+
   if (hasAttemptedUserLocation) {
     return (
       <div ref={containerRef} className="card-nestmate p-6 text-center mt-5 mb-5 border-2 border-dashed border-ink/10">
         <div className="w-16 h-16 bg-ink/5 rounded-full flex items-center justify-center mx-auto mb-4">
           <MapPin className="w-8 h-8 text-ink/20" />
         </div>
-        <h3 className="text-xl font-display italic mb-2">Add your location to see matches on the map</h3>
+        <h3 className="type-h3 mb-2">Add your location to see matches on the map</h3>
         <p className="text-sm text-ink/50 mb-6">Update your city and locality in your profile</p>
         <button onClick={() => navigate('/edit-profile')} className="btn-outline text-sm">
           Update Location
@@ -230,7 +230,13 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
                   </div>
                   <div className="p-4 flex flex-col gap-3">
                     <div className="flex items-center gap-3">
-                      <img src={match.profile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${match.profile.name}`} alt="" className="w-10 h-10 rounded-full" />
+                      {match.profile.avatar ? (
+                        <img src={match.profile.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-fire/10 flex items-center justify-center text-sm font-bold text-fire">
+                          {(match.profile.name || 'U').charAt(0).toUpperCase()}
+                        </div>
+                      )}
                       <div>
                         <p className="font-semibold text-sm">{match.profile.name}</p>
                         <p className="text-xs text-ink/50">{match.compatibilityScore}% Match</p>
@@ -244,9 +250,9 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
               );
             })}
             {activeMatches.length === 0 && isGeocoding && (
-               <div className="flex items-center justify-center w-[280px] h-[180px] bg-parchment rounded-[16px]">
-                 <Loader2 className="w-6 h-6 animate-spin text-fire" />
-               </div>
+              <div className="flex items-center justify-center w-[280px] h-[180px] bg-parchment rounded-[16px]">
+                <Loader2 className="w-6 h-6 animate-spin text-fire" />
+              </div>
             )}
           </div>
           <button
@@ -311,9 +317,9 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
             {activeMatches.map(({ match, loc }) => {
               const p = match.profile;
 
-              const fillColor = match.compatibilityScore >= 80 
+              const fillColor = match.compatibilityScore >= 80
                 ? '#0D9488' // teal
-                : p.role === 'owner' 
+                : p.role === 'owner'
                   ? '#E5501A' // fire orange
                   : '#1E3A5F'; // navy blue
 
@@ -335,7 +341,13 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
                   <Popup className="match-popup">
                     <div className="flex flex-col gap-2 min-w-[140px]">
                       <div className="flex items-center gap-2">
-                        <img src={p.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} alt="" className="w-8 h-8 rounded-full" />
+                        {p.avatar ? (
+                          <img src={p.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-fire/10 flex items-center justify-center text-xs font-bold text-fire">
+                            {(p.name || 'U').charAt(0).toUpperCase()}
+                          </div>
+                        )}
                         <div>
                           <p className="font-bold text-sm leading-tight">{p.name}</p>
                           <p className="text-[10px] text-ink/60">{p.profession}</p>

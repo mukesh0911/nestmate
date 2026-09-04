@@ -1,22 +1,25 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { cities, localitiesByCity, flatTypes, furnishingTypes, amenitiesList } from '@/lib/staticData';
 import { useAuth } from '@/hooks/useAuth';
 import { useMatches, calculateCompatibility, getActiveStatus } from '@/hooks/useMatches';
+import { getMatchReasons } from '@/lib/matching';
 import { useChat } from '@/hooks/useChat';
 import { useConnections, FREE_CONNECT_LIMIT } from '@/hooks/useConnections';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useAnalytics } from '@/hooks/useAnalytics';
 import type { MatchedUser } from '@/hooks/useMatches';
 import type { Connection } from '@/hooks/useConnections';
 import { toast } from 'sonner';
 import { Drawer } from 'vaul';
-import { Search, LayoutGrid, List, Crown, Shield, ShieldCheck, Star, MessageCircle, Heart, HeartOff, Bookmark, Home, Loader2, X, Filter, SlidersHorizontal, MoreVertical, Flag, Ban, Check, CheckCircle2, Bell, Sparkles } from 'lucide-react';
+import { Search, LayoutGrid, List, Crown, Shield, ShieldCheck, Star, MessageCircle, Heart, HeartOff, Bookmark, Home, Loader2, X, Filter, SlidersHorizontal, MoreVertical, Flag, Ban, Check, CheckCircle2, Bell, Sparkles, ChevronDown } from 'lucide-react';
 import { MapPreview } from '@/components/MapPreview';
 import TrustBadge from '@/components/TrustBadge';
 import ProfileCompleteness from '@/components/ProfileCompleteness';
 import StateEmpty from '@/components/StateEmpty';
+import { budgetOverlapPct } from '@/lib/displayTruth';
 import { StateSkeletonGrid } from '@/components/StateLoading';
 import {
   DropdownMenu,
@@ -44,11 +47,21 @@ export default function SeekerDashboard() {
   const { subscribeToChatRooms, getOrCreateChatRoom } = useChat();
   const { sendRequest, getMyConnections, getMonthlyConnectCount, subscribeToMyConnections, acceptRequest, rejectRequest } = useConnections();
   const { createNotification } = useNotifications();
-  const { toggleSavedProfile, addSkippedUser, blockUser, reportUser, saveSearch, deleteSearch } = useUserProfile();
+  const { toggleSavedProfile, addSkippedUser, blockUser, reportUser, saveSearch, deleteSearch, updateProfile } = useUserProfile();
+  const { logEvent } = useAnalytics();
 
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') === 'connections' ? 'connections' : (searchParams.get('tab') === 'saved' ? 'saved' : 'all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortMode, setSortMode] = useState<'best' | 'newest' | 'budgetAsc' | 'budgetDesc'>('best');
-  const [activeTab, setActiveTab] = useState<'all' | 'saved' | 'connections'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'saved' | 'connections'>(initialTab);
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'connections' || tabParam === 'saved' || tabParam === 'all') {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
   const [searchQuery, setSearchQuery] = useState('');
   const [matches, setMatches] = useState<MatchedUser[]>([]);
   const [savedProfiles, setSavedProfiles] = useState<MatchedUser[]>([]);
@@ -82,13 +95,23 @@ export default function SeekerDashboard() {
   const [reportReason, setReportReason] = useState('');
   const [reportDescription, setReportDescription] = useState('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  // Sprint 2E: set when a city-scoped search found nothing and results were
+  // widened to other cities — surfaced to the user as an explicit notice.
+  const [expandedFromCity, setExpandedFromCity] = useState<string | null>(null);
 
   const savedProfileIds = useMemo(() => profile?.savedProfileIds || [], [profile?.savedProfileIds]);
+
+  // Combine local matches, saved profiles, and connected profiles to create a unified pool
+  const allAvailableMatches = useMemo(() => [
+    ...matches,
+    ...savedProfiles.filter(sp => !matches.some(m => m.profile.uid === sp.profile.uid)),
+    ...connectedProfiles.filter(cp => !matches.some(m => m.profile.uid === cp.profile.uid))
+  ], [matches, savedProfiles, connectedProfiles]);
 
   const handleBlockUser = async (targetUid: string, name: string) => {
     if (!user?.uid) return;
     if (!window.confirm(`Are you sure you want to block ${name}? You won't see each other again.`)) return;
-    
+
     try {
       await blockUser(user.uid, targetUid);
       await refreshProfile();
@@ -141,11 +164,21 @@ export default function SeekerDashboard() {
   useEffect(() => {
     if (!profile) return;
     setIsLoading(true);
-    findMatches(profile, filters.city, filters, false)
+    setExpandedFromCity(null);
+    findMatches(profile, filters.city, filters, false, (requestedCity) => setExpandedFromCity(requestedCity))
       .then(matches => {
         // Filter out blocked users
         const blockedIds = new Set(profile.blockedUserIds || []);
-        setMatches(matches.filter(m => !blockedIds.has(m.profile.uid || '')));
+        const visible = matches.filter(m => !blockedIds.has(m.profile.uid || ''));
+        setMatches(visible);
+        // Sprint 2D: discovery event — one per unique filter signature per
+        // session window. Zero-result searches are logged too (no-result rate).
+        const sig = [filters.city, filters.budgetMin, filters.budgetMax,
+        (filters.localities || []).join(','), filters.gender].join('|');
+        logEvent(
+          { name: 'search_performed', actorId: user?.uid || '', city: filters.city || undefined, resultCount: visible.length },
+          { dedupeKey: `search:${sig}`, dedupeWindowMs: 60_000 }
+        );
       })
       .catch(() => toast.error('Failed to load matches.'))
       .finally(() => setIsLoading(false));
@@ -203,7 +236,7 @@ export default function SeekerDashboard() {
     // Find IDs that are saved but not currently in matches
     const existingUids = new Set(matches.map(m => m.profile.uid));
     const missingUids = savedProfileIds.filter(id => !existingUids.has(id));
-    
+
     if (missingUids.length === 0) {
       setSavedProfiles([]);
       return;
@@ -233,9 +266,31 @@ export default function SeekerDashboard() {
   useEffect(() => {
     if (!user?.uid) return;
     const unsub = subscribeToMyConnections(user.uid, setMyConnections);
-    getMonthlyConnectCount(user.uid).then(setConnectsUsed).catch(() => {});
+    getMonthlyConnectCount(user.uid).then(setConnectsUsed).catch(() => { });
     return unsub;
   }, [user?.uid]);
+
+  // BUG-5 FIX: Load profiles for accepted connections not already in matches pool.
+  // Without this, the "connections" tab shows nothing for users who aren't in the
+  // current city/filter match set.
+  useEffect(() => {
+    if (!profile || acceptedConnectedUids.length === 0) {
+      setConnectedProfiles([]);
+      return;
+    }
+    const existingUids = new Set(matches.map(m => m.profile.uid));
+    const missingSavedUids = new Set((savedProfiles || []).map(sp => sp.profile.uid));
+    const missingUids = acceptedConnectedUids.filter(
+      id => !existingUids.has(id) && !missingSavedUids.has(id)
+    );
+    if (missingUids.length === 0) {
+      setConnectedProfiles([]);
+      return;
+    }
+    getProfilesByIds(profile, missingUids)
+      .then(setConnectedProfiles)
+      .catch(() => console.error('Failed to load connected profiles'));
+  }, [profile, acceptedConnectedUids, matches, savedProfiles, getProfilesByIds]);
 
   // Save / Unsave
   const handleToggleSave = useCallback(async (targetUid: string) => {
@@ -327,6 +382,8 @@ export default function SeekerDashboard() {
       setConnectingId(targetUid);
       try {
         await acceptRequest(conn.id);
+        // Sprint 2D: funnel event (fire-and-forget)
+        logEvent({ name: 'interest_accepted', actorId: user.uid, entityId: conn.id, city: profile?.city });
         const roomId = await getOrCreateChatRoom(user.uid, targetUid);
         await createNotification({
           userId: targetUid,
@@ -352,13 +409,21 @@ export default function SeekerDashboard() {
     setConnectingId(targetUid);
     try {
       const connectionId = await sendRequest(user.uid, targetUid);
+      // Sprint 2D: funnel event (fire-and-forget)
+      logEvent({ name: 'interest_sent', actorId: user.uid, entityId: connectionId, city: profile?.city });
+      const targetMatch = allAvailableMatches.find(m => m.profile.uid === targetUid);
+      const isTargetOwner = targetMatch?.profile.role === 'owner';
+      const actionUrl = isTargetOwner
+        ? `/owner-dashboard?request=${connectionId}`
+        : `/match/${user.uid}`;
+
       await createNotification({
         userId: targetUid,
         type: 'connect',
         title: 'New Connection Request!',
         description: `${profile?.name || 'Someone'} wants to connect with you.`,
         read: false,
-        actionUrl: `/owner-dashboard?request=${connectionId}`,
+        actionUrl,
       });
       toast.success(`Connection request sent to ${targetName}!`);
     } catch (err: any) {
@@ -366,31 +431,85 @@ export default function SeekerDashboard() {
     } finally {
       setConnectingId(null);
     }
-  }, [user?.uid, connectingId, chatRoomMap, myConnections, sendRequest, acceptRequest, getOrCreateChatRoom, createNotification, profile?.name, navigate]);
+  }, [user?.uid, connectingId, chatRoomMap, myConnections, allAvailableMatches, sendRequest, acceptRequest, getOrCreateChatRoom, createNotification, profile?.name, profile?.city, logEvent, navigate]);
 
-  // Combine local matches, saved profiles, and connected profiles to create a unified pool
-  const allAvailableMatches = useMemo(() => [
-    ...matches,
-    ...savedProfiles.filter(sp => !matches.some(m => m.profile.uid === sp.profile.uid)),
-    ...connectedProfiles.filter(cp => !matches.some(m => m.profile.uid === cp.profile.uid))
-  ], [matches, savedProfiles, connectedProfiles]);
+  // Sprint 2D: match-explanation usage (fire-and-forget, deduped per target)
+  useEffect(() => {
+    if (compatModal && user?.uid) {
+      logEvent(
+        { name: 'match_explanation_viewed', actorId: user.uid, entityId: compatModal.profile.uid },
+        { dedupeKey: `explain:${compatModal.profile.uid}`, dedupeWindowMs: 60_000 }
+      );
+    }
+  }, [compatModal, user?.uid, logEvent]);
+
 
   // Client-side filtering + sorting
   const filteredMatches = useMemo(() => {
+    const getEffectiveBudget = (m: MatchedUser) => {
+      const listing = (m.profile as any)._listing;
+      return listing?.partnerShare || listing?.totalRent || m.profile.budget || 0;
+    };
+
+    const getTimestampMs = (m: MatchedUser) => {
+      const p = m.profile;
+      const ts = (p as any)._listing?.createdAt || p.createdAt || p.lastActiveAt;
+      if (!ts) return 0;
+      if (typeof ts.toMillis === 'function') return ts.toMillis();
+      if (typeof ts.getTime === 'function') return ts.getTime();
+      if (typeof ts === 'number') return ts;
+      if (typeof ts === 'string') return new Date(ts).getTime() || 0;
+      return 0;
+    };
+
     return allAvailableMatches
       .filter(m => {
         const p = m.profile;
+        const listing = (p as any)._listing;
+
         if (activeTab === 'saved' && !savedProfileIds.includes(p.uid || '')) return false;
         if (activeTab === 'connections' && !acceptedConnectedUids.includes(p.uid || '')) return false;
+
+        // Verified Only filter
+        if (filters.verifiedOnly && !p.isVerified) return false;
+
+        // Gender filter
         if (activeTab === 'all' && filters.gender && filters.gender !== 'any') {
           if (!p.gender || p.gender.toLowerCase() !== filters.gender.toLowerCase()) return false;
         }
-        const effectiveBudget = (p as any)._listing?.partnerShare || (p as any)._listing?.totalRent || p.budget || 0;
+
+        // Budget filter
+        const effectiveBudget = getEffectiveBudget(m);
         if (activeTab === 'all' && effectiveBudget > 0) {
           if (filters.budgetMin > 0 && effectiveBudget < filters.budgetMin) return false;
           if (filters.budgetMax < 100000 && effectiveBudget > filters.budgetMax) return false;
         }
-        if (activeTab === 'all' && filters.localities.length > 0 && p.localities && !p.localities.some((l: string) => filters.localities.includes(l))) return false;
+
+        // Localities filter
+        if (activeTab === 'all' && filters.localities.length > 0) {
+          const userLocs = p.localities || [];
+          const hasMatch = filters.localities.some((l: string) => userLocs.includes(l) || listing?.locality === l);
+          if (!hasMatch) return false;
+        }
+
+        // Flat Type filter
+        if (filters.flatType && filters.flatType.length > 0) {
+          if (!listing || !filters.flatType.includes(listing.flatType)) return false;
+        }
+
+        // Furnishing filter
+        if (filters.furnishing && filters.furnishing.length > 0) {
+          if (!listing || !filters.furnishing.includes(listing.furnishing)) return false;
+        }
+
+        // Amenities filter
+        if (filters.amenities && filters.amenities.length > 0) {
+          if (!listing || !listing.amenities) return false;
+          const hasAll = filters.amenities.every((a: string) => listing.amenities.includes(a));
+          if (!hasAll) return false;
+        }
+
+        // Search Query filter
         if (searchQuery) {
           const q = searchQuery.toLowerCase();
           const inLocalities = (p.localities || []).some((l: string) => l.toLowerCase().includes(q));
@@ -402,43 +521,70 @@ export default function SeekerDashboard() {
         return true;
       })
       .sort((a, b) => {
-        if (sortMode === 'newest') return 0; // Firestore already returns by creation order
-        if (sortMode === 'budgetAsc') return (a.profile.budget || 0) - (b.profile.budget || 0);
-        if (sortMode === 'budgetDesc') return (b.profile.budget || 0) - (a.profile.budget || 0);
-        return b.compatibilityScore - a.compatibilityScore; // 'best'
+        if (sortMode === 'newest') {
+          return getTimestampMs(b) - getTimestampMs(a);
+        }
+        if (sortMode === 'budgetAsc') {
+          return getEffectiveBudget(a) - getEffectiveBudget(b);
+        }
+        if (sortMode === 'budgetDesc') {
+          return getEffectiveBudget(b) - getEffectiveBudget(a);
+        }
+        // 'best': Compatibility Score primary, newest as tiebreaker
+        if (b.compatibilityScore !== a.compatibilityScore) {
+          return b.compatibilityScore - a.compatibilityScore;
+        }
+        return getTimestampMs(b) - getTimestampMs(a);
       });
   }, [allAvailableMatches, activeTab, savedProfileIds, acceptedConnectedUids, filters, searchQuery, sortMode]);
 
-  const bestMatch = useMemo(() => activeTab === 'all' ? filteredMatches[0] : null, [activeTab, filteredMatches]);
-  const gridMatches = useMemo(() => activeTab === 'all' ? filteredMatches.slice(1) : filteredMatches, [activeTab, filteredMatches]);
+  // bestMatch: the first match with a real score > 0. If all scores are 0
+  // (e.g. no quiz data on either side) we show no featured hero card —
+  // calling a 0% match "Best Match Today" is dishonest.
+  const bestMatch = useMemo(
+    () => activeTab === 'all' ? (filteredMatches.find(m => m.compatibilityScore > 0) ?? null) : null,
+    [activeTab, filteredMatches]
+  );
+  const gridMatches = useMemo(
+    () => activeTab === 'all' ? filteredMatches.filter(m => m !== bestMatch) : filteredMatches,
+    [activeTab, filteredMatches, bestMatch]
+  );
 
   const compatibilityColor = (score: number) => {
     if (score >= 90) return 'bg-teal';
     return 'bg-fire';
   };
 
-  // Compatibility modal breakdown
+  // Sprint 4A (truth): compatibility modal breakdown.
+  // - Lifestyle is always computable from real quiz answers (may be 0).
+  // - Budget overlap is computed ONLY from two real budgets; otherwise null
+  //   (previously a fabricated 50% placeholder was shown).
+  // - Location match requires BOTH cities to be known; otherwise null.
   const getCompatBreakdown = (match: MatchedUser) => {
-    const lifestyle = calculateCompatibility(profile?.quizAnswers || {}, match.profile.quizAnswers || {}, profile?.city, match.profile.city);
-    const myBudget = profile?.budget || 0;
-    const theirBudget = match.profile.budget || 0;
-    const budgetMatch = myBudget && theirBudget
-      ? Math.max(0, 100 - Math.round(Math.abs(myBudget - theirBudget) / Math.max(myBudget, theirBudget) * 100))
-      : 50;
-    const locationMatch = profile?.city === match.profile.city ? 100 : 0;
+    // Use the pre-computed score from findMatches (same engine, avoids drift between card and modal).
+    const lifestyle = match.compatibilityScore;
+    const budgetMatch = budgetOverlapPct(profile?.budget, match.profile.budget);
+    const locationMatch =
+      profile?.city && match.profile.city
+        ? (profile.city.toLowerCase().trim() === match.profile.city.toLowerCase().trim() ? 100 : 0)
+        : null;
     return { lifestyle, budgetMatch, locationMatch };
   };
 
   const getSharedCount = (match: MatchedUser) => {
-    if (!profile?.quizAnswers || !match.profile.quizAnswers) return 0;
-    return Object.keys(match.profile.quizAnswers).filter(k => match.profile.quizAnswers![k] === profile.quizAnswers![k]).length;
+    if (!profile?.quizAnswers || !match.profile.quizAnswers) return { matched: 0, total: 0 };
+    const myKeys = Object.keys(profile.quizAnswers);
+    const theirKeys = Object.keys(match.profile.quizAnswers);
+    const commonKeys = myKeys.filter(k => theirKeys.includes(k));
+    const matched = commonKeys.filter(k => match.profile.quizAnswers![k] === profile.quizAnswers![k]).length;
+    return { matched, total: commonKeys.length };
   };
 
   const getLifestyleTags = (match: MatchedUser) => {
     const tags = [];
     const ans = match.profile.quizAnswers || {};
     const myAns = profile?.quizAnswers || {};
-    
+
     if (ans.sleep_time) {
       const isMatch = ans.sleep_time === myAns.sleep_time;
       const lbl = ans.sleep_time === 'before_10' ? 'Early Bird' : ans.sleep_time === 'after_12' ? 'Night Owl' : 'Flexible';
@@ -474,7 +620,13 @@ export default function SeekerDashboard() {
               <div className="flex items-center gap-3 mb-4">
                 <div className="relative">
                   <div className="w-14 h-14 rounded-full border-2 border-fire p-0.5">
-                    <img src={profile?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile?.name}`} alt="" loading="lazy" className="w-full h-full rounded-full" />
+                    {profile?.avatar && !profile.avatar.includes('dicebear') ? (
+                      <img src={profile.avatar} alt="" loading="lazy" className="w-full h-full rounded-full" />
+                    ) : (
+                      <div aria-hidden="true" className="w-full h-full rounded-full bg-fire/10 text-fire flex items-center justify-center font-bold">
+                        {(profile?.name || '?').trim().charAt(0).toUpperCase()}
+                      </div>
+                    )}
                   </div>
                   {profile?.isVerified && (
                     <div className="absolute -top-1 -right-1 bg-teal text-white p-0.5 rounded-full border border-white">
@@ -486,7 +638,7 @@ export default function SeekerDashboard() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <h3 className="font-semibold text-sm truncate">{profile?.name || 'Guest'}</h3>
-                    <TrustBadge profile={profile} size="xs" showTooltip />
+                    <TrustBadge profile={profile} authProviders={user?.providerData?.map(p => p.providerId)} size="xs" showTooltip />
                   </div>
                   <p className="text-[10px] text-ink/50 truncate">{profile?.profession} · {profile?.city}</p>
                 </div>
@@ -504,7 +656,7 @@ export default function SeekerDashboard() {
                   <p className="text-[10px] text-ink/50">Chats</p>
                 </div>
                 <div className="bg-cream/50 rounded-lg p-2">
-                  <p className="text-lg font-bold text-fire">{matches.length > 0 ? `${matches[0].compatibilityScore}%` : '—'}</p>
+                  <p className="text-lg font-bold text-fire">{matches.length > 0 ? `${Math.max(...matches.map(m => m.compatibilityScore))}%` : '—'}</p>
                   <p className="text-[10px] text-ink/50">Top Match</p>
                 </div>
               </div>
@@ -512,14 +664,14 @@ export default function SeekerDashboard() {
             </div>
 
             {/* Filters – Desktop Card */}
-            <FilterPanel filters={filters} updateFilters={updateFilters} profile={profile} onSaveSearch={saveSearch} />
+            <FilterPanel filters={filters} updateFilters={updateFilters} profile={profile} onSaveSearch={saveSearch} matches={allAvailableMatches} />
 
             {/* Your Preferences */}
             {profile?.quizAnswers && Object.keys(profile.quizAnswers).length > 0 && (
               <div className="card-nestmate p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold text-sm">Your Preferences</h4>
-                  <button onClick={() => navigate('/onboarding/seeker')} className="text-xs text-fire">Edit</button>
+                  <button onClick={() => navigate('/edit-profile')} className="text-xs text-fire cursor-pointer">Edit</button>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {profile.quizAnswers && Object.entries(profile.quizAnswers).slice(0, 5).map(([qId, ansId]: [string, string]) => {
@@ -540,13 +692,13 @@ export default function SeekerDashboard() {
                   {profile.savedSearches.map(alert => (
                     <div key={alert.id} className="bg-cream/50 p-3 rounded-xl border border-border flex flex-col gap-2">
                       <div className="flex items-start justify-between">
-                        <button 
+                        <button
                           onClick={() => updateFilters(alert.filters)}
                           className="text-left text-sm font-medium hover:text-fire transition-colors"
                         >
                           {alert.name}
                         </button>
-                        <button 
+                        <button
                           onClick={() => {
                             if (user?.uid) deleteSearch(user.uid, alert);
                           }}
@@ -557,7 +709,7 @@ export default function SeekerDashboard() {
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {alert.filters.city && <span className="badge-teal text-[9px]">{alert.filters.city}</span>}
-                        {alert.filters.budgetMax && <span className="badge-gold text-[9px]">₹{alert.filters.budgetMax/1000}k</span>}
+                        {alert.filters.budgetMax && <span className="badge-gold text-[9px]">₹{alert.filters.budgetMax / 1000}k</span>}
                         {alert.filters.flatType?.map((ft: string) => <span key={ft} className="bg-ink/5 text-ink/70 px-1.5 py-0.5 rounded text-[9px]">{ft}</span>)}
                       </div>
                     </div>
@@ -581,16 +733,34 @@ export default function SeekerDashboard() {
               </div>
             </div>
 
-            {/* Owner Promo */}
-            <div className="card-nestmate p-5 gradient-dark text-white shadow-xl border border-fire/20">
+            {/* Sprint 5B: promo card — flat dark surface, no decorative shadow,
+                sans heading (serif reserved for hero moments) */}
+            <div className="card-nestmate p-5 gradient-dark text-white">
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-fire/20 rounded-xl flex items-center justify-center flex-shrink-0 border border-fire/30">
-                  <Home className="w-6 h-6 text-fire" />
+                <div className="w-11 h-11 bg-fire/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Home className="w-5 h-5 text-fire" />
                 </div>
                 <div>
-                  <h4 className="font-display italic text-lg mb-1 leading-tight text-white">Got a room to list?</h4>
+                  <h4 className="type-h3 text-white mb-1">Got a room to list?</h4>
                   <p className="text-xs text-white/60 mb-4 leading-relaxed">Switch to Owner mode and find the perfect roommate today.</p>
-                  <button onClick={() => navigate('/onboarding/owner')} className="px-5 py-2.5 w-full bg-fire hover:bg-fire-dark rounded-xl text-xs font-semibold transition-all">List My Room</button>
+                  <button
+                    onClick={async () => {
+                      if (user?.uid) {
+                        try {
+                          await updateProfile(user.uid, { role: 'owner' } as any);
+                          await refreshProfile();
+                          navigate('/owner-dashboard');
+                        } catch {
+                          navigate('/owner-dashboard');
+                        }
+                      } else {
+                        navigate('/login');
+                      }
+                    }}
+                    className="px-5 py-2.5 w-full bg-fire hover:bg-fire-dark rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                  >
+                    List My Room
+                  </button>
                 </div>
               </div>
             </div>
@@ -598,17 +768,29 @@ export default function SeekerDashboard() {
 
           {/* ─── Main Content ─── */}
           <div className="flex-1 min-w-0">
-            {/* Tabs Bar */}
-            <div className="flex border-b border-ink/10 mb-5 relative overflow-x-auto">
-              <button 
-                onClick={() => setActiveTab('all')} 
-                className={`py-3 px-6 text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === 'all' ? 'text-fire' : 'text-ink/60 hover:text-ink/80'}`}
+            {/* Sprint 5E: calm page header — one purpose statement plus a
+                truthful result count so the seeker knows what they're looking at */}
+            <div className="mb-4">
+              <h1 className="type-h2">Find your next roommate</h1>
+              <p className="type-caption mt-1">
+                {isLoading
+                  ? 'Loading matches…'
+                  : `${filteredMatches.length} ${filteredMatches.length === 1 ? 'person' : 'people'} ${filters.city ? `in ${filters.city}` : 'across all cities'}`}
+              </p>
+            </div>
+
+            {/* Tabs Bar — active state carried by the button itself (no
+                fragile pixel-offset indicator) */}
+            <div className="flex border-b border-border mb-5 overflow-x-auto scrollbar-hide">
+              <button
+                onClick={() => setActiveTab('all')}
+                className={`py-3 px-5 sm:px-6 text-sm font-semibold transition-colors whitespace-nowrap border-b-2 -mb-px ${activeTab === 'all' ? 'text-fire border-fire' : 'text-ink/60 hover:text-ink/80 border-transparent'}`}
               >
                 All Matches
               </button>
-              <button 
-                onClick={() => setActiveTab('saved')} 
-                className={`py-3 px-6 text-sm font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'saved' ? 'text-fire' : 'text-ink/60 hover:text-ink/80'}`}
+              <button
+                onClick={() => setActiveTab('saved')}
+                className={`py-3 px-5 sm:px-6 text-sm font-semibold transition-colors flex items-center gap-2 whitespace-nowrap border-b-2 -mb-px ${activeTab === 'saved' ? 'text-fire border-fire' : 'text-ink/60 hover:text-ink/80 border-transparent'}`}
               >
                 Saved Profiles
                 {savedProfileIds.length > 0 && (
@@ -617,9 +799,9 @@ export default function SeekerDashboard() {
                   </span>
                 )}
               </button>
-              <button 
-                onClick={() => setActiveTab('connections')} 
-                className={`py-3 px-6 text-sm font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'connections' ? 'text-fire' : 'text-ink/60 hover:text-ink/80'}`}
+              <button
+                onClick={() => setActiveTab('connections')}
+                className={`py-3 px-5 sm:px-6 text-sm font-semibold transition-colors flex items-center gap-2 whitespace-nowrap border-b-2 -mb-px ${activeTab === 'connections' ? 'text-fire border-fire' : 'text-ink/60 hover:text-ink/80 border-transparent'}`}
               >
                 My Connections
                 {acceptedConnectedUids.length > 0 && (
@@ -628,18 +810,11 @@ export default function SeekerDashboard() {
                   </span>
                 )}
               </button>
-              {/* Active Tab Indicator */}
-              <div 
-                className="absolute bottom-0 h-0.5 bg-fire transition-all duration-300 ease-out" 
-                style={{ 
-                  left: activeTab === 'all' ? '0' : activeTab === 'saved' ? '110px' : '255px', 
-                  width: activeTab === 'all' ? '110px' : activeTab === 'saved' ? '145px' : '155px'
-                }}
-              />
             </div>
 
             {/* Top Bar (Filters/Search/Sort) */}
-            <div className="frosted-glass rounded-2xl p-3 mb-5 flex flex-col sm:flex-row items-center gap-3">
+            {/* Sprint 5E: filters are tools — flat card, not glassmorphism */}
+            <div className="card-nestmate p-3 mb-5 flex flex-col sm:flex-row items-center gap-3">
               <div className="relative flex-1 w-full flex items-center gap-2">
                 {/* Mobile Filters Trigger (Vaul Drawer) */}
                 <div className="lg:hidden">
@@ -661,7 +836,7 @@ export default function SeekerDashboard() {
                               <X className="w-4 h-4" />
                             </button>
                           </div>
-                          <FilterPanel filters={filters} updateFilters={updateFilters} profile={profile} onSaveSearch={saveSearch} />
+                          <FilterPanel filters={filters} updateFilters={updateFilters} profile={profile} onSaveSearch={saveSearch} matches={allAvailableMatches} />
                           <div className="mt-6">
                             <button onClick={() => setMobileFiltersOpen(false)} className="w-full py-3 bg-fire text-white rounded-xl font-medium">Apply Filters</button>
                           </div>
@@ -670,7 +845,7 @@ export default function SeekerDashboard() {
                     </Drawer.Portal>
                   </Drawer.Root>
                 </div>
-                
+
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
                   <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
@@ -710,38 +885,25 @@ export default function SeekerDashboard() {
                       {(bestMatch.profile as any)._listing?.images?.[0] && (
                         <img src={(bestMatch.profile as any)._listing.images[0]} alt="Flat" className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-overlay" />
                       )}
-                      <span className="absolute top-3 left-3 bg-gold/90 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 z-10">
-                        <Star className="w-3 h-3" /> Best Match Today
-                      </span>
+                      {bestMatch.compatibilityScore > 0 && (
+                        <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-ink text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 z-10">
+                          <Star className="w-3 h-3 text-gold" aria-hidden /> Best Match Today
+                        </span>
+                      )}
                       {bestMatch.profile.createdAt?.toMillis && (Date.now() - bestMatch.profile.createdAt.toMillis() < 7 * 24 * 60 * 60 * 1000) && (
-                        <div className="absolute top-10 left-3 bg-[#F59E0B] text-ink text-[10px] font-bold px-2 py-0.5 rounded shadow-sm z-10">
+                        <div className="absolute top-10 left-3 bg-white/90 backdrop-blur-sm text-ink/70 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm z-10">
                           NEW
                         </div>
                       )}
                       <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCompatModal(bestMatch); }} className={`absolute top-3 right-3 ${compatibilityColor(bestMatch.compatibilityScore)} text-white text-xs font-bold px-2 py-1 rounded-full hover:opacity-90 transition-opacity`}>
                         {bestMatch.compatibilityScore}%
                       </button>
-                      <div className="absolute bottom-3 right-3 flex justify-center pointer-events-none">
-                        <div className={`text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm ${getSharedCount(bestMatch) >= 7 ? 'bg-green-100 text-green-700' : getSharedCount(bestMatch) >= 4 ? 'bg-amber-100 text-amber-700' : 'bg-ink/10 text-ink/60'}`}>
-                          <Check className="w-3 h-3" />
-                          {getSharedCount(bestMatch)}/10 matches
-                        </div>
-                      </div>
                       <div className="relative mb-3 mt-4">
                         <img src={bestMatch.profile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${bestMatch.profile.name}`} alt={bestMatch.profile.name} loading="lazy" className="w-20 h-20 rounded-full border-3 border-white/30" />
                         {activeStatus.status !== 'offline' && (
                           <div className={`absolute bottom-0 right-1 w-2 h-2 rounded-full border border-white shadow-sm ${activeStatus.status === 'online' ? 'bg-green-500' : 'bg-gray-400'}`} />
                         )}
                       </div>
-                      <div className="flex flex-wrap items-center gap-1 mb-1 justify-center sm:justify-start">
-                        <p className="text-white font-semibold text-sm">{bestMatch.profile.name}</p>
-                        {bestMatch.profile.workEmailVerified && <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" aria-label="Corporate Verified" />}
-                        {bestMatch.profile.isVerified && <ShieldCheck className="w-3.5 h-3.5 text-teal" aria-label="ID Verified" />}
-                      </div>
-                      <p className={`text-[10px] mb-1 font-medium ${activeStatus.status === 'online' ? 'text-green-400' : 'text-white/70'}`}>
-                        {activeStatus.text}
-                      </p>
-                      <p className="text-white/50 text-xs">{bestMatch.profile.profession}</p>
                     </div>
                     <div className="flex-1 p-5">
                       <div className="flex items-start justify-between mb-3">
@@ -755,6 +917,9 @@ export default function SeekerDashboard() {
                               </span>
                             ))}
                           </div>
+                          {/* Sprint 5E: shared-answer count as quiet caption in the
+                              content flow — replaces the floating overlay pill */}
+                          <p className="type-caption mt-1.5">{getSharedCount(bestMatch).matched}/{getSharedCount(bestMatch).total || 10} lifestyle answers match</p>
                         </div>
                         <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleToggleSave(bestMatch.profile.uid || ''); }} disabled={savingId === bestMatch.profile.uid}
                           className={`p-2 rounded-lg transition-all ${savedProfileIds.includes(bestMatch.profile.uid || '') ? 'text-red-500 bg-red-50' : 'text-ink/30 hover:text-red-400'}`}>
@@ -781,12 +946,11 @@ export default function SeekerDashboard() {
                         <button
                           disabled={bState === 'pending_sent' || connectingId === bestMatch.profile.uid}
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleConnect(bestMatch.profile.uid || '', bestMatch.profile.name || ''); }}
-                          className={`flex-[1.5] py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${
-                            bState === 'chat' ? 'bg-teal text-white hover:opacity-90' :
+                          className={`flex-[1.5] py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${bState === 'chat' ? 'bg-teal text-white hover:opacity-90' :
                             bState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
-                            bState === 'pending_received' ? 'bg-teal text-white hover:opacity-90' :
-                            'bg-fire text-white hover:bg-fire-dark'
-                          }`}
+                              bState === 'pending_received' ? 'bg-teal text-white hover:opacity-90' :
+                                'bg-fire text-white hover:bg-fire-dark'
+                            }`}
                         >
                           {connectingId === bestMatch.profile.uid ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
                           {bState === 'chat' ? 'Chat' : bState === 'pending_sent' ? 'Request Sent' : bState === 'pending_received' ? 'Accept Request' : 'Connect'}
@@ -810,7 +974,7 @@ export default function SeekerDashboard() {
                     <div key={p.uid} onClick={() => navigate(`/match/${p.uid}`)} className={`card-nestmate-hover overflow-hidden cursor-pointer ${viewMode === 'list' ? 'flex' : ''}`}>
                       <div className={`relative ${viewMode === 'list' ? 'w-32 flex-shrink-0' : ''}`}>
                         {p.createdAt?.toMillis && (Date.now() - p.createdAt.toMillis() < 7 * 24 * 60 * 60 * 1000) && (
-                          <div className="absolute top-2 left-2 bg-[#F59E0B] text-ink text-[10px] font-bold px-2 py-0.5 rounded shadow-sm z-10">
+                          <div className="absolute top-2 left-2 bg-white/90 backdrop-blur-sm text-ink/70 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm z-10">
                             NEW
                           </div>
                         )}
@@ -828,12 +992,6 @@ export default function SeekerDashboard() {
                         <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCompatModal(match); }} className={`absolute top-2 right-2 ${compatibilityColor(match.compatibilityScore)} text-white text-[10px] font-bold px-2 py-0.5 rounded-full hover:opacity-90`}>
                           {match.compatibilityScore}%
                         </button>
-                        <div className="absolute bottom-2 left-2 right-2 flex justify-center pointer-events-none">
-                          <div className={`text-[9px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm ${getSharedCount(match) >= 7 ? 'bg-green-100 text-green-700' : getSharedCount(match) >= 4 ? 'bg-amber-100 text-amber-700' : 'bg-ink/10 text-ink/60'}`}>
-                            <Check className="w-3 h-3" />
-                            {getSharedCount(match)}/10 matches
-                          </div>
-                        </div>
                       </div>
                       <div className="p-4 flex-1">
                         <div className="flex items-start justify-between mb-2">
@@ -877,7 +1035,9 @@ export default function SeekerDashboard() {
                             </span>
                           ))}
                         </div>
-                        <p className="text-xs text-ink/60 mb-3"><span className="font-medium text-fire">₹{p.budget?.toLocaleString()}</span>/mo · {p.city}</p>
+                        <p className="text-xs text-ink/60"><span className="font-medium text-fire">₹{p.budget?.toLocaleString()}</span>/mo · {p.city}</p>
+                        {/* Sprint 5E: quiet caption replaces the floating pill */}
+                        <p className="type-caption mt-0.5 mb-3">{getSharedCount(match).matched}/{getSharedCount(match).total || 10} lifestyle answers match</p>
                         <div className="flex gap-2 mt-3">
                           <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSkip(p.uid || '', p.name || ''); }} className="flex-1 py-2 border border-ink/10 rounded-lg text-xs font-medium text-ink/60 hover:bg-ink/5">Skip</button>
                           {match.listingId && (
@@ -888,12 +1048,11 @@ export default function SeekerDashboard() {
                           <button
                             disabled={cState === 'pending_sent' || connectingId === p.uid}
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleConnect(p.uid || '', p.name || ''); }}
-                            className={`flex-[1.5] py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${
-                              cState === 'chat' ? 'bg-teal text-white' :
+                            className={`flex-[1.5] py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${cState === 'chat' ? 'bg-teal text-white' :
                               cState === 'pending_sent' ? 'bg-ink/10 text-ink/40 cursor-not-allowed' :
-                              cState === 'pending_received' ? 'bg-teal text-white' :
-                              'bg-fire text-white hover:bg-fire-dark'
-                            }`}
+                                cState === 'pending_received' ? 'bg-teal text-white' :
+                                  'bg-fire text-white hover:bg-fire-dark'
+                              }`}
                           >
                             {connectingId === p.uid ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                             {cState === 'chat' ? 'Chat' : cState === 'pending_sent' ? 'Sent' : cState === 'pending_received' ? 'Accept' : 'Connect'}
@@ -927,18 +1086,26 @@ export default function SeekerDashboard() {
                     ))}
                   </div>
                 ) : hasMore ? (
-                  <button onClick={handleLoadMore} className="btn-outline">Show More Matches ↓</button>
+                  <button onClick={handleLoadMore} className="btn-outline inline-flex items-center gap-1.5">Show More Matches <ChevronDown className="w-4 h-4" /></button>
                 ) : matches.length > 0 ? (
                   <p className="text-ink/50 text-sm font-medium">No more matches</p>
                 ) : null}
               </div>
             )}
 
+            {/* Sprint 2E: explicit cross-city expansion notice — never silently widen */}
+            {!isLoading && expandedFromCity && filteredMatches.length > 0 && (
+              <div className="mb-4 px-1">
+                <p className="text-xs text-ink/70 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                  No matches in <span className="font-bold">{expandedFromCity}</span> yet — showing relevant people from other cities.
+                </p>
+              </div>
+            )}
             {/* Empty States */}
             {!isLoading && filteredMatches.length === 0 && activeTab === 'all' && (
               <StateEmpty
                 icon={Search}
-                title="No matches found"
+                title={filters.city ? `No matches in ${filters.city} found` : 'No matches found'}
                 description="Try adjusting your filters or expanding your search"
                 action={
                   <button onClick={() => updateFilters({ city: '', budgetMin: 1000, budgetMax: 25000, localities: [], gender: 'any', verifiedOnly: false })} className="btn-outline text-sm">
@@ -947,9 +1114,9 @@ export default function SeekerDashboard() {
                 }
               />
             )}
-            
+
             {!isLoading && filteredMatches.length === 0 && activeTab === 'saved' && (
-              <div className="bg-white/50 rounded-3xl border border-ink/5 shadow-sm">
+              <div className="card-nestmate">
                 <StateEmpty
                   icon={Bookmark}
                   title="No saved profiles yet"
@@ -981,14 +1148,61 @@ export default function SeekerDashboard() {
                 <X className="w-4 h-4" />
               </button>
               <div className="flex items-center gap-3 mb-5">
-                <img src={compatModal.profile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${compatModal.profile.name}`} alt="" loading="lazy" className="w-12 h-12 rounded-full" />
+                {compatModal.profile.avatar && !compatModal.profile.avatar.includes('dicebear') ? (
+                  <img src={compatModal.profile.avatar} alt="" loading="lazy" className="w-12 h-12 rounded-full" />
+                ) : (
+                  <div aria-hidden="true" className="w-12 h-12 rounded-full bg-fire/10 text-fire flex items-center justify-center font-bold">
+                    {(compatModal.profile.name || '?').trim().charAt(0).toUpperCase()}
+                  </div>
+                )}
+
                 <div>
                   <h3 className="font-semibold">{compatModal.profile.name}</h3>
                   <span className={`${compatibilityColor(compatModal.compatibilityScore)} text-white text-xs font-bold px-2 py-0.5 rounded-full`}>{compatModal.compatibilityScore}% Compatible</span>
                 </div>
               </div>
               <div className="space-y-4">
-                {[{label: 'Lifestyle Match', value: bd.lifestyle}, {label: 'Budget Overlap', value: bd.budgetMatch}, {label: 'Location Match', value: bd.locationMatch}].map(item => (
+                {/* Sprint 2C: truthful "why" reasons — only data-backed claims */}
+                {(() => {
+                  const why = getMatchReasons(
+                    profile?.quizAnswers || {},
+                    compatModal.profile.quizAnswers || {},
+                    {
+                      myCity: profile?.city,
+                      theirCity: compatModal.profile.city,
+                      myBudget: profile?.budget || 0,
+                      theirBudget: compatModal.profile.budget || 0,
+                    }
+                  );
+                  return (
+                    <>
+                      {why.reasons.length > 0 && (
+                        <div className="bg-teal/5 border border-teal/20 rounded-xl p-3 space-y-1">
+                          {why.reasons.map(r => (
+                            <p key={r} className="text-xs text-teal font-medium flex items-center gap-1.5">
+                              <Check className="w-3 h-3 flex-shrink-0" />{r}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                      {why.caveats.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {why.caveats.map(c => (
+                            <span key={c} className="text-[10px] text-ink/50 bg-ink/5 px-2 py-0.5 rounded-full">{c}</span>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+                {/* Sprint 4A (truth): rows are rendered ONLY when real data exists.
+                    Missing budget/city data renders an explicit neutral note —
+                    never a fabricated percentage. */}
+                {[
+                  { label: 'Lifestyle Match', value: bd.lifestyle },
+                  ...(bd.budgetMatch !== null ? [{ label: 'Budget Overlap', value: bd.budgetMatch }] : []),
+                  ...(bd.locationMatch !== null ? [{ label: 'Location Match', value: bd.locationMatch }] : []),
+                ].map(item => (
                   <div key={item.label}>
                     <div className="flex justify-between text-sm mb-1">
                       <span className="text-ink/70">{item.label}</span>
@@ -999,6 +1213,11 @@ export default function SeekerDashboard() {
                     </div>
                   </div>
                 ))}
+                {(bd.budgetMatch === null || bd.locationMatch === null) && (
+                  <p className="text-[11px] text-ink/40 italic">
+                    Budget or location details aren't available for this comparison yet.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -1008,7 +1227,7 @@ export default function SeekerDashboard() {
       <Dialog open={!!reportingUser} onOpenChange={(open) => !open && setReportingUser(null)}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="font-display italic text-xl">Report User</DialogTitle>
+            <DialogTitle className="type-h2">Report User</DialogTitle>
             <DialogDescription>
               Help us understand what's happening with {reportingUser?.profile.name}. Your report is anonymous.
             </DialogDescription>
@@ -1031,8 +1250,8 @@ export default function SeekerDashboard() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-ink/70">Additional details (optional)</label>
-              <Textarea 
-                placeholder="Please describe the issue..." 
+              <Textarea
+                placeholder="Please describe the issue..."
                 value={reportDescription}
                 onChange={(e) => setReportDescription(e.target.value)}
                 className="min-h-[100px] resize-none"
@@ -1043,9 +1262,9 @@ export default function SeekerDashboard() {
             <Button variant="outline" onClick={() => setReportingUser(null)} disabled={isSubmittingReport}>
               Cancel
             </Button>
-            <Button 
-              className="bg-fire hover:bg-fire-dark text-white" 
-              onClick={handleSubmitReport} 
+            <Button
+              className="bg-fire hover:bg-fire-dark text-white"
+              onClick={handleSubmitReport}
               disabled={isSubmittingReport || !reportReason}
             >
               {isSubmittingReport ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Flag className="w-4 h-4 mr-2" />}
@@ -1059,23 +1278,60 @@ export default function SeekerDashboard() {
 }
 
 // ─── FilterPanel Component (Desktop & Mobile Content) ───
-function FilterPanel({ filters, updateFilters, profile, onSaveSearch }: { filters: any, updateFilters: any, profile: any, onSaveSearch: any }) {
-  const safeMin = typeof filters.budgetMin === 'number' && !isNaN(filters.budgetMin) ? filters.budgetMin : 1000;
-  const safeMax = typeof filters.budgetMax === 'number' && !isNaN(filters.budgetMax) ? filters.budgetMax : 25000;
-  
+function FilterPanel({
+  filters,
+  updateFilters,
+  profile,
+  onSaveSearch,
+  matches = []
+}: {
+  filters: any;
+  updateFilters: any;
+  profile: any;
+  onSaveSearch: any;
+  matches?: MatchedUser[];
+}) {
+  const safeMin = typeof filters.budgetMin === 'number' && !isNaN(filters.budgetMin) ? filters.budgetMin : 0;
+  const safeMax = typeof filters.budgetMax === 'number' && !isNaN(filters.budgetMax) ? filters.budgetMax : 100000;
+
   const [localBudget, setLocalBudget] = useState([safeMin, safeMax]);
   const [isSavingAlert, setIsSavingAlert] = useState(false);
 
-  // Sync local state if global filters change externally (e.g. Reset)
+  // Sync local budget state when global filters change (e.g. Reset)
   useEffect(() => {
     setLocalBudget([safeMin, safeMax]);
   }, [safeMin, safeMax]);
+
+  // Extract dynamic cities and localities from actual match profiles
+  const dynamicCities = useMemo(() => {
+    const set = new Set<string>(cities);
+    matches.forEach(m => {
+      if (m.profile.city) set.add(m.profile.city);
+    });
+    return Array.from(set).sort();
+  }, [matches]);
+
+  const dynamicLocalities = useMemo(() => {
+    const set = new Set<string>();
+    const staticLocs = filters.city ? localitiesByCity[filters.city] || [] : Object.values(localitiesByCity).flat();
+    staticLocs.forEach(l => set.add(l));
+
+    matches.forEach(m => {
+      if (!filters.city || m.profile.city?.toLowerCase() === filters.city.toLowerCase()) {
+        (m.profile.localities || []).forEach(l => set.add(l));
+        const listingLoc = (m.profile as any)._listing?.locality;
+        if (listingLoc) set.add(listingLoc);
+      }
+    });
+
+    return Array.from(set).filter(l => !filters.localities?.includes(l)).sort();
+  }, [matches, filters.city, filters.localities]);
 
   const handleSaveAlert = async () => {
     if (!profile?.uid) return;
     setIsSavingAlert(true);
     try {
-      const name = `${filters.city || 'Anywhere'} under ₹${(filters.budgetMax/1000).toFixed(0)}k`;
+      const name = `${filters.city || 'Anywhere'} under ₹${(filters.budgetMax / 1000).toFixed(0)}k`;
       await onSaveSearch(profile.uid, {
         id: Date.now().toString(),
         name,
@@ -1090,12 +1346,35 @@ function FilterPanel({ filters, updateFilters, profile, onSaveSearch }: { filter
     }
   };
 
+  const handleReset = () => {
+    updateFilters({
+      city: '',
+      budgetMin: 0,
+      budgetMax: 100000,
+      localities: [],
+      gender: 'any',
+      verifiedOnly: false,
+      flatType: [],
+      furnishing: [],
+      amenities: []
+    });
+    setLocalBudget([0, 100000]);
+  };
+
+  const toggleArrayFilter = (field: 'flatType' | 'furnishing' | 'amenities', value: string) => {
+    const current = filters[field] || [];
+    const next = current.includes(value)
+      ? current.filter((x: string) => x !== value)
+      : [...current, value];
+    updateFilters({ [field]: next });
+  };
+
   return (
-    <div className="card-nestmate p-5">
-      <div className="flex items-center justify-between mb-4">
+    <div className="card-nestmate p-5 space-y-6">
+      <div className="flex items-center justify-between">
         <h4 className="font-semibold text-sm">Filters</h4>
         <div className="flex items-center gap-3">
-          <button 
+          <button
             onClick={handleSaveAlert}
             disabled={isSavingAlert}
             className="text-xs text-teal font-medium hover:underline flex items-center gap-1"
@@ -1103,103 +1382,202 @@ function FilterPanel({ filters, updateFilters, profile, onSaveSearch }: { filter
             {isSavingAlert ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3 h-3" />}
             Save Alert
           </button>
-          <button onClick={() => {
-            updateFilters({ city: '', budgetMin: 1000, budgetMax: 25000, localities: [], gender: 'any', verifiedOnly: false, flatType: [], furnishing: [], amenities: [] });
-            setLocalBudget([1000, 25000]);
-          }} className="text-xs text-fire font-medium hover:underline">Reset</button>
+          <button onClick={handleReset} className="text-xs text-fire font-medium hover:underline">
+            Reset
+          </button>
         </div>
       </div>
-      <div className="space-y-6">
+
+      <div className="space-y-5">
+        {/* City Filter */}
         <div>
-          <label className="text-xs text-ink/50 mb-1.5 block">City</label>
-          <select value={filters.city} onChange={e => updateFilters({ city: e.target.value })} className="w-full text-sm bg-cream/50 border border-border rounded-lg px-3 py-2 outline-none focus:border-fire">
+          <label className="text-xs text-ink/50 mb-1.5 block font-medium">City</label>
+          <select
+            value={filters.city}
+            onChange={e => updateFilters({ city: e.target.value })}
+            className="w-full text-sm bg-cream/50 border border-border rounded-lg px-3 py-2 outline-none focus:border-fire font-medium"
+          >
             <option value="">All Cities</option>
-            {cities.map(c => <option key={c} value={c}>{c}</option>)}
+            {dynamicCities.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
           </select>
         </div>
-        
-        {/* Custom Dual-Thumb Budget Slider */}
+
+        {/* Budget Range Slider */}
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <label className="text-xs text-ink/50">Budget</label>
-            <span className="text-xs font-semibold text-ink">₹{localBudget[0].toLocaleString()} - ₹{localBudget[1].toLocaleString()}</span>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs text-ink/50 font-medium">Monthly Budget</label>
+            <span className="text-xs font-semibold text-ink">
+              ₹{localBudget[0].toLocaleString()} - {localBudget[1] >= 100000 ? '₹1,00,000+' : `₹${localBudget[1].toLocaleString()}`}
+            </span>
           </div>
           <div className="relative h-2 w-full bg-ink/10 rounded-full mt-2">
-            {/* Active Range Track */}
-            <div 
-              className="absolute h-full bg-fire rounded-full" 
-              style={{ 
-                left: `${((localBudget[0] - 1000) / 49000) * 100}%`, 
-                right: `${100 - ((localBudget[1] - 1000) / 49000) * 100}%` 
-              }} 
+            <div
+              className="absolute h-full bg-fire rounded-full"
+              style={{
+                left: `${(localBudget[0] / 100000) * 100}%`,
+                right: `${100 - (localBudget[1] / 100000) * 100}%`
+              }}
             />
-            
-            {/* Min Input */}
-            <input 
-              type="range" 
-              min={1000} 
-              max={50000} 
-              step={500} 
-              value={localBudget[0]} 
+            <input
+              type="range"
+              min={0}
+              max={100000}
+              step={1000}
+              value={localBudget[0]}
               onChange={e => {
-                const val = Math.min(parseInt(e.target.value), localBudget[1] - 500);
+                const val = Math.min(parseInt(e.target.value, 10), localBudget[1] - 1000);
                 setLocalBudget([val, localBudget[1]]);
               }}
               onMouseUp={() => updateFilters({ budgetMin: localBudget[0] })}
               onTouchEnd={() => updateFilters({ budgetMin: localBudget[0] })}
-              className="absolute w-full h-2 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-fire [&::-webkit-slider-thumb]:shadow-md"
-              style={{ zIndex: localBudget[0] > 25000 ? 5 : 3 }}
+              className="absolute w-full h-2 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-fire [&::-webkit-slider-thumb]:shadow-md cursor-pointer"
+              style={{ zIndex: localBudget[0] > 50000 ? 5 : 3 }}
             />
-            
-            {/* Max Input */}
-            <input 
-              type="range" 
-              min={1000} 
-              max={50000} 
-              step={500} 
-              value={localBudget[1]} 
+            <input
+              type="range"
+              min={0}
+              max={100000}
+              step={1000}
+              value={localBudget[1]}
               onChange={e => {
-                const val = Math.max(parseInt(e.target.value), localBudget[0] + 500);
+                const val = Math.max(parseInt(e.target.value, 10), localBudget[0] + 1000);
                 setLocalBudget([localBudget[0], val]);
               }}
               onMouseUp={() => updateFilters({ budgetMax: localBudget[1] })}
               onTouchEnd={() => updateFilters({ budgetMax: localBudget[1] })}
-              className="absolute w-full h-2 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-fire [&::-webkit-slider-thumb]:shadow-md"
+              className="absolute w-full h-2 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-fire [&::-webkit-slider-thumb]:shadow-md cursor-pointer"
               style={{ zIndex: 4 }}
             />
           </div>
         </div>
 
+        {/* Localities Filter */}
         <div>
-          <label className="text-xs text-ink/50 mb-1.5 block">Localities</label>
+          <label className="text-xs text-ink/50 mb-1.5 block font-medium">Localities</label>
           <select
             value=""
-            onChange={e => { if (e.target.value) updateFilters({ localities: [...filters.localities, e.target.value] }); }}
+            onChange={e => {
+              if (e.target.value) {
+                updateFilters({ localities: [...(filters.localities || []), e.target.value] });
+              }
+            }}
             className="w-full text-sm bg-cream/50 border border-border rounded-lg px-3 py-2 outline-none focus:border-fire"
           >
             <option value="">Add locality...</option>
-            {(filters.city ? localitiesByCity[filters.city] || [] : Object.values(localitiesByCity).flat())
-              .filter(l => !filters.localities.includes(l))
-              .map(l => <option key={l} value={l}>{l}</option>)}
+            {dynamicLocalities.map(l => (
+              <option key={l} value={l}>{l}</option>
+            ))}
           </select>
-          {filters.localities.length > 0 && (
+          {filters.localities && filters.localities.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
               {filters.localities.map((l: string) => (
-                <span key={l} className="badge-fire text-[10px]">{l} <button onClick={() => updateFilters({ localities: filters.localities.filter((x: string) => x !== l) })}>×</button></span>
+                <span key={l} className="badge-fire text-[10px] flex items-center gap-1">
+                  {l}
+                  <button
+                    type="button"
+                    onClick={() => updateFilters({ localities: filters.localities.filter((x: string) => x !== l) })}
+                    className="hover:text-red-300 font-bold"
+                  >
+                    ×
+                  </button>
+                </span>
               ))}
             </div>
           )}
         </div>
+
+        {/* Gender Filter */}
         <div>
-          <label className="text-xs text-ink/50 mb-1.5 block">Gender</label>
+          <label className="text-xs text-ink/50 mb-1.5 block font-medium">Gender Preference</label>
           <div className="flex gap-1">
             {['any', 'female', 'male'].map(g => (
-              <button key={g} onClick={() => updateFilters({ gender: g })} className={`flex-1 py-1.5 rounded-lg text-xs capitalize transition-all ${filters.gender === g ? 'bg-fire text-white' : 'bg-cream/50 text-ink/60 hover:bg-fire/10'}`}>{g}</button>
+              <button
+                key={g}
+                type="button"
+                onClick={() => updateFilters({ gender: g })}
+                className={`flex-1 py-1.5 rounded-lg text-xs capitalize transition-all font-medium ${filters.gender === g ? 'bg-fire text-white' : 'bg-cream/50 text-ink/60 hover:bg-fire/10'}`}
+              >
+                {g}
+              </button>
             ))}
           </div>
         </div>
 
+        {/* Verified Only Toggle */}
+        <div className="flex items-center justify-between pt-1 border-t border-border/40">
+          <label className="text-xs font-semibold text-ink flex items-center gap-1.5 cursor-pointer">
+            <ShieldCheck className="w-3.5 h-3.5 text-teal" /> Verified Only
+          </label>
+          <button
+            type="button"
+            onClick={() => updateFilters({ verifiedOnly: !filters.verifiedOnly })}
+            className={`w-9 h-5 rounded-full transition-colors relative p-0.5 ${filters.verifiedOnly ? 'bg-teal' : 'bg-ink/20'}`}
+          >
+            <div className={`w-4 h-4 rounded-full bg-white transition-transform ${filters.verifiedOnly ? 'translate-x-4' : 'translate-x-0'}`} />
+          </button>
+        </div>
 
+        {/* Flat Type Filter */}
+        <div>
+          <label className="text-xs text-ink/50 mb-1.5 block font-medium">Flat Type</label>
+          <div className="flex flex-wrap gap-1.5">
+            {flatTypes.map(ft => {
+              const selected = (filters.flatType || []).includes(ft);
+              return (
+                <button
+                  key={ft}
+                  type="button"
+                  onClick={() => toggleArrayFilter('flatType', ft)}
+                  className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${selected ? 'bg-fire text-white border-fire' : 'bg-cream/40 border-border text-ink/70 hover:bg-cream'}`}
+                >
+                  {ft}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Furnishing Filter */}
+        <div>
+          <label className="text-xs text-ink/50 mb-1.5 block font-medium">Furnishing</label>
+          <div className="flex flex-wrap gap-1.5">
+            {furnishingTypes.map(fn => {
+              const selected = (filters.furnishing || []).includes(fn);
+              return (
+                <button
+                  key={fn}
+                  type="button"
+                  onClick={() => toggleArrayFilter('furnishing', fn)}
+                  className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${selected ? 'bg-fire text-white border-fire' : 'bg-cream/40 border-border text-ink/70 hover:bg-cream'}`}
+                >
+                  {fn}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Amenities Filter */}
+        <div>
+          <label className="text-xs text-ink/50 mb-1.5 block font-medium">Amenities</label>
+          <div className="flex flex-wrap gap-1.5">
+            {amenitiesList.map(amt => {
+              const selected = (filters.amenities || []).includes(amt);
+              return (
+                <button
+                  key={amt}
+                  type="button"
+                  onClick={() => toggleArrayFilter('amenities', amt)}
+                  className={`text-xs px-2 py-0.5 rounded-md border transition-all ${selected ? 'bg-teal text-white border-teal' : 'bg-cream/40 border-border text-ink/70 hover:bg-cream'}`}
+                >
+                  {amt}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
