@@ -130,11 +130,16 @@ export function useConnections() {
     const q = query(
       collection(db, 'connections'),
       where('toUserId', '==', userId),
-      where('status', '==', 'pending'),
-      orderBy('createdAt', 'desc')
+      where('status', '==', 'pending')
     );
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as Connection));
+    const conns = snap.docs.map(d => ({ id: d.id, ...d.data() } as Connection));
+    conns.sort((a, b) => {
+      const aMs = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bMs = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bMs - aMs;
+    });
+    return conns;
   }, []);
 
   /** Get all connections for a user (any direction, any status) */
@@ -186,11 +191,16 @@ export function useConnections() {
       const q = query(
         collection(db, 'connections'),
         where('toUserId', '==', userId),
-        where('status', '==', 'pending'),
-        orderBy('createdAt', 'desc')
+        where('status', '==', 'pending')
       );
       return onSnapshot(q, snap => {
-        onChange(snap.docs.map(d => ({ id: d.id, ...d.data() } as Connection)));
+        const conns = snap.docs.map(d => ({ id: d.id, ...d.data() } as Connection));
+        conns.sort((a, b) => {
+          const aMs = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+          const bMs = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+          return bMs - aMs;
+        });
+        onChange(conns);
       });
     },
     []

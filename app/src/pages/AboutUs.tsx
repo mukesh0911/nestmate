@@ -8,7 +8,7 @@ export default function AboutUs() {
     <div className="min-h-screen bg-parchment page-transition">
       {/* Header */}
       <div className="gradient-dark py-20 px-4 text-center">
-        <h1 className="text-4xl sm:text-5xl font-display italic text-white mb-4">About NestMate</h1>
+        <h1 className="text-4xl sm:text-5xl font-display italic text-white mb-4">About Us</h1>
         <p className="text-white/60 max-w-lg mx-auto">Building the future of shared living in India</p>
       </div>
 

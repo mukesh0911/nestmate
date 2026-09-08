@@ -99,8 +99,9 @@ export default function EditListing() {
   const handleSave = async () => {
     if (!id || !user?.uid) return;
 
+    const effectiveLocality = form.locality || (localitiesByCity[form.city] || [])[0] || '';
     // Sprint 2E: required-field validation before any write for new listings
-    if (isNew && (!form.title.trim() || !form.city || !form.locality || !(form.monthlyRent > 0))) {
+    if (isNew && (!form.title.trim() || !form.city || !effectiveLocality || !(form.monthlyRent > 0))) {
       setError('Please fill in title, city, locality and monthly rent.');
       return;
     }
@@ -110,12 +111,14 @@ export default function EditListing() {
     try {
       const { monthlyRent, ...restForm } = form;
       const share = Math.round(monthlyRent / (form.partnersNeeded + 1));
+      const finalLocality = form.locality || effectiveLocality;
 
       // Create first so we have a real listing id for image uploads
       let listingId = id;
       if (isNew) {
         listingId = await createListing(user.uid, {
           ...restForm,
+          locality: finalLocality,
           totalRent: monthlyRent,
           partnerShare: share,
           images: [],
@@ -380,8 +383,8 @@ export default function EditListing() {
           <div className="card-nestmate p-5 space-y-4">
             <h3 className="font-semibold">Basic Details</h3>
             <div>
-              <label className="text-xs text-ink/50 mb-1 block">Title</label>
-              <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="input-nestmate w-full" />
+              <label htmlFor="listing-title" className="text-xs text-ink/50 mb-1 block">Title</label>
+              <input id="listing-title" type="text" placeholder="e.g. Sunny 2BHK in T. Nagar" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="input-nestmate w-full" />
             </div>
             <div>
               <label className="text-xs text-ink/50 mb-1 block">Description</label>
@@ -410,7 +413,11 @@ export default function EditListing() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-ink/50 mb-1 block">City</label>
-                <select value={form.city} onChange={e => setForm({ ...form, city: e.target.value, locality: '' })} className="input-nestmate w-full">
+                <select value={form.city} onChange={e => {
+                  const newCity = e.target.value;
+                  const defaultLocality = (localitiesByCity[newCity] || [])[0] || '';
+                  setForm({ ...form, city: newCity, locality: defaultLocality });
+                }} className="input-nestmate w-full">
                   <option value="">Select</option>
                   {cities.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>

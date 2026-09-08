@@ -209,11 +209,14 @@ export default function SettingsPage() {
     }
   };
 
-  const ToggleSwitch = ({ active, onClick }: { active: boolean; onClick: () => void }) => (
+  const ToggleSwitch = ({ active, onClick, label }: { active: boolean; onClick: () => void; label?: string }) => (
     <button
+      type="button"
+      role="switch"
+      aria-checked={active}
+      aria-label={label || (active ? 'On' : 'Off')}
       onClick={onClick}
-      className={`relative w-11 h-6 rounded-full transition-all ${active ? 'bg-fire' : 'bg-ink/20'}`}
-      aria-label={active ? 'On' : 'Off'}
+      className={`relative w-11 h-6 rounded-full transition-all cursor-pointer ${active ? 'bg-fire' : 'bg-ink/20'}`}
     >
       <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${active ? 'left-6' : 'left-1'}`} />
     </button>
@@ -223,7 +226,16 @@ export default function SettingsPage() {
     <PageShell
       maxWidth="max-w-3xl"
       title="Settings"
-      actions={saving ? <span className="text-xs text-fire animate-pulse">Saving...</span> : undefined}
+      actions={
+        <div className="flex items-center gap-3">
+          {saving && <span className="text-xs text-fire animate-pulse">Saving...</span>}
+          <div className="flex items-center gap-2 bg-cream/60 dark:bg-zinc-800 px-3 py-1.5 rounded-full border border-border">
+            <Moon className="w-3.5 h-3.5 text-ink/60 dark:text-zinc-300" />
+            <span className="text-xs font-medium text-ink/70 dark:text-zinc-300">Dark Mode</span>
+            <ToggleSwitch active={toggles.darkMode} onClick={() => toggle('darkMode')} label="Dark Mode" />
+          </div>
+        </div>
+      }
     >
       {/* Tabs */}
       <div className="flex gap-1 bg-cream/50 rounded-xl p-1 mb-6 overflow-x-auto scrollbar-hide -mx-1 px-1">

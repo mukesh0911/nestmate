@@ -32,6 +32,7 @@ export default function EditProfile() {
   const [workEmailVerified, setWorkEmailVerified] = useState(false);
 
   const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState('');
   const [retaking, setRetaking] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { uploadGenericImage } = useStorage();
@@ -135,7 +136,12 @@ export default function EditProfile() {
   };
 
   const handleSave = async () => {
-    if (!validate() || !user?.uid) return;
+    if (!validate()) {
+      const errList = Object.values(errors);
+      toast.error(errList.length > 0 ? errList[0] : 'Please fill in all required fields (Name, Age >= 18, City).');
+      return;
+    }
+    if (!user?.uid) return;
     setSaving(true);
     try {
       const coords = resolveEntityCoordinates({
@@ -162,10 +168,12 @@ export default function EditProfile() {
         ...(coords && { geoLocation: { lat: coords.lat, lng: coords.lng, formattedAddress: `${formData.locality || formData.city}, ${formData.city}` } }),
       });
       await refreshProfile();
+      setSuccess('Profile updated successfully!');
       toast.success('Profile updated successfully!');
-      navigate('/profile');
-    } catch (err) {
+      setTimeout(() => navigate('/profile'), 1000);
+    } catch (err: any) {
       console.error('Error updating profile', err);
+      toast.error(err.message || 'Failed to update profile');
     } finally {
       setSaving(false);
     }
@@ -191,6 +199,17 @@ export default function EditProfile() {
 
 
 
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-parchment flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-fire animate-spin" />
+          <p className="text-sm text-ink/50">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-parchment pb-20">
       {/* Header */}
@@ -201,19 +220,26 @@ export default function EditProfile() {
           </button>
           <h1 className="type-h2">Edit Profile</h1>
         </div>
-        <button onClick={handleSave} disabled={saving} className="btn-fire px-4 py-1.5 text-sm flex items-center gap-2">
+        <button onClick={handleSave} disabled={saving} className="btn-fire px-4 py-1.5 text-sm flex items-center gap-2 cursor-pointer">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          Save
+          Save Changes
         </button>
       </div>
 
       <div className="max-w-xl mx-auto px-4 py-6 space-y-6">
+        {success && (
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2" role="alert">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span>{success}</span>
+          </div>
+        )}
+
         {/* Basic Info */}
         <div className="card-nestmate p-5 space-y-4">
           <h2 className="font-semibold mb-2">Basic Information</h2>
           <div>
             <label className="label-floating">Full Name</label>
-            <input type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className={`input-nestmate ${errors.name ? 'border-red-400' : ''}`} />
+            <input type="text" id="profile-name" placeholder="Full Name" aria-label="Full Name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className={`input-nestmate ${errors.name ? 'border-red-400' : ''}`} />
             {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
           </div>
 
@@ -422,6 +448,16 @@ export default function EditProfile() {
             </button>
           </div>
         )}
+        {/* Bottom Save Changes CTA */}
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="btn-fire w-full py-3.5 text-base flex items-center justify-center gap-2 rounded-xl mt-4 cursor-pointer shadow-sm"
+        >
+          {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+          Save Changes
+        </button>
       </div>
     </div>
   );

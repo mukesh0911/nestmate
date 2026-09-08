@@ -109,6 +109,7 @@ export default function NotificationsPage() {
                     return (
                       <div
                         key={notif.id}
+                        data-testid="notification-item"
                         className={`w-full flex items-start gap-4 p-4 rounded-2xl transition-all text-left cursor-pointer ${
                           !notif.read ? 'bg-fire/5 border border-fire/10' : 'bg-white hover:bg-cream/30'
                         }`}
@@ -148,6 +149,7 @@ export default function NotificationsPage() {
                     return (
                       <div
                         key={notif.id}
+                        data-testid="notification-item"
                         className={`w-full flex items-start gap-4 p-4 rounded-2xl transition-all text-left cursor-pointer ${
                           !notif.read ? 'bg-fire/5 border border-fire/10' : 'bg-white hover:bg-cream/30'
                         }`}

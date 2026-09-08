@@ -8,6 +8,7 @@ import { isAccountActive, blockedStatusMessage } from '@/lib/accountStatus';
 import { ShieldAlert, LogOut } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { Loader2 } from 'lucide-react';
+import { Toaster } from 'sonner';
 
 // ----- Lazy-loaded pages (code splitting) -----
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
@@ -186,27 +187,50 @@ function AppRoutes() {
   // Real-time auth + profile sync
   useEffect(() => {
     let unsubscribeProfile: (() => void) | null = null;
+    let fallbackTimer: any = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       if (unsubscribeProfile) {
         unsubscribeProfile();
         unsubscribeProfile = null;
       }
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
 
       if (firebaseUser) {
         // Set loading: true so OnboardingGuard waits for the profile snapshot
         setAuthState(prev => ({ ...prev, uid: firebaseUser.uid, loading: true }));
+
+        // Fallback timer: if Firestore server doesn't respond within 2500ms, fail closed
+        fallbackTimer = setTimeout(() => {
+          setAuthState(prev => prev.loading ? { uid: firebaseUser.uid, role: null, onboardingComplete: false, status: 'active', loading: false } : prev);
+        }, 2500);
 
         unsubscribeProfile = onSnapshot(
           doc(db, 'users', firebaseUser.uid),
           (snap) => {
             if (snap.exists()) {
               const data = snap.data();
+              const isServer = !snap.metadata.fromCache;
+              const isOnboarded = data.onboardingComplete === true;
+
+              // If snapshot is from cache but indicates incomplete onboarding,
+              // wait for the authoritative server snapshot before deciding to bounce.
+              if (!isOnboarded && !isServer) {
+                return;
+              }
+
+              if (fallbackTimer) {
+                clearTimeout(fallbackTimer);
+                fallbackTimer = null;
+              }
               setAuthState({
                 uid: firebaseUser.uid,
                 role: data.role || null,
                 // Trust only the real DB field — never assume completion
-                onboardingComplete: data.onboardingComplete === true,
+                onboardingComplete: isOnboarded,
                 status: data.status || 'active',
                 loading: false,
               });
@@ -215,14 +239,25 @@ function AppRoutes() {
               } else {
                 document.documentElement.classList.remove('dark');
               }
-            } else {
-              // No profile doc yet — user must complete role select + onboarding
+            } else if (!snap.metadata.fromCache) {
+              // Authoritative confirmation from server: profile doc does not exist
+              if (fallbackTimer) {
+                clearTimeout(fallbackTimer);
+                fallbackTimer = null;
+              }
               setAuthState({ uid: firebaseUser.uid, role: null, onboardingComplete: false, status: 'active', loading: false });
               document.documentElement.classList.remove('dark');
+            } else {
+              // Local cache miss (fromCache: true, exists: false)
+              // The server snapshot is in flight; keep loading: true until it arrives
             }
           },
           (err) => {
             console.error('Profile listener error:', err);
+            if (fallbackTimer) {
+              clearTimeout(fallbackTimer);
+              fallbackTimer = null;
+            }
             // Fail closed: treat as incomplete until profile is readable
             setAuthState({ uid: firebaseUser.uid, role: null, onboardingComplete: false, status: 'active', loading: false });
           }
@@ -235,6 +270,7 @@ function AppRoutes() {
     return () => {
       unsubscribeAuth();
       if (unsubscribeProfile) unsubscribeProfile();
+      if (fallbackTimer) clearTimeout(fallbackTimer);
     };
   }, []);
 
@@ -297,7 +333,7 @@ function AppRoutes() {
           {/* Authenticated user routes */}
           <Route path="/dashboard" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState} expectedRole="seeker"><SeekerDashboard /></OnboardingGuard>} />
           <Route path="/owner-dashboard" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState} expectedRole="owner"><OwnerDashboard /></OnboardingGuard>} />
-          <Route path="/edit-listing/:id" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><EditListing /></OnboardingGuard>} />
+          <Route path="/edit-listing/:id" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState} expectedRole="owner"><EditListing /></OnboardingGuard>} />
           <Route path="/chat" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><ChatPage /></OnboardingGuard>} />
           <Route path="/chat/:roomId" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><ChatPage /></OnboardingGuard>} />
           <Route path="/profile" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><ProfilePage /></OnboardingGuard>} />
@@ -307,7 +343,11 @@ function AppRoutes() {
         </Route>
 
         {/* Admin routes */}
-        <Route path="/admin" element={<AdminLayout />}>
+        <Route path="/admin" element={
+          <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}>
+            <AdminLayout />
+          </PrivateRoute>
+        }>
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="listings" element={<AdminListings />} />
@@ -336,5 +376,10 @@ function AppRoutes() {
 }
 
 export default function App() {
-  return <AppRoutes />;
+  return (
+    <>
+      <Toaster position="top-center" richColors closeButton />
+      <AppRoutes />
+    </>
+  );
 }

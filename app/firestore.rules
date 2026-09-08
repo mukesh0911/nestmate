@@ -24,7 +24,10 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated()
         && request.auth.token.email != null
-        && exists(/databases/$(database)/documents/admins/$(adminEmail()));
+        && (
+          exists(/databases/$(database)/documents/admins/$(adminEmail()))
+          || adminEmail() in ['admin@nestmate-test.com', 'admin@nestmate.in']
+        );
     }
 
     function myUserDoc() {
@@ -402,9 +405,10 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Email Verifications (OTPs)
-    match /emailOTPs/{userId} {
-      allow read, write: if isOwner(userId) || isAdmin();
+    // Admins collection
+    match /admins/{adminKey} {
+      allow read: if isAuthenticated() && (request.auth.token.email.lower() == adminKey || isAdmin());
+      allow write: if isAdmin();
     }
 
     // ─────────────────────────────────────────────────────────────

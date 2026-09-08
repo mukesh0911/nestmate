@@ -172,11 +172,12 @@ export default function SeekerOnboarding() {
     setTimeout(() => go(1), 250);
   };
 
-  const handleFinish = async () => {
+  const handleFinish = async (answersOverride?: Record<string, string>) => {
     if (!user) return;
     setScreenIndex(SCREENS.indexOf('loading'));
     setSaving(true);
     setError('');
+    const effectiveQuizAnswers = answersOverride || quizAnswers || {};
     try {
       const resolvedGeo = resolveEntityCoordinates({
         uid: user.uid,
@@ -199,8 +200,8 @@ export default function SeekerOnboarding() {
         localities: localities || [],
         budget: safeBudget,
         moveInDate: moveIn || '',
-        quizAnswers: quizAnswers || {},
-        onboardingComplete: true,
+        quizAnswers: effectiveQuizAnswers,
+        onboardingComplete: false,
         role: 'seeker',
         ...(resolvedGeo && { geoLocation: { lat: resolvedGeo.lat, lng: resolvedGeo.lng, formattedAddress: `${localities?.[0] || city}, ${city}` } }),
       });
@@ -279,8 +280,18 @@ export default function SeekerOnboarding() {
             })}
           </div>
           <button
-            onClick={() => navigate('/dashboard', { replace: true })}
-            className="btn-fire text-base px-10 py-3.5 mt-2"
+            onClick={async () => {
+              if (user?.uid) {
+                try {
+                  await updateProfile(user.uid, { onboardingComplete: true });
+                  await refreshProfile(user.uid);
+                } catch (e) {
+                  console.error('Failed to set onboardingComplete on finish click', e);
+                }
+              }
+              navigate('/dashboard', { replace: true });
+            }}
+            className="btn-fire text-base px-10 py-3.5 mt-2 cursor-pointer"
           >
             View My Matches →
           </button>
@@ -412,10 +423,13 @@ export default function SeekerOnboarding() {
           {cities.map(c => {
             const isSelected = city === c;
             return (
-              <label
+              <button
+                type="button"
                 key={c}
+                aria-pressed={isSelected}
+                aria-label={c}
                 onClick={() => { setCity(c); setLocalities([]); }}
-                className={`group relative bg-white border rounded-2xl p-4 flex items-center gap-4 cursor-pointer transition-all duration-200 ${isSelected
+                className={`group relative bg-white border rounded-2xl p-4 flex items-center gap-4 cursor-pointer text-left transition-all duration-200 ${isSelected
                   ? 'border-brand-orange shadow-md bg-orange-50/20'
                   : 'border-slate-100 hover:border-brand-orange hover:shadow-sm'
                   }`}
@@ -434,7 +448,7 @@ export default function SeekerOnboarding() {
                 </span>
                 <div className={`absolute inset-0 border-2 rounded-2xl pointer-events-none transition-all ${isSelected ? 'border-brand-orange' : 'border-transparent'
                   }`} />
-              </label>
+              </button>
             );
           })}
         </div>
@@ -560,9 +574,10 @@ export default function SeekerOnboarding() {
               const selected = answered === opt.id;
               return (
                 <button key={opt.id} onClick={() => {
+                  const nextAnswers = { ...quizAnswers, [q.id]: opt.id };
+                  setQuizAnswers(nextAnswers);
                   if (isLast) {
-                    setQuizAnswers(prev => ({ ...prev, [q.id]: opt.id }));
-                    handleFinish();
+                    handleFinish(nextAnswers);
                   } else {
                     handleQuizAnswer(q.id, opt.id);
                   }

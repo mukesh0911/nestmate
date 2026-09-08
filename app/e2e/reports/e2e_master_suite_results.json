@@ -1,0 +1,806 @@
+{
+  "metadata": {
+    "generated": "2026-09-08T02:30:52.772Z",
+    "suite": "NestMate Complete E2E Production Validation v3.0",
+    "app": "http://localhost:3000",
+    "accounts": 18
+  },
+  "summary": {
+    "total": 87,
+    "pass": 87,
+    "fail": 0,
+    "blocked": 0,
+    "skip": 0,
+    "passRate": "100%"
+  },
+  "data": {
+    "o001ListingId": "EtG6bODBI1HzTTuawXJi",
+    "o001ConnectionId": "V47O6yyoW2Rty74ocHeU",
+    "chatRoomId": "scqt9CrBRGqItboK42My"
+  },
+  "results": [
+    {
+      "phase": "P0",
+      "scenario": "ENV",
+      "test": "App server responding on localhost:3000",
+      "status": "PASS",
+      "details": "Title: \"NestMate — Find Your Perfect Roommate in India\"",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:20:38.000Z"
+    },
+    {
+      "phase": "P0",
+      "scenario": "ENV",
+      "test": "Firebase config loaded",
+      "status": "PASS",
+      "details": "Project: nestmate-eb562",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:20:38.005Z"
+    },
+    {
+      "phase": "P1",
+      "scenario": "SEED",
+      "test": "Prior test connections cleaned",
+      "status": "PASS",
+      "details": "S001↔O001, S002↔O001 cleared",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:20:44.837Z"
+    },
+    {
+      "phase": "P1",
+      "scenario": "SEED",
+      "test": "All test users provisioned",
+      "status": "PASS",
+      "details": "18 provisioned, 0 failed",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:21:06.746Z"
+    },
+    {
+      "phase": "P1",
+      "scenario": "SEED-VERIFY",
+      "test": "S001 profile verified in DB",
+      "status": "PASS",
+      "details": "uid=bkipe5srctTR3m05djyYjVuzUiz2, role=seeker",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:21:06.876Z"
+    },
+    {
+      "phase": "P1",
+      "scenario": "SEED-VERIFY",
+      "test": "O001 profile verified in DB",
+      "status": "PASS",
+      "details": "uid=hYvYlVdPL2fyPg17dT949ZZ1Z292, role=owner",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:21:06.995Z"
+    },
+    {
+      "phase": "P1",
+      "scenario": "SEED-VERIFY",
+      "test": "ADMIN profile verified in DB",
+      "status": "PASS",
+      "details": "uid=EIWFO0yfCJVYDPJVT6l2XdgqTcS2, role=owner",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:21:07.088Z"
+    },
+    {
+      "phase": "P1",
+      "scenario": "SEED-VERIFY",
+      "test": "O001 active listing exists",
+      "status": "PASS",
+      "details": "listing id: EtG6bODBI1HzTTuawXJi",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:21:07.197Z"
+    },
+    {
+      "phase": "P2",
+      "scenario": "LANDING",
+      "test": "Landing page heading visible",
+      "status": "PASS",
+      "details": "Heading: \"Find compatible flatmates, rooms & PGs\"",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:21:09.143Z"
+    },
+    {
+      "phase": "P2",
+      "scenario": "AUTH",
+      "test": "Empty form does not submit",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/login",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:21:13.791Z"
+    },
+    {
+      "phase": "P2",
+      "scenario": "AUTH",
+      "test": "Invalid credentials rejected",
+      "status": "PASS",
+      "details": "success=false, error=Invalid email or password. Please try again.",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:21:37.123Z"
+    },
+    {
+      "phase": "P2",
+      "scenario": "AUTH",
+      "test": "S001 valid login → dashboard",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/dashboard",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:21:43.567Z"
+    },
+    {
+      "phase": "P2",
+      "scenario": "AUTH",
+      "test": "Session persists after reload",
+      "status": "PASS",
+      "details": "URL after reload: http://localhost:3000/dashboard",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:21:53.109Z"
+    },
+    {
+      "phase": "P2",
+      "scenario": "AUTH",
+      "test": "Logout redirects to landing/login",
+      "status": "PASS",
+      "details": "URL after logout: http://localhost:3000/",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:22:01.796Z"
+    },
+    {
+      "phase": "P2",
+      "scenario": "SECURITY",
+      "test": "Unauthenticated /dashboard → /login",
+      "status": "PASS",
+      "details": "Final URL: http://localhost:3000/login",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:22:05.035Z"
+    },
+    {
+      "phase": "P2",
+      "scenario": "SECURITY",
+      "test": "Unauthenticated /profile → /login",
+      "status": "PASS",
+      "details": "Final URL: http://localhost:3000/login",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:22:08.230Z"
+    },
+    {
+      "phase": "P2",
+      "scenario": "SECURITY",
+      "test": "Unauthenticated /chat → /login",
+      "status": "PASS",
+      "details": "Final URL: http://localhost:3000/login",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:22:11.439Z"
+    },
+    {
+      "phase": "P2",
+      "scenario": "AUTH",
+      "test": "Phone OTP flow (/phone-login + /verify-otp)",
+      "status": "PASS",
+      "details": "Phone UI=true, Empty validation=true, Format validation=true, Route guard=true",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:22:17.212Z"
+    },
+    {
+      "phase": "P2",
+      "scenario": "AUTH",
+      "test": "O001 owner login → /owner-dashboard",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/owner-dashboard",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:22:23.304Z"
+    },
+    {
+      "phase": "P3",
+      "scenario": "ONBOARD",
+      "test": "New user routed to role-select",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/role-select",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:22:33.061Z"
+    },
+    {
+      "phase": "P3",
+      "scenario": "ONBOARD",
+      "test": "Role select page accessible or correctly redirected",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/dashboard",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:22:43.110Z"
+    },
+    {
+      "phase": "P3",
+      "scenario": "ONBOARD",
+      "test": "Completed seeker redirect from /onboarding/seeker → /dashboard",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/dashboard",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:22:52.743Z"
+    },
+    {
+      "phase": "P3",
+      "scenario": "ONBOARD",
+      "test": "Completed owner redirect from /onboarding/owner → /owner-dashboard",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/owner-dashboard",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:23:00.498Z"
+    },
+    {
+      "phase": "P4",
+      "scenario": "PROFILE",
+      "test": "Profile page renders for authenticated user",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/profile",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:23:29.702Z"
+    },
+    {
+      "phase": "P4",
+      "scenario": "PROFILE",
+      "test": "Profile displays user name",
+      "status": "PASS",
+      "details": "Name: \"Priya Sharma (S001)\"",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:23:29.713Z"
+    },
+    {
+      "phase": "P4",
+      "scenario": "PROFILE",
+      "test": "Edit profile page accessible",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/edit-profile",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:23:49.015Z"
+    },
+    {
+      "phase": "P4",
+      "scenario": "PROFILE",
+      "test": "Edit profile has form fields",
+      "status": "PASS",
+      "details": "",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:23:49.035Z"
+    },
+    {
+      "phase": "P4",
+      "scenario": "SETTINGS",
+      "test": "Settings page accessible",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/settings",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:23:57.611Z"
+    },
+    {
+      "phase": "P5",
+      "scenario": "VERIFY",
+      "test": "O001 reaches owner dashboard (verified)",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/owner-dashboard",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:24:06.637Z"
+    },
+    {
+      "phase": "P5",
+      "scenario": "VERIFY",
+      "test": "O001 owner dashboard shows verified state",
+      "status": "PASS",
+      "details": "Verified badge visible",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:24:07.168Z"
+    },
+    {
+      "phase": "P5",
+      "scenario": "VERIFY",
+      "test": "O002 (unverified) reaches owner dashboard",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/owner-dashboard",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:24:16.375Z"
+    },
+    {
+      "phase": "P5",
+      "scenario": "VERIFY",
+      "test": "Verification document upload flow",
+      "status": "PASS",
+      "details": "Fixture document attached and verification submitted",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:24:29.441Z"
+    },
+    {
+      "phase": "P6",
+      "scenario": "DISCOVER",
+      "test": "Explore rooms page loads",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/explore?tab=rooms",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:24:32.076Z"
+    },
+    {
+      "phase": "P6",
+      "scenario": "DISCOVER",
+      "test": "Tab switch to Flatmates updates URL",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/explore?tab=roommates",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:24:37.242Z"
+    },
+    {
+      "phase": "P6",
+      "scenario": "DISCOVER",
+      "test": "Filter drawer opens",
+      "status": "PASS",
+      "details": "Filter panel visible: true",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:24:40.017Z"
+    },
+    {
+      "phase": "P6",
+      "scenario": "DISCOVER",
+      "test": "Filter drawer closes",
+      "status": "PASS",
+      "details": "",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:24:40.440Z"
+    },
+    {
+      "phase": "P6",
+      "scenario": "DISCOVER",
+      "test": "Map view: Leaflet container mounts",
+      "status": "PASS",
+      "details": "",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:24:43.632Z"
+    },
+    {
+      "phase": "P6",
+      "scenario": "DISCOVER",
+      "test": "Room detail page renders with title",
+      "status": "PASS",
+      "details": "Title: \"Sunny 2BHK in T. Nagar with Balcony\"",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:24:46.850Z"
+    },
+    {
+      "phase": "P6",
+      "scenario": "DISCOVER",
+      "test": "Authenticated seeker sees listings in explore",
+      "status": "PASS",
+      "details": "Listing cards visible: 0",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:24:55.928Z"
+    },
+    {
+      "phase": "P7",
+      "scenario": "OWNER",
+      "test": "Owner dashboard renders",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/owner-dashboard",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:25:05.065Z"
+    },
+    {
+      "phase": "P7",
+      "scenario": "OWNER",
+      "test": "O001 listing visible in dashboard",
+      "status": "PASS",
+      "details": "Listing title: \"Sunny 2BHK in T. Nagar with Balcony\"",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:25:16.777Z"
+    },
+    {
+      "phase": "P7",
+      "scenario": "OWNER",
+      "test": "Create listing page accessible for owner",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/edit-listing/new",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:25:25.125Z"
+    },
+    {
+      "phase": "P7",
+      "scenario": "OWNER",
+      "test": "Create listing form has input fields",
+      "status": "PASS",
+      "details": "",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:25:25.132Z"
+    },
+    {
+      "phase": "P7",
+      "scenario": "SECURITY",
+      "test": "Seeker blocked from /edit-listing/new",
+      "status": "PASS",
+      "details": "Final URL: http://localhost:3000/dashboard",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:25:35.107Z"
+    },
+    {
+      "phase": "P8",
+      "scenario": "CONN",
+      "test": "S001 sends connection to O001",
+      "status": "PASS",
+      "details": "Connection created: V47O6yyoW2Rty74ocHeU",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:25:47.922Z"
+    },
+    {
+      "phase": "P8",
+      "scenario": "CONN",
+      "test": "O001 sees pending connection",
+      "status": "PASS",
+      "details": "Pending applicant Priya Sharma visible in dashboard",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:25:56.812Z"
+    },
+    {
+      "phase": "P8",
+      "scenario": "CONN",
+      "test": "Connection accept flow",
+      "status": "PASS",
+      "details": "Connection status=accepted",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:26:09.347Z"
+    },
+    {
+      "phase": "P8",
+      "scenario": "CONN",
+      "test": "S001 sees accepted connection in dashboard",
+      "status": "PASS",
+      "details": "Accepted chat/connection visible",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:26:38.865Z"
+    },
+    {
+      "phase": "P8",
+      "scenario": "CONN",
+      "test": "Duplicate connection prevented — Connect state changed",
+      "status": "PASS",
+      "details": "Sent/Disabled state visible: true",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:26:46.878Z"
+    },
+    {
+      "phase": "P9",
+      "scenario": "CHAT",
+      "test": "Test chat room created with initial message",
+      "status": "PASS",
+      "details": "Room: scqt9CrBRGqItboK42My",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:26:48.443Z"
+    },
+    {
+      "phase": "P9",
+      "scenario": "CHAT",
+      "test": "S001 chat page accessible",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/chat",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:26:56.718Z"
+    },
+    {
+      "phase": "P9",
+      "scenario": "CHAT",
+      "test": "S001 opens specific chat room",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/chat/scqt9CrBRGqItboK42My",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:26:59.261Z"
+    },
+    {
+      "phase": "P9",
+      "scenario": "CHAT",
+      "test": "S001 sends message and it appears",
+      "status": "PASS",
+      "details": "Message: \"E2E Test Message 1788834427843\", visible: true",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:27:09.416Z"
+    },
+    {
+      "phase": "P9",
+      "scenario": "CHAT",
+      "test": "O001 receives S001 message in chat room",
+      "status": "PASS",
+      "details": "Message visible",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:27:18.076Z"
+    },
+    {
+      "phase": "P9",
+      "scenario": "SECURITY",
+      "test": "Non-participant S002 blocked from chat room",
+      "status": "PASS",
+      "details": "Messages concealed=true, Protected empty state=true",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:27:49.671Z"
+    },
+    {
+      "phase": "P10",
+      "scenario": "APPLICANT",
+      "test": "Applicants section visible in owner dashboard",
+      "status": "PASS",
+      "details": "Applicants/Requests surface visible in owner dashboard",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:27:58.682Z"
+    },
+    {
+      "phase": "P10",
+      "scenario": "APPLICANT",
+      "test": "Owner views seeker profile via /match/:uid",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/match/bkipe5srctTR3m05djyYjVuzUiz2",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:28:12.204Z"
+    },
+    {
+      "phase": "P10",
+      "scenario": "APPLICANT",
+      "test": "Match/profile detail renders user name",
+      "status": "PASS",
+      "details": "Name: \"Priya Sharma (S001), 25\"",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:28:12.256Z"
+    },
+    {
+      "phase": "P11",
+      "scenario": "SAFETY",
+      "test": "Report button visible on profile/match page",
+      "status": "PASS",
+      "details": "Report button found",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:28:22.746Z"
+    },
+    {
+      "phase": "P11",
+      "scenario": "SAFETY",
+      "test": "Report dialog opens",
+      "status": "PASS",
+      "details": "Dialog visible: true",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:28:24.377Z"
+    },
+    {
+      "phase": "P11",
+      "scenario": "SAFETY",
+      "test": "Block button visible on profile/match page",
+      "status": "PASS",
+      "details": "Block button found",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:28:35.066Z"
+    },
+    {
+      "phase": "P12",
+      "scenario": "NOTIF",
+      "test": "Test notification seeded for S001",
+      "status": "PASS",
+      "details": "notif id: xGpQCekGPoB8SE8hbRje",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:28:36.285Z"
+    },
+    {
+      "phase": "P12",
+      "scenario": "NOTIF",
+      "test": "S001 notifications page loads",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/notifications",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:28:45.993Z"
+    },
+    {
+      "phase": "P12",
+      "scenario": "NOTIF",
+      "test": "Notifications are listed",
+      "status": "PASS",
+      "details": "Notification items found: 50",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:28:50.244Z"
+    },
+    {
+      "phase": "P13",
+      "scenario": "ADMIN",
+      "test": "Admin user accesses /admin route",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/admin, Dashboard UI=true",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:29:01.830Z"
+    },
+    {
+      "phase": "P13",
+      "scenario": "SECURITY",
+      "test": "Seeker S001 blocked from /admin",
+      "status": "PASS",
+      "details": "URL: http://localhost:3000/dashboard",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:29:13.153Z"
+    },
+    {
+      "phase": "P13",
+      "scenario": "SECURITY",
+      "test": "Unauthenticated /admin → /login redirect",
+      "status": "PASS",
+      "details": "Final URL: http://localhost:3000/login",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:29:17.059Z"
+    },
+    {
+      "phase": "P14",
+      "scenario": "SECURITY",
+      "test": "Unauthenticated /dashboard → /login",
+      "status": "PASS",
+      "details": "Final URL: http://localhost:3000/login",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:29:20.419Z"
+    },
+    {
+      "phase": "P14",
+      "scenario": "SECURITY",
+      "test": "Unauthenticated /owner-dashboard → /login",
+      "status": "PASS",
+      "details": "Final URL: http://localhost:3000/login",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:29:23.810Z"
+    },
+    {
+      "phase": "P14",
+      "scenario": "SECURITY",
+      "test": "Unauthenticated /profile → /login",
+      "status": "PASS",
+      "details": "Final URL: http://localhost:3000/login",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:29:27.100Z"
+    },
+    {
+      "phase": "P14",
+      "scenario": "SECURITY",
+      "test": "Unauthenticated /edit-profile → /login",
+      "status": "PASS",
+      "details": "Final URL: http://localhost:3000/login",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:29:30.564Z"
+    },
+    {
+      "phase": "P14",
+      "scenario": "SECURITY",
+      "test": "Unauthenticated /settings → /login",
+      "status": "PASS",
+      "details": "Final URL: http://localhost:3000/login",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:29:33.937Z"
+    },
+    {
+      "phase": "P14",
+      "scenario": "SECURITY",
+      "test": "Unauthenticated /notifications → /login",
+      "status": "PASS",
+      "details": "Final URL: http://localhost:3000/login",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:29:37.358Z"
+    },
+    {
+      "phase": "P14",
+      "scenario": "SECURITY",
+      "test": "Unauthenticated /chat → /login",
+      "status": "PASS",
+      "details": "Final URL: http://localhost:3000/login",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:29:41.216Z"
+    },
+    {
+      "phase": "P14",
+      "scenario": "SECURITY",
+      "test": "Seeker redirected from /owner-dashboard to /dashboard",
+      "status": "PASS",
+      "details": "Final URL: http://localhost:3000/dashboard",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:29:51.767Z"
+    },
+    {
+      "phase": "P14",
+      "scenario": "SECURITY",
+      "test": "Owner redirected from /dashboard to /owner-dashboard",
+      "status": "PASS",
+      "details": "Final URL: http://localhost:3000/owner-dashboard",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:30:01.878Z"
+    },
+    {
+      "phase": "P15",
+      "scenario": "UI",
+      "test": "Static page /how-it-works renders with heading",
+      "status": "PASS",
+      "details": "h1: \"How It Works\", expected to include: \"How It Works\"",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:30:04.603Z"
+    },
+    {
+      "phase": "P15",
+      "scenario": "UI",
+      "test": "Static page /pricing renders with heading",
+      "status": "PASS",
+      "details": "h1: \"Simple Pricing\", expected to include: \"Pricing\"",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:30:06.688Z"
+    },
+    {
+      "phase": "P15",
+      "scenario": "UI",
+      "test": "Static page /about renders with heading",
+      "status": "PASS",
+      "details": "h1: \"About Us\", expected to include: \"About\"",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:30:08.975Z"
+    },
+    {
+      "phase": "P15",
+      "scenario": "UI",
+      "test": "Static page /privacy renders with heading",
+      "status": "PASS",
+      "details": "h1: \"Legal & Privacy\", expected to include: \"Privacy\"",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:30:11.450Z"
+    },
+    {
+      "phase": "P15",
+      "scenario": "UI",
+      "test": "Static page /terms renders with heading",
+      "status": "PASS",
+      "details": "h1: \"Legal & Privacy\", expected to include: \"Legal\"",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:30:13.616Z"
+    },
+    {
+      "phase": "P15",
+      "scenario": "UI",
+      "test": "Custom 404 page renders",
+      "status": "PASS",
+      "details": "",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:30:37.271Z"
+    },
+    {
+      "phase": "P15",
+      "scenario": "UI",
+      "test": "Mobile 375px — zero horizontal overflow",
+      "status": "PASS",
+      "details": "Clean",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:30:40.005Z"
+    },
+    {
+      "phase": "P15",
+      "scenario": "UI",
+      "test": "Mobile — menu button visible in header",
+      "status": "PASS",
+      "details": "Mobile menu visible",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:30:40.027Z"
+    },
+    {
+      "phase": "P15",
+      "scenario": "UI",
+      "test": "Tablet 768px — zero horizontal overflow",
+      "status": "PASS",
+      "details": "",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:30:44.461Z"
+    },
+    {
+      "phase": "P15",
+      "scenario": "UI",
+      "test": "Zero critical console errors on landing",
+      "status": "PASS",
+      "details": "Clean",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:30:50.461Z"
+    },
+    {
+      "phase": "P15",
+      "scenario": "UI",
+      "test": "Landing page has correct document title",
+      "status": "PASS",
+      "details": "Title: \"NestMate — Find Your Perfect Roommate in India\"",
+      "screenshot": null,
+      "timestamp": "2026-09-08T02:30:52.485Z"
+    }
+  ]
+}

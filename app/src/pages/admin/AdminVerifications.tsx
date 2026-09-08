@@ -179,16 +179,26 @@ export default function AdminVerifications() {
 
   if (verifications.length === 0) {
     return (
-      <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-100 text-center">
-        <CheckCircle className="w-14 h-14 text-green-300 mx-auto mb-4" />
-        <h2 className="text-lg font-semibold text-gray-700 mb-2">No pending verifications</h2>
-        <p className="text-sm text-gray-400">All documents have been reviewed</p>
+      <div className="space-y-4">
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold text-gray-900">Verifications Queue</h1>
+          <p className="text-sm text-gray-500">Review user identity proofs, Aadhaar, and owner verification documents.</p>
+        </div>
+        <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-100 text-center">
+          <CheckCircle className="w-14 h-14 text-green-300 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-gray-700 mb-2">No pending verifications</h2>
+          <p className="text-sm text-gray-400">All documents have been reviewed</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      <div className="mb-4">
+        <h1 className="text-2xl font-bold text-gray-900">Verifications Queue</h1>
+        <p className="text-sm text-gray-500">Review user identity proofs, Aadhaar, and owner verification documents.</p>
+      </div>
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-3">
         <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}

@@ -20,7 +20,7 @@ import {
 } from 'recharts';
 import {
   TrendingUp, MessageCircle, Edit3, Eye, Users, Settings, MapPin,
-  Shield, Check, X, Pause, Play, Trash2, AlertTriangle, CheckCircle2, Plus,
+  Shield, ShieldCheck, Check, X, Pause, Play, Trash2, AlertTriangle, CheckCircle2, Plus,
   FileText, ArrowRight, User, Mail, Star, ChevronRight, Lightbulb, Home
 } from 'lucide-react';
 import StateLoading from '@/components/StateLoading';
@@ -90,7 +90,7 @@ export default function OwnerDashboard() {
     getMyListings(user.uid)
       .then(async listings => {
         setAllListings(listings);
-        const listing = listings[0] || null;
+        const listing = listings.find(l => l.status === 'active') || listings[0] || null;
         setMyListing(listing);
         if (listing?.id) {
           const views = await getWeeklyViews(listing.id);
@@ -388,6 +388,17 @@ export default function OwnerDashboard() {
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
+                {ownerVerification?.status === 'APPROVED' ? (
+                  <div className="flex items-center gap-1.5 text-xs font-semibold bg-emerald-50 text-emerald-800 px-3 py-1.5 rounded-full border border-emerald-200 shadow-xs">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>Identity Verified</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs font-semibold bg-amber-50 text-amber-800 px-3 py-1.5 rounded-full border border-amber-200 shadow-xs">
+                    <Shield className="w-4 h-4 text-amber-600" />
+                    <span>Verification Pending</span>
+                  </div>
+                )}
                 <span className="text-xs text-brand-teal font-medium bg-brand-tealLight/50 px-3 py-1.5 rounded-full border border-brand-teal/20">
                   Unlimited Listings (Free)
                 </span>
@@ -475,9 +486,9 @@ export default function OwnerDashboard() {
                             : 'No longer available'}
                       </span>
                       <div className="flex items-center gap-2">
-                        {(avail === 'needs_confirmation' || avail === 'expired') && (
+                        {(avail === 'needs_confirmation' || avail === 'expired' || myListing.status === 'active') && (
                           <button onClick={handleConfirmAvailability} className="px-3 py-1.5 bg-brand-orange hover:bg-orange-600 text-white text-[11px] font-bold rounded-full shadow-md transition-all">
-                            Confirm it's still available
+                            Confirm Available
                           </button>
                         )}
                         {avail !== 'closed' && (
@@ -913,9 +924,20 @@ export default function OwnerDashboard() {
             </div>
 
             <div className="flex items-center justify-between w-full pt-2 border-t border-gray-100">
-              <span className="text-[11px] text-teal-600 font-medium bg-teal-50 px-2.5 py-1 rounded-full border border-teal-100">
-                Free Unlimited
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-teal-600 font-medium bg-teal-50 px-2.5 py-1 rounded-full border border-teal-100">
+                  Free Unlimited
+                </span>
+                {ownerVerification?.status === 'APPROVED' ? (
+                  <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-emerald-600" /> Verified
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
+                    <Shield className="w-3 h-3 text-amber-600" /> Pending
+                  </span>
+                )}
+              </div>
               <button
                 onClick={() => navigate('/edit-listing/new')}
                 className="px-3.5 py-1.5 bg-brand-orange text-white text-xs font-bold rounded-xl hover:bg-orange-600 transition-all flex items-center gap-1 shadow-sm"

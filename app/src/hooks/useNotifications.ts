@@ -46,13 +46,12 @@ export function useNotifications() {
     (userId: string, onChange: (notifs: Notification[]) => void) => {
       const q = query(
         collection(db, 'notifications'),
-        where('userId', '==', userId),
-        orderBy('createdAt', 'desc'),
-        limit(50)
+        where('userId', '==', userId)
       );
       let isFirstRun = true;
       return onSnapshot(q, snap => {
         const notifs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Notification));
+        notifs.sort((a, b) => ((b.createdAt as any)?.toMillis?.() || 0) - ((a.createdAt as any)?.toMillis?.() || 0));
         
         // Trigger native push notifications for new unread items
         if (!isFirstRun && 'Notification' in window && Notification.permission === 'granted') {

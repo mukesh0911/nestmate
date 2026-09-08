@@ -20,3 +20,7 @@ app/smoke-artifacts
 # E2E artifacts
 app/e2e/reports/screenshots/
 app/e2e/reports/traces/
+app/e2e/screenshots/
+app/tests/reports/screenshots/
+app/tests/reports/traces/
+roomate/

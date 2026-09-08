@@ -1,4 +1,4 @@
-import { Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate, Link, Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useState, useEffect } from 'react';
@@ -21,12 +21,12 @@ const NAV_ITEMS = [
 export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, profile, logout } = useAuth();
+  const { user, profile, logout, isLoading: authLoading } = useAuth();
   const { isAdmin, checking } = useAdmin();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Gate: loading
-  if (checking) {
+  if (checking || authLoading) {
     return (
       <div className="min-h-screen bg-[#0F172A] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
@@ -37,36 +37,14 @@ export default function AdminLayout() {
     );
   }
 
-  // Gate: not logged in
+  // Gate: not logged in -> redirect to /login immediately
   if (!user) {
-    return (
-      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center">
-        <div className="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
-          <ShieldCheck className="w-12 h-12 text-fire mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Admin Access Required</h2>
-          <p className="text-sm text-ink/60 mb-6">Please log in with an admin account to continue.</p>
-          <button onClick={() => navigate('/login?redirect=/admin')} className="w-full py-3 bg-fire text-white rounded-xl font-bold text-sm">
-            Log In
-          </button>
-        </div>
-      </div>
-    );
+    return <Navigate to="/login?redirect=/admin" replace />;
   }
 
-  // Gate: not admin
+  // Gate: not admin -> redirect away from admin backoffice immediately
   if (isAdmin === false) {
-    return (
-      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center">
-        <div className="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
-          <ShieldCheck className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Access Denied</h2>
-          <p className="text-sm text-ink/60 mb-6">Your account does not have admin privileges.</p>
-          <button onClick={() => navigate('/')} className="w-full py-3 bg-ink text-white rounded-xl font-bold text-sm">
-            Go to Homepage
-          </button>
-        </div>
-      </div>
-    );
+    return <Navigate to={profile?.role === 'owner' ? '/owner-dashboard' : '/dashboard'} replace />;
   }
 
   const handleLogout = async () => {

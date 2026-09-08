@@ -86,7 +86,7 @@ export default function RoomDetail() {
   const navigate = useNavigate();
   const { user, profile, refreshProfile } = useAuth();
   const { getListingById, recordView } = useListings();
-  const { sendRequest } = useConnections();
+  const { sendRequest, subscribeToMyConnections } = useConnections();
   const { createNotification } = useNotifications();
   const { toggleSavedRoom } = useUserProfile();
   const { logEvent } = useAnalytics();
@@ -103,6 +103,19 @@ export default function RoomDetail() {
   const cardRef = useRef<HTMLDivElement>(null);
 
   const isSaved = !!(profile?.savedRoomIds && id && profile.savedRoomIds.includes(id));
+
+  // Sync requestSent state with existing connections to prevent duplicate connection requests
+  useEffect(() => {
+    if (!user?.uid || !room?.ownerId) return;
+    const unsub = subscribeToMyConnections(user.uid, (conns) => {
+      const active = conns.some(
+        c => (c.toUserId === room.ownerId || c.fromUserId === room.ownerId) &&
+             (c.status === 'pending' || c.status === 'accepted')
+      );
+      if (active) setRequestSent(true);
+    });
+    return () => unsub();
+  }, [user?.uid, room?.ownerId, subscribeToMyConnections]);
 
   // Sprint 5B: seed the intro message via effect — never setState during render
   useEffect(() => {

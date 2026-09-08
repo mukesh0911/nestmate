@@ -43,7 +43,7 @@ export default function HowItWorks() {
     <div className="min-h-screen bg-parchment page-transition">
       {/* Header */}
       <div className="gradient-dark py-20 px-4 text-center">
-        <h1 className="text-4xl sm:text-5xl font-display italic text-white mb-4">How NestMate Works</h1>
+        <h1 className="text-4xl sm:text-5xl font-display italic text-white mb-4">How It Works</h1>
         <p className="text-white/60 max-w-lg mx-auto">From signup to move-in, find your perfect roommate in 4 simple steps</p>
       </div>
 

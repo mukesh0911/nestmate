@@ -245,6 +245,15 @@ const TEST_USERS = {
     },
     description: '0% match — conflict on all 10 answers',
   },
+  ADMIN: {
+    email: `admin@${TEST_EMAIL_DOMAIN}`,
+    name: 'NestMate System Admin',
+    role: 'owner',
+    city: 'Chennai',
+    budget: 25000,
+    quizAnswers: {},
+    description: 'System Administrator Account',
+  },
 };
 
 async function ensureAuthUser(email, password) {
@@ -269,6 +278,9 @@ async function provisionUser(userId) {
 
   const isIncomplete = userId === 'S008' || userId === 'O005';
 
+  const userDocRef = doc(db, 'users', uid);
+  const existingDoc = await getDoc(userDocRef);
+
   const profileData = {
     uid,
     email: '',
@@ -288,9 +300,6 @@ async function provisionUser(userId) {
     avatar: '',
     quizAnswers: isIncomplete ? {} : (def.quizAnswers || {}),
     onboardingComplete: !isIncomplete,
-    isPremium: false,
-    isVerified: false,
-    verificationLevel: 0,
     status: 'active',
     connectsUsed: 0,
     connectsLimit: 5,
@@ -298,18 +307,137 @@ async function provisionUser(userId) {
     savedRoomIds: [],
     skippedUserIds: [],
     blockedUserIds: [],
-    createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
+    ...(!existingDoc.exists() ? {
+      isPremium: false,
+      isVerified: false,
+      verificationLevel: 0,
+      createdAt: Timestamp.now(),
+    } : {}),
   };
 
-  await setDoc(doc(db, 'users', uid), profileData, { merge: true });
+  await setDoc(userDocRef, profileData, { merge: true });
+
+  if (userId === 'ADMIN') {
+    try {
+      await signInWithEmailAndPassword(auth, def.email, TEST_PASSWORD);
+      await setDoc(doc(db, 'admins', def.email.toLowerCase()), {
+        email: def.email.toLowerCase(),
+        name: def.name,
+        role: 'superadmin',
+        createdAt: Timestamp.now(),
+      }, { merge: true });
+    } catch (adminErr) {
+      console.warn('  ⚠️ Note: Client SDK admins collection write:', adminErr.message);
+    }
+  }
+
+  if (userId === 'O001') {
+    try {
+      const adminDef = TEST_USERS.ADMIN;
+      await signInWithEmailAndPassword(auth, adminDef.email, TEST_PASSWORD);
+      await setDoc(userDocRef, {
+        isVerified: true,
+        verificationLevel: 3,
+        isAadhaarVerified: true,
+      }, { merge: true });
+      await setDoc(doc(db, 'ownerVerifications', uid), {
+        userId: uid,
+        status: 'APPROVED',
+        documentType: 'aadhaar',
+        declaredName: def.name,
+        reviewedAt: Timestamp.now(),
+        submittedAt: Timestamp.now(),
+      }, { merge: true });
+
+      // Ensure O001 has an active, verified listing
+      const existingListingQ = query(
+        collection(db, 'listings'),
+        where('ownerId', '==', uid),
+        where('status', '==', 'active'),
+        where('ownerVerified', '==', true)
+      );
+      const existingListingSnap = await getDocs(existingListingQ);
+      if (existingListingSnap.empty) {
+        await addDoc(collection(db, 'listings'), {
+          ownerId: uid,
+          title: 'Sunny 2BHK in T. Nagar with Balcony',
+          description: 'Spacious verified 2BHK flat available for vegetarian flatmate. High-speed WiFi and AC.',
+          city: 'Chennai',
+          locality: 'T. Nagar',
+          address: '14/2, Usman Road, T. Nagar, Chennai',
+          lat: 13.0418,
+          lng: 80.2341,
+          totalRent: 16000,
+          partnerShare: 8000,
+          partnersNeeded: 1,
+          deposit: 25000,
+          flatType: '2 BHK',
+          furnishing: 'Semi-Furnished',
+          amenities: ['WiFi', 'AC', 'Attached Washroom', 'Washing Machine'],
+          houseRules: ['Vegetarian preferred', 'No Smoking'],
+          status: 'active',
+          ownerVerified: true,
+          applicants: 0,
+          views: 12,
+          lastConfirmedAt: Timestamp.now(),
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        });
+      }
+    } catch (oErr) {
+      console.warn('  ⚠️ Note: O001 verification bootstrap:', oErr.message);
+    }
+  }
+
+  if (userId === 'O002') {
+    try {
+      const existingListingQ = query(
+        collection(db, 'listings'),
+        where('ownerId', '==', uid)
+      );
+      const existingListingSnap = await getDocs(existingListingQ);
+      if (existingListingSnap.empty) {
+        await addDoc(collection(db, 'listings'), {
+          ownerId: uid,
+          title: 'Cozy 1BHK in Adyar (Pending Verification)',
+          description: 'Great location in Adyar near beach. Owner identity verification pending.',
+          city: 'Chennai',
+          locality: 'Adyar',
+          address: '5/12, Beach Road, Adyar, Chennai',
+          lat: 13.0012,
+          lng: 80.2565,
+          totalRent: 14000,
+          partnerShare: 7000,
+          partnersNeeded: 1,
+          deposit: 20000,
+          flatType: '1 BHK',
+          furnishing: 'Furnished',
+          amenities: ['WiFi', 'AC'],
+          houseRules: ['No Smoking'],
+          status: 'pending_verification',
+          ownerVerified: false,
+          applicants: 0,
+          views: 3,
+          lastConfirmedAt: Timestamp.now(),
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        });
+      }
+    } catch (o2Err) {
+      console.warn('  ⚠️ Note: O002 listing bootstrap:', o2Err.message);
+    }
+  }
+
   return { uid, email: def.email, password: TEST_PASSWORD };
 }
 
 async function provisionAllUsers() {
   console.log('🔧 Provisioning test users in Firebase...');
   const results = {};
-  for (const userId of Object.keys(TEST_USERS)) {
+  // Provision ADMIN first so admin privileges are available
+  const keys = ['ADMIN', ...Object.keys(TEST_USERS).filter(k => k !== 'ADMIN')];
+  for (const userId of keys) {
     try {
       results[userId] = await provisionUser(userId);
     } catch (err) {
@@ -347,9 +475,8 @@ async function createTestListing(ownerUserKey, overrides = {}) {
     furnishing: overrides.furnishing || 'Fully Furnished',
     amenities: overrides.amenities || ['AC', 'WiFi', 'Washing Machine'],
     houseRules: overrides.houseRules || ['No Smoking', 'Vegetarian'],
-    images: overrides.images || [],
-    availableFrom: overrides.availableFrom || '2026-09-01',
-    status: overrides.status || 'active',
+    status: overrides.status || 'pending_verification',
+    ownerVerified: overrides.ownerVerified || false,
     applicants: overrides.applicants || 0,
     views: overrides.views || 0,
     createdAt: Timestamp.now(),
@@ -452,6 +579,36 @@ async function signInAsTestUser(userId) {
   return { user: cred.user, profile, email: def.email, password: TEST_PASSWORD };
 }
 
+async function cleanTestConnections(userKeyA, userKeyB) {
+  const defA = TEST_USERS[userKeyA];
+  const defB = TEST_USERS[userKeyB];
+  const userA = await ensureAuthUser(defA.email, TEST_PASSWORD);
+  const userB = await ensureAuthUser(defB.email, TEST_PASSWORD);
+
+  const adminDef = TEST_USERS.ADMIN;
+  await signInWithEmailAndPassword(auth, adminDef.email, TEST_PASSWORD);
+
+  const q1 = query(collection(db, 'connections'), where('fromUserId', '==', userA.uid), where('toUserId', '==', userB.uid));
+  const snap1 = await getDocs(q1);
+  for (const docSnap of snap1.docs) {
+    await deleteDoc(docSnap.ref);
+  }
+  const q2 = query(collection(db, 'connections'), where('fromUserId', '==', userB.uid), where('toUserId', '==', userA.uid));
+  const snap2 = await getDocs(q2);
+  for (const docSnap of snap2.docs) {
+    await deleteDoc(docSnap.ref);
+  }
+
+  // Also clean any prior chatRooms between userA and userB for clean test isolation
+  const roomSnap = await getDocs(query(collection(db, 'chatRooms'), where('participants', 'array-contains', userA.uid)));
+  for (const rDoc of roomSnap.docs) {
+    const data = rDoc.data();
+    if (data.participants && data.participants.includes(userB.uid)) {
+      await deleteDoc(rDoc.ref);
+    }
+  }
+}
+
 module.exports = {
   TEST_USERS,
   TEST_PASSWORD,
@@ -462,6 +619,7 @@ module.exports = {
   acceptTestConnection,
   createTestChatRoom,
   createTestNotification,
+  cleanTestConnections,
   getUserProfile,
   signInAsTestUser,
   auth,

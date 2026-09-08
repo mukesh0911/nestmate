@@ -158,16 +158,26 @@ export default function AdminReports() {
   // Empty state
   if (reports.length === 0) {
     return (
-      <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-100 text-center">
-        <CheckCircle className="w-14 h-14 text-green-300 mx-auto mb-4" />
-        <h2 className="text-lg font-semibold text-gray-700 mb-2">No reports filed</h2>
-        <p className="text-sm text-gray-400">Users can report profiles, listings, or messages from the app</p>
+      <div className="space-y-4">
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold text-gray-900">User Reports & Moderation</h1>
+          <p className="text-sm text-gray-500">Review user-submitted reports, flags, and account infractions.</p>
+        </div>
+        <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-100 text-center">
+          <CheckCircle className="w-14 h-14 text-green-300 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-gray-700 mb-2">No reports filed</h2>
+          <p className="text-sm text-gray-400">Users can report profiles, listings, or messages from the app</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      <div className="mb-4">
+        <h1 className="text-2xl font-bold text-gray-900">User Reports & Moderation</h1>
+        <p className="text-sm text-gray-500">Review user-submitted reports, flags, and account infractions.</p>
+      </div>
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">

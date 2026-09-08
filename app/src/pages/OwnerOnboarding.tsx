@@ -242,6 +242,16 @@ export default function OwnerOnboarding() {
         locality,
       });
 
+      const ownerQuizAnswers: Record<string, string> = {
+        food_pref: selectedRules.includes('Veg kitchen only') ? 'veg' : 'non_veg',
+        smoking: selectedRules.includes('No smoking inside') ? 'never' : 'socially',
+        pets: selectedRules.includes('No pets') ? 'no' : 'ok',
+        cleanliness: selectedRules.includes('Maintain cleanliness') ? 'very' : 'somewhat',
+        guests: selectedRules.includes('No guests overnight') ? 'rarely' : 'sometimes',
+        sleep_time: selectedRules.includes('Quiet after 11 PM') ? '10_to_12' : 'varies',
+        roommate_gender: (preferredGender || 'any').toLowerCase().includes('female') ? 'female' : (preferredGender || 'any').toLowerCase().includes('male') ? 'male' : 'any',
+      };
+
       await updateProfile(user.uid, {
         role: 'owner',
         name: name.trim(),
@@ -254,7 +264,8 @@ export default function OwnerOnboarding() {
         localities: locality ? [locality] : [],
         budget: share,
         moveInDate: availableFrom || '',
-        onboardingComplete: true,
+        quizAnswers: ownerQuizAnswers,
+        onboardingComplete: false,
         ...(avatarUrl && { avatar: avatarUrl }),
         ...(resolvedGeo && { geoLocation: { lat: resolvedGeo.lat, lng: resolvedGeo.lng, formattedAddress: `${locality}, ${city}` } }),
       });
@@ -387,7 +398,17 @@ export default function OwnerOnboarding() {
 
           {/* Go to dashboard anyway */}
           <button
-            onClick={() => { navigate('/owner-dashboard', { replace: true }); }}
+            onClick={async () => {
+              if (user?.uid) {
+                try {
+                  await updateProfile(user.uid, { onboardingComplete: true });
+                  await refreshProfile(user.uid);
+                } catch (e) {
+                  console.error('Failed to set onboardingComplete on owner finish', e);
+                }
+              }
+              navigate('/owner-dashboard', { replace: true });
+            }}
             className="text-sm text-ink/50 hover:text-fire underline"
           >
             Go to dashboard (verify later)

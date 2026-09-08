@@ -216,7 +216,9 @@ export default function LandingPage() {
 
                 <button
                   type="submit"
-                  className="w-full sm:w-auto btn-fire px-6 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm sm:mt-5 transition-all"
+                  aria-label="Search listings"
+                  data-testid="hero-search-button"
+                  className="w-full sm:w-auto btn-fire px-6 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm sm:mt-5 transition-all cursor-pointer"
                 >
                   <Search className="w-4 h-4" />
                   Search

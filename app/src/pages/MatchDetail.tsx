@@ -136,7 +136,12 @@ export default function MatchDetail() {
         setMatchedUser({ profile: targetProfile, compatibilityScore: score });
 
         if (targetProfile.role === 'owner') {
-          const lq = query(collection(db, 'listings'), where('ownerId', '==', id), where('status', '==', 'active'));
+          const lq = query(
+            collection(db, 'listings'),
+            where('ownerId', '==', id),
+            where('status', '==', 'active'),
+            where('ownerVerified', '==', true)
+          );
           try {
             const lsnap = await getDocs(lq);
             if (!lsnap.empty) {

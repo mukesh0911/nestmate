@@ -55,11 +55,15 @@ export function useChat() {
     (userId: string, onChange: (rooms: ChatRoom[]) => void) => {
       const q = query(
         collection(db, 'chatRooms'),
-        where('participants', 'array-contains', userId),
-        orderBy('lastMessageAt', 'desc')
+        where('participants', 'array-contains', userId)
       );
       return onSnapshot(q, (snap) => {
         const rooms = snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatRoom));
+        rooms.sort((a, b) => {
+          const tA = (a.lastMessageAt as any)?.toMillis?.() || (a.createdAt as any)?.toMillis?.() || 0;
+          const tB = (b.lastMessageAt as any)?.toMillis?.() || (b.createdAt as any)?.toMillis?.() || 0;
+          return tB - tA;
+        });
         onChange(rooms);
       });
     },
@@ -83,11 +87,16 @@ export function useChat() {
   const getChatRooms = useCallback(async (userId: string): Promise<ChatRoom[]> => {
     const q = query(
       collection(db, 'chatRooms'),
-      where('participants', 'array-contains', userId),
-      orderBy('lastMessageAt', 'desc')
+      where('participants', 'array-contains', userId)
     );
     const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatRoom));
+    const rooms = snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatRoom));
+    rooms.sort((a, b) => {
+      const tA = (a.lastMessageAt as any)?.toMillis?.() || (a.createdAt as any)?.toMillis?.() || 0;
+      const tB = (b.lastMessageAt as any)?.toMillis?.() || (b.createdAt as any)?.toMillis?.() || 0;
+      return tB - tA;
+    });
+    return rooms;
   }, []);
 
   const getOrCreateChatRoom = useCallback(

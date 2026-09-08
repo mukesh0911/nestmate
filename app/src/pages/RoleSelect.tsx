@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { useAuth } from '@/hooks/useAuth';
@@ -7,8 +8,14 @@ import { Search, Home, CheckCircle } from 'lucide-react';
 export default function RoleSelect() {
   const navigate = useNavigate();
   const { setCurrentRole } = useStore();
-  const { user } = useAuth();
+  const { user, profile, isLoading } = useAuth();
   const { setRole } = useUserProfile();
+
+  useEffect(() => {
+    if (!isLoading && profile?.onboardingComplete) {
+      navigate(profile.role === 'owner' ? '/owner-dashboard' : '/dashboard', { replace: true });
+    }
+  }, [isLoading, profile?.onboardingComplete, profile?.role, navigate]);
 
   const handleSelectRole = async (role: 'seeker' | 'owner') => {
     setCurrentRole(role);

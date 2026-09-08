@@ -8,7 +8,7 @@ const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
 
-const APP_URL = process.env.APP_URL || 'http://localhost:5190';
+const APP_URL = process.env.APP_URL || 'http://localhost:3000';
 const TIMEOUT = 15000;
 
 /**
@@ -58,7 +58,8 @@ async function createUserContext(browser, label = 'anon') {
  */
 async function gotoApp(page, targetPath = '/') {
   await page.goto(`${APP_URL}${targetPath}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForTimeout(600);
+  await page.locator('[role="status"].min-h-screen, [aria-label="Loading page"]').first().waitFor({ state: 'detached', timeout: 12000 }).catch(() => {});
+  await page.waitForTimeout(400);
 }
 
 /**
@@ -69,9 +70,11 @@ async function emailLogin(page, email, password) {
   await gotoApp(page, '/login');
   await page.waitForTimeout(600);
 
-  // If already logged in and redirected away from /login
+  // If already logged in and redirected away, log out first to authenticate requested user
   if (!page.url().includes('/login')) {
-    return { success: true, url: page.url() };
+    await logout(page);
+    await gotoApp(page, '/login');
+    await page.waitForTimeout(600);
   }
 
   // Click "Continue with Email" button if on landing mode
@@ -172,17 +175,18 @@ function makeResultRecorder() {
   const results = [];
   
   function record(phase, scenario, test, status, details = '', screenshotPath = null) {
+    const normalizedStatus = (status === true || status === 'PASS') ? 'PASS' : (status === false || status === 'FAIL') ? 'FAIL' : status;
     const entry = {
       phase,
       scenario,
       test,
-      status, // 'PASS' | 'FAIL' | 'SKIP' | 'UNVERIFIED'
+      status: normalizedStatus, // 'PASS' | 'FAIL' | 'SKIP' | 'UNVERIFIED'
       details,
       screenshot: screenshotPath,
       timestamp: new Date().toISOString(),
     };
     results.push(entry);
-    const icon = status === 'PASS' ? '✅' : status === 'FAIL' ? '❌' : status === 'UNVERIFIED' ? '⚠️' : '⏭️';
+    const icon = normalizedStatus === 'PASS' ? '✅' : normalizedStatus === 'FAIL' ? '❌' : normalizedStatus === 'UNVERIFIED' ? '⚠️' : '⏭️';
     console.log(`${icon} [${phase}] ${scenario}: ${test}`);
     if (details) console.log(`   └─ ${details}`);
     return entry;

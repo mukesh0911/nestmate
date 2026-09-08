@@ -29,6 +29,13 @@ export default function ChatPage() {
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [activeRoom, setActiveRoom] = useState(roomId || '');
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(!!roomId);
+
+  useEffect(() => {
+    if (roomId) {
+      setActiveRoom(roomId);
+      setIsMobileChatOpen(true);
+    }
+  }, [roomId]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [searchChat, setSearchChat] = useState('');
