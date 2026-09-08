@@ -4,7 +4,7 @@ import { useStore } from '@/store/useStore';
 import { cities, localitiesByCity, flatTypes, furnishingTypes, amenitiesList } from '@/lib/staticData';
 import { useAuth } from '@/hooks/useAuth';
 import { useMatches, calculateCompatibility, getActiveStatus } from '@/hooks/useMatches';
-import { getMatchReasons } from '@/lib/matching';
+import { getMatchReasons, getRoomMatchReasons } from '@/lib/matching';
 import { useChat } from '@/hooks/useChat';
 import { useConnections, FREE_CONNECT_LIMIT } from '@/hooks/useConnections';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -1162,18 +1162,22 @@ export default function SeekerDashboard() {
                 </div>
               </div>
               <div className="space-y-4">
-                {/* Sprint 2C: truthful "why" reasons — only data-backed claims */}
+                {/* Truthful "why" reasons — data-backed claims */}
                 {(() => {
-                  const why = getMatchReasons(
-                    profile?.quizAnswers || {},
-                    compatModal.profile.quizAnswers || {},
-                    {
-                      myCity: profile?.city,
-                      theirCity: compatModal.profile.city,
-                      myBudget: profile?.budget || 0,
-                      theirBudget: compatModal.profile.budget || 0,
-                    }
-                  );
+                  const listing = (compatModal.profile as any)._listing;
+                  const isRoom = Boolean(listing || compatModal.listingId);
+                  const why = isRoom
+                    ? getRoomMatchReasons(profile || {}, listing || { city: compatModal.profile.city }, compatModal.profile)
+                    : getMatchReasons(
+                      profile?.quizAnswers || {},
+                      compatModal.profile.quizAnswers || {},
+                      {
+                        myCity: profile?.city,
+                        theirCity: compatModal.profile.city,
+                        myBudget: profile?.budget || 0,
+                        theirBudget: compatModal.profile.budget || 0,
+                      }
+                    );
                   return (
                     <>
                       {why.reasons.length > 0 && (

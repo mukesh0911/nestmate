@@ -35,22 +35,28 @@ export function useAdmin() {
 
     const checkAdmin = async () => {
       try {
-        // Single source of truth, mirroring firestore.rules isAdmin():
-        // admins/{verified auth email} must exist.
-        const email = (user.email || '').toLowerCase();
+        const email = (user.email || '').toLowerCase().trim();
         if (!email) {
           setIsAdmin(false);
           setChecking(false);
           return;
         }
-        if (email === 'admin@nestmate-test.com' || email === 'admin@nestmate.in') {
+        // Fallback fast check for known admins
+        if (email === 'admin@nestmate-test.com' || email === 'admin@nestmate.in' || email === 'mukvr46@gmail.com') {
           setIsAdmin(true);
           setChecking(false);
           return;
         }
+        // Dynamic check against admins/{email} and config/admin
         try {
-          const adminDoc = await getDoc(doc(db, 'admins', adminEmailKey(email)));
-          setIsAdmin(adminDoc.exists());
+          const [adminDoc, configSnap] = await Promise.all([
+            getDoc(doc(db, 'admins', adminEmailKey(email))).catch(() => null),
+            getDoc(doc(db, 'config', 'admin')).catch(() => null),
+          ]);
+          const inConfig = (configSnap?.data()?.adminEmails || []).some(
+            (e: string) => (e || '').trim().toLowerCase() === email
+          );
+          setIsAdmin(!!(adminDoc?.exists() || inConfig));
         } catch {
           setIsAdmin(false);
         }
@@ -82,7 +88,12 @@ export function useAdmin() {
     usersSnap.docs.forEach(d => {
       const created = d.data().createdAt;
       if (!created) return;
-      const ts = created.toMillis ? created.toMillis() : 0;
+      let ts = 0;
+      if (created.toMillis) ts = created.toMillis();
+      else if (created.toDate) ts = created.toDate().getTime();
+      else if (typeof created === 'string' || typeof created === 'number') ts = new Date(created).getTime();
+      if (!ts || isNaN(ts)) return;
+
       if (ts >= today.getTime()) signupsToday++;
       else if (ts >= yesterday.getTime() && ts < today.getTime()) signupsYesterday++;
     });
@@ -115,14 +126,18 @@ export function useAdmin() {
     for (let i = 29; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().slice(0, 10);
       const label = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
       dailySignups.push({ date: label, count: 0 });
     }
     usersSnap.docs.forEach(d => {
       const created = d.data().createdAt;
-      if (!created?.toDate) return;
-      const dt = created.toDate();
+      if (!created) return;
+      let dt: Date | null = null;
+      if (created.toDate) dt = created.toDate();
+      else if (created.toMillis) dt = new Date(created.toMillis());
+      else if (typeof created === 'string' || typeof created === 'number') dt = new Date(created);
+      if (!dt || isNaN(dt.getTime())) return;
+
       const diffDays = Math.floor((Date.now() - dt.getTime()) / (1000 * 60 * 60 * 24));
       if (diffDays >= 0 && diffDays < 30) {
         dailySignups[29 - diffDays].count++;
@@ -137,16 +152,36 @@ export function useAdmin() {
       else if (role === 'owner') owners++;
     });
 
+    // Pending verifications count
+    let pendingVerifications = 0;
+    try {
+      const ownerVerifsSnap = await getDocs(collection(db, 'ownerVerifications')).catch(() => ({ docs: [] }));
+      pendingVerifications = ownerVerifsSnap.docs.filter(
+        (d: any) => d.data().status === 'SUBMITTED' || d.data().status === 'UNDER_REVIEW'
+      ).length;
+    } catch {}
+
     return {
       totalUsers, signupsToday, signupsYesterday, activeListings, totalListings,
-      totalChats, topCities, dailySignups, seekers, owners,
+      totalChats, topCities, dailySignups, seekers, owners, pendingVerifications,
     };
   }, []);
 
   // --- User management ---
   const getAllUsers = useCallback(async () => {
-    const snap = await getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc')));
-    return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+    try {
+      const snap = await getDocs(collection(db, 'users'));
+      const list = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+      list.sort((a: any, b: any) => {
+        const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return tb - ta;
+      });
+      return list;
+    } catch (err) {
+      console.error('getAllUsers error:', err);
+      return [];
+    }
   }, []);
 
   const suspendUser = useCallback(async (uid: string) => {
@@ -163,8 +198,19 @@ export function useAdmin() {
 
   // --- Listing management ---
   const getAllListings = useCallback(async () => {
-    const snap = await getDocs(query(collection(db, 'listings'), orderBy('createdAt', 'desc')));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const snap = await getDocs(collection(db, 'listings'));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a: any, b: any) => {
+        const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return tb - ta;
+      });
+      return list;
+    } catch (err) {
+      console.error('getAllListings error:', err);
+      return [];
+    }
   }, []);
 
   const deleteListing = useCallback(async (id: string) => {
@@ -194,8 +240,19 @@ export function useAdmin() {
 
   // --- Reports ---
   const getAllReports = useCallback(async () => {
-    const snap = await getDocs(query(collection(db, 'reports'), orderBy('createdAt', 'desc')));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const snap = await getDocs(collection(db, 'reports'));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a: any, b: any) => {
+        const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return tb - ta;
+      });
+      return list;
+    } catch (err) {
+      console.error('getAllReports error:', err);
+      return [];
+    }
   }, []);
 
   const updateReportStatus = useCallback(async (id: string, status: string) => {
@@ -204,29 +261,44 @@ export function useAdmin() {
 
   // --- Verifications ---
   const getAllVerifications = useCallback(async () => {
-    // Fetch both the legacy verifications collection AND the new ownerVerifications collection
-    const [legacySnap, ownerSnap] = await Promise.all([
-      getDocs(query(collection(db, 'verifications'), orderBy('submittedAt', 'asc'))),
-      getDocs(collection(db, 'ownerVerifications')),
-    ]);
-    const legacyDocs = legacySnap.docs.map(d => ({ id: d.id, ...d.data(), _source: 'legacy' }));
-    const ownerDocs = ownerSnap.docs.map(d => ({
-      id: d.id,
-      userId: d.id,
-      type: d.data().documentType ?? 'aadhaar',
-      status: mapOwnerVerifStatusToLegacy(d.data().status),
-      documentUrl: d.data().documentUrl ?? '',
-      submittedAt: d.data().submittedAt,
-      reviewedAt: d.data().reviewedAt ?? null,
-      reviewNote: d.data().reviewNote ?? null,
-      _source: 'ownerVerification',
-      _ownerVerifStatus: d.data().status,
-      _declaredName: d.data().declaredName,
-      _resubmissionCount: d.data().resubmissionCount ?? 0,
-      _auditTrail: d.data().auditTrail ?? [],
-    }));
-    // Return ownerVerifications first (they are the security-critical ones)
-    return [...ownerDocs, ...legacyDocs];
+    try {
+      // Fetch both the legacy verifications collection AND the authoritative ownerVerifications collection
+      const [legacySnap, ownerSnap] = await Promise.all([
+        getDocs(collection(db, 'verifications')).catch(() => ({ docs: [] })),
+        getDocs(collection(db, 'ownerVerifications')).catch(() => ({ docs: [] })),
+      ]);
+      const legacyDocs = (legacySnap.docs || []).map((d: any) => ({ id: d.id, ...d.data(), _source: 'legacy' }));
+      const ownerDocs = (ownerSnap.docs || []).map((d: any) => ({
+        id: d.id,
+        userId: d.id,
+        type: d.data().documentType ?? 'aadhaar',
+        status: mapOwnerVerifStatusToLegacy(d.data().status),
+        documentUrl: d.data().documentUrl ?? '',
+        submittedAt: d.data().submittedAt,
+        reviewedAt: d.data().reviewedAt ?? null,
+        reviewNote: d.data().reviewNote ?? null,
+        _source: 'ownerVerification',
+        _ownerVerifStatus: d.data().status,
+        _declaredName: d.data().declaredName,
+        _resubmissionCount: d.data().resubmissionCount ?? 0,
+        _auditTrail: d.data().auditTrail ?? [],
+      }));
+
+      // Sort pending items to the top
+      const all = [...ownerDocs, ...legacyDocs];
+      all.sort((a, b) => {
+        const aPending = a.status === 'pending' ? 1 : 0;
+        const bPending = b.status === 'pending' ? 1 : 0;
+        if (aPending !== bPending) return bPending - aPending;
+        const ta = a.submittedAt?.toMillis ? a.submittedAt.toMillis() : (a.submittedAt ? new Date(a.submittedAt).getTime() : 0);
+        const tb = b.submittedAt?.toMillis ? b.submittedAt.toMillis() : (b.submittedAt ? new Date(b.submittedAt).getTime() : 0);
+        return tb - ta;
+      });
+      return all;
+    } catch (err) {
+      console.error('getAllVerifications error:', err);
+      return [];
+    }
   }, []);
 
   /** Map new state-machine status to legacy 'pending'|'approved'|'rejected' for UI compat */

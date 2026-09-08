@@ -24,6 +24,63 @@ interface ProfileField {
 export function getProfileFields(profile: UserProfile | null): ProfileField[] {
   if (!profile) return [];
 
+  const role = profile.role || 'seeker';
+
+  if (role === 'owner') {
+    return [
+      {
+        id: 'photo',
+        label: 'Add Profile Photo',
+        description: 'A clear photo builds credibility with applicants',
+        icon: <Camera className="w-4 h-4" />,
+        done: !!profile.avatar && profile.avatar.trim().length > 0,
+        weight: 20,
+        actionLabel: 'Add Photo',
+        actionPath: '/edit-profile',
+      },
+      {
+        id: 'bio',
+        label: 'Write Host Bio',
+        description: 'Tell prospective tenants about yourself and properties',
+        icon: <FileText className="w-4 h-4" />,
+        done: !!profile.bio && profile.bio.trim().length >= 5,
+        weight: 20,
+        actionLabel: 'Write Bio',
+        actionPath: '/edit-profile',
+      },
+      {
+        id: 'city',
+        label: 'Set City & Locality',
+        description: 'Help applicants find your listings in the right area',
+        icon: <Briefcase className="w-4 h-4" />,
+        done: !!profile.city && profile.city.trim().length > 0,
+        weight: 20,
+        actionLabel: 'Set City',
+        actionPath: '/edit-profile',
+      },
+      {
+        id: 'phone',
+        label: 'Verify Phone Number',
+        description: 'Enables instant notifications and applicant contact',
+        icon: <Mail className="w-4 h-4" />,
+        done: !!profile.phone || !!profile.workEmailVerified,
+        weight: 20,
+        actionLabel: 'Verify Phone',
+        actionPath: '/edit-profile',
+      },
+      {
+        id: 'identity',
+        label: 'Verify Ownership & ID',
+        description: 'Verified badge unlocks active property listings',
+        icon: <ShieldCheck className="w-4 h-4" />,
+        done: !!profile.isVerified || (profile.verificationLevel ?? 0) >= 1,
+        weight: 20,
+        actionLabel: 'Verify ID',
+        actionPath: '/owner-dashboard?tab=listings',
+      },
+    ];
+  }
+
   return [
     {
       id: 'photo',
@@ -63,15 +120,13 @@ export function getProfileFields(profile: UserProfile | null): ProfileField[] {
       done: !!profile.quizAnswers && Object.keys(profile.quizAnswers).length >= 5,
       weight: 25,
       actionLabel: 'Take Quiz',
-      actionPath: '/edit-profile',
+      actionPath: '/seeker-onboarding',
     },
     {
       id: 'workemail',
       label: 'Verify Work / College Email',
       description: 'Boosts trust — earn Gold badge',
       icon: <Mail className="w-4 h-4" />,
-      // Truthful semantics: only a VERIFIED work/college email counts.
-      // An email that was merely provided is not verification (Sprint 2B).
       done: !!profile.workEmailVerified,
       weight: 15,
       actionLabel: 'Verify Email',
@@ -85,7 +140,7 @@ export function getProfileFields(profile: UserProfile | null): ProfileField[] {
       done: !!profile.isVerified || (profile.verificationLevel ?? 0) >= 1,
       weight: 10,
       actionLabel: 'Verify ID',
-      actionPath: '/edit-profile',
+      actionPath: '/trust',
     },
   ];
 }

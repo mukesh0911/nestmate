@@ -5,8 +5,8 @@ import { useListings } from '@/hooks/useListings';
 import type { Listing } from '@/hooks/useListings';
 import { useStorage } from '@/hooks/useStorage';
 import { resolveEntityCoordinates } from '@/lib/locationResolver';
-import { cities, localitiesByCity, flatTypes, furnishingTypes, amenitiesList } from '@/lib/staticData';
-import { ArrowLeft, Save, Trash2, ToggleLeft, ToggleRight, Loader2, AlertTriangle, Upload, X, Image as ImageIcon, GripVertical, ShieldAlert } from 'lucide-react';
+import { cities, localitiesByCity, flatTypes, furnishingTypes, amenitiesList, houseRulesList } from '@/lib/staticData';
+import { ArrowLeft, Save, Trash2, ToggleLeft, ToggleRight, Loader2, AlertTriangle, Upload, X, Image as ImageIcon, GripVertical, ShieldAlert, Sparkles } from 'lucide-react';
 import OwnerVerificationGate from '@/components/OwnerVerificationGate';
 import { subscribeToOwnerVerification, type OwnerVerification } from '@/lib/ownerVerification';
 
@@ -49,6 +49,7 @@ export default function EditListing() {
     availableFrom: '',
     genderPreference: 'any',
     amenities: [] as string[],
+    houseRules: [] as string[],
     status: 'active' as 'active' | 'paused' | 'filled' | 'closed' | 'pending_verification',
   });
 
@@ -88,6 +89,7 @@ export default function EditListing() {
         availableFrom: listing.availableFrom || '',
         genderPreference: (listing as any).genderPreference || 'any',
         amenities: listing.amenities || [],
+        houseRules: listing.houseRules || [],
         status: listing.status || 'active',
       });
       setOwnerVerified(listing.ownerVerified);
@@ -194,6 +196,15 @@ export default function EditListing() {
       amenities: prev.amenities.includes(a)
         ? prev.amenities.filter(x => x !== a)
         : [...prev.amenities, a],
+    }));
+  };
+
+  const toggleHouseRule = (r: string) => {
+    setForm(prev => ({
+      ...prev,
+      houseRules: prev.houseRules.includes(r)
+        ? prev.houseRules.filter(x => x !== r)
+        : [...prev.houseRules, r],
     }));
   };
 
@@ -466,6 +477,7 @@ export default function EditListing() {
               {amenitiesList.map(a => (
                 <button
                   key={a}
+                  type="button"
                   onClick={() => toggleAmenity(a)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${form.amenities.includes(a) ? 'bg-fire text-white' : 'bg-cream/50 text-ink/60 hover:bg-fire/10'
                     }`}
@@ -473,6 +485,49 @@ export default function EditListing() {
                   {a}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* House Rules & Tenant Compatibility Section */}
+          <div className="card-nestmate p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                  <span>House Rules & Living Norms</span>
+                  <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
+                    Powers Compatibility Matching
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Select rules for your flat. Seekers who match these rules receive higher compatibility scores.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {houseRulesList.map(rule => (
+                <button
+                  key={rule}
+                  type="button"
+                  onClick={() => toggleHouseRule(rule)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
+                    form.houseRules.includes(rule)
+                      ? 'bg-brand-orange text-white border-brand-orange shadow-xs'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {rule}
+                </button>
+              ))}
+            </div>
+
+            {/* Explanatory Live Compatibility Note */}
+            <div className="bg-orange-50/60 border border-orange-200/60 rounded-xl p-3.5 flex items-start gap-3">
+              <Sparkles className="w-4 h-4 text-brand-orange shrink-0 mt-0.5" />
+              <div className="text-xs text-slate-700 leading-relaxed">
+                <span className="font-bold text-slate-900 block mb-0.5">How Compatibility Matching Works</span>
+                Seekers in {form.city || 'Bangalore'} whose budget fits ₹{form.monthlyRent ? form.monthlyRent.toLocaleString() : '0'}, matching your gender rule ({form.genderPreference === 'any' ? 'Any Gender' : form.genderPreference === 'female' ? 'Female Only' : 'Male Only'}) and habits will see your room as a <strong className="text-emerald-700 font-bold">90%+ Best Match</strong>.
+              </div>
             </div>
           </div>
 

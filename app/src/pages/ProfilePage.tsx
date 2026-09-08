@@ -7,9 +7,14 @@ import { useReviews } from '@/hooks/useReviews';
 import { useMatches } from '@/hooks/useMatches';
 import { useConnections } from '@/hooks/useConnections';
 import { useChat } from '@/hooks/useChat';
+import { useListings } from '@/hooks/useListings';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Crown, Shield, Star, Settings, Bell, Lock, HelpCircle, LogOut, SwitchCamera, ChevronRight, TrendingUp, MessageSquare, Heart, Eye, CheckCircle2, Linkedin, Instagram, FileText, ShieldCheck, Users } from 'lucide-react';
+import {
+  Crown, Shield, Star, Settings, Bell, Lock, HelpCircle, LogOut, SwitchCamera,
+  ChevronRight, TrendingUp, MessageSquare, Heart, Eye, CheckCircle2, Linkedin, Instagram,
+  FileText, ShieldCheck, Users, Sliders, Building2
+} from 'lucide-react';
 import TrustBadge from '@/components/TrustBadge';
 import ProfileCompleteness from '@/components/ProfileCompleteness';
 import StateEmpty from '@/components/StateEmpty';
@@ -24,9 +29,11 @@ export default function ProfilePage() {
   const { findMatches } = useMatches();
   const { getMyConnections } = useConnections();
   const { chatRooms, getOrCreateChatRoom } = useChat();
+  const { getMyListings } = useListings();
 
   const [topMatchScore, setTopMatchScore] = useState<number>(0);
   const [connectsCount, setConnectsCount] = useState<number>(0);
+  const [ownerListings, setOwnerListings] = useState<any[]>([]);
   const [acceptedConnections, setAcceptedConnections] = useState<{ connection: any; profile: any }[]>([]);
 
   // Derive the effective role from Firebase profile or Zustand store
@@ -49,7 +56,7 @@ export default function ProfilePage() {
         }
         setAcceptedConnections(list);
       }).catch(() => { });
-      if (profile) {
+      if (profile && effectiveRole === 'seeker') {
         findMatches(profile, profile.city).then(matches => {
           if (matches && matches.length > 0) {
             const top = Math.max(...matches.map(m => m.compatibilityScore || 0));
@@ -57,8 +64,13 @@ export default function ProfilePage() {
           }
         });
       }
+      if (effectiveRole === 'owner') {
+        getMyListings(user.uid).then(listings => {
+          setOwnerListings(listings || []);
+        }).catch(() => {});
+      }
     }
-  }, [user?.uid, profile, getMyConnections]);
+  }, [user?.uid, profile, effectiveRole, getMyConnections, getMyListings]);
 
   const averageRating = reviews.length > 0
     ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
@@ -124,18 +136,37 @@ export default function ProfilePage() {
                 {profile?.isVerified && <span className="badge-teal text-[10px]"><Shield className="w-3 h-3 mr-1" />Verified Member</span>}
               </div>
               <div className="grid grid-cols-3 gap-2 text-center mb-4">
-                <div className="bg-cream/50 rounded-lg p-2">
-                  <p className="text-lg font-bold">{connectsCount || profile?.connectsUsed || 0}</p>
-                  <p className="text-[10px] text-ink/50">Connects</p>
-                </div>
-                <div className="bg-cream/50 rounded-lg p-2">
-                  <p className="text-lg font-bold">{chatRooms?.length || 0}</p>
-                  <p className="text-[10px] text-ink/50">Chats</p>
-                </div>
-                <div className="bg-cream/50 rounded-lg p-2">
-                  <p className="text-lg font-bold text-fire">{topMatchScore > 0 ? `${topMatchScore}%` : '—'}</p>
-                  <p className="text-[10px] text-ink/50">Top Match</p>
-                </div>
+                {effectiveRole === 'owner' ? (
+                  <>
+                    <div className="bg-cream/50 rounded-lg p-2 cursor-pointer hover:bg-cream transition-colors" onClick={() => navigate('/owner-dashboard?tab=listings')}>
+                      <p className="text-lg font-bold text-ink">{ownerListings.length}</p>
+                      <p className="text-[10px] text-ink/50">Properties</p>
+                    </div>
+                    <div className="bg-cream/50 rounded-lg p-2 cursor-pointer hover:bg-cream transition-colors" onClick={() => navigate('/owner-dashboard?tab=applicants')}>
+                      <p className="text-lg font-bold text-ink">{connectsCount || 0}</p>
+                      <p className="text-[10px] text-ink/50">Applicants</p>
+                    </div>
+                    <div className="bg-cream/50 rounded-lg p-2 cursor-pointer hover:bg-cream transition-colors" onClick={() => navigate('/chat')}>
+                      <p className="text-lg font-bold text-ink">{chatRooms?.length || 0}</p>
+                      <p className="text-[10px] text-ink/50">Chats</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="bg-cream/50 rounded-lg p-2">
+                      <p className="text-lg font-bold text-ink">{connectsCount || profile?.connectsUsed || 0}</p>
+                      <p className="text-[10px] text-ink/50">Connects</p>
+                    </div>
+                    <div className="bg-cream/50 rounded-lg p-2 cursor-pointer hover:bg-cream transition-colors" onClick={() => navigate('/chat')}>
+                      <p className="text-lg font-bold text-ink">{chatRooms?.length || 0}</p>
+                      <p className="text-[10px] text-ink/50">Chats</p>
+                    </div>
+                    <div className="bg-cream/50 rounded-lg p-2">
+                      <p className="text-lg font-bold text-fire">{topMatchScore > 0 ? `${topMatchScore}%` : '—'}</p>
+                      <p className="text-[10px] text-ink/50">Top Match</p>
+                    </div>
+                  </>
+                )}
               </div>
               <button onClick={() => navigate('/edit-profile')} className="w-full py-2.5 border border-ink/10 rounded-xl text-sm font-medium text-ink/70 hover:bg-cream/50 transition-all cursor-pointer">
                 Edit Profile
@@ -146,24 +177,45 @@ export default function ProfilePage() {
           {/* Profile Completeness Meter */}
           <ProfileCompleteness profile={profile} />
 
-          {/* Preferences */}
+          {/* Preferences / Hosting Details */}
           <div className="card-nestmate p-5">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="font-semibold text-sm">Preferences</h4>
-              <button onClick={() => navigate('/edit-profile')} className="text-xs text-fire cursor-pointer">Edit</button>
+              <h4 className="font-semibold text-sm">
+                {effectiveRole === 'owner' ? 'Hosting Details' : 'Preferences'}
+              </h4>
+              <button
+                onClick={() => navigate(effectiveRole === 'owner' ? '/owner-dashboard?tab=listings' : '/preferences')}
+                className="text-xs text-fire font-semibold hover:underline cursor-pointer"
+              >
+                {effectiveRole === 'owner' ? 'Manage' : 'Edit'}
+              </button>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {[
-                { label: 'Budget', value: `₹${(profile?.budget || 0).toLocaleString()}` },
-                { label: 'Role', value: effectiveRole === 'seeker' ? 'Seeker' : 'Owner' },
-                { label: 'City', value: profile?.city || '—' },
-                { label: 'Move-in', value: profile?.moveInDate ? new Date(profile.moveInDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—' },
-              ].map(p => (
-                <div key={p.label} className="bg-cream/50 rounded-lg p-2.5">
-                  <p className="text-[10px] text-ink/40">{p.label}</p>
-                  <p className="text-sm font-medium">{p.value}</p>
-                </div>
-              ))}
+              {effectiveRole === 'owner' ? (
+                [
+                  { label: 'Role', value: 'Property Owner' },
+                  { label: 'City', value: profile?.city || 'Bengaluru' },
+                  { label: 'Properties', value: `${ownerListings.length} Listed` },
+                  { label: 'Status', value: profile?.isVerified ? 'Verified Owner' : 'Pending Verification' },
+                ].map(p => (
+                  <div key={p.label} className="bg-cream/50 rounded-lg p-2.5">
+                    <p className="text-[10px] text-ink/40">{p.label}</p>
+                    <p className="text-sm font-medium truncate">{p.value}</p>
+                  </div>
+                ))
+              ) : (
+                [
+                  { label: 'Budget', value: profile?.budget ? `₹${profile.budget.toLocaleString()}/mo` : 'Flexible' },
+                  { label: 'Role', value: 'Roommate Seeker' },
+                  { label: 'City', value: profile?.city || 'Bengaluru' },
+                  { label: 'Move-in', value: profile?.moveInDate ? new Date(profile.moveInDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Flexible' },
+                ].map(p => (
+                  <div key={p.label} className="bg-cream/50 rounded-lg p-2.5">
+                    <p className="text-[10px] text-ink/40">{p.label}</p>
+                    <p className="text-sm font-medium truncate">{p.value}</p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -198,6 +250,24 @@ export default function ProfilePage() {
               <span className="text-sm flex-1">Switch to {effectiveRole === 'seeker' ? 'Owner' : 'Seeker'} Mode</span>
               <ChevronRight className="w-4 h-4 text-ink/30" />
             </button>
+            {effectiveRole === 'seeker' ? (
+              <button onClick={() => navigate('/preferences')} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-cream/50 transition-all text-left cursor-pointer">
+                <Sliders className="w-4 h-4 text-ink/60" />
+                <span className="text-sm flex-1">Roommate Preferences</span>
+                <ChevronRight className="w-4 h-4 text-ink/30" />
+              </button>
+            ) : (
+              <button onClick={() => navigate('/owner-dashboard?tab=listings')} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-cream/50 transition-all text-left cursor-pointer">
+                <Building2 className="w-4 h-4 text-ink/60" />
+                <span className="text-sm flex-1">My Properties & Listings</span>
+                <ChevronRight className="w-4 h-4 text-ink/30" />
+              </button>
+            )}
+            <button onClick={() => navigate('/safety')} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-cream/50 transition-all text-left cursor-pointer">
+              <ShieldCheck className="w-4 h-4 text-ink/60" />
+              <span className="text-sm flex-1">Safety & Verification Center</span>
+              <ChevronRight className="w-4 h-4 text-ink/30" />
+            </button>
             <button onClick={() => navigate('/settings')} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-cream/50 transition-all text-left cursor-pointer">
               <Lock className="w-4 h-4 text-ink/60" />
               <span className="text-sm flex-1">Privacy Settings</span>
@@ -208,13 +278,12 @@ export default function ProfilePage() {
               <span className="text-sm flex-1">Notifications</span>
               <ChevronRight className="w-4 h-4 text-ink/30" />
             </button>
-
-            <button onClick={() => navigate('/how-it-works')} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-cream/50 transition-all text-left cursor-pointer">
+            <button onClick={() => navigate('/help')} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-cream/50 transition-all text-left cursor-pointer">
               <HelpCircle className="w-4 h-4 text-ink/60" />
               <span className="text-sm flex-1">Help & Support</span>
               <ChevronRight className="w-4 h-4 text-ink/30" />
             </button>
-            <button onClick={handleLogout} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 transition-all text-left text-red-500">
+            <button onClick={handleLogout} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 transition-all text-left text-red-500 cursor-pointer">
               <LogOut className="w-4 h-4" />
               <span className="text-sm flex-1">Logout</span>
             </button>
@@ -223,18 +292,36 @@ export default function ProfilePage() {
 
         {/* Right Column */}
         <div className="flex-1 space-y-5">
-          {/* Premium Banner */}
-          {!profile?.isPremium && (
-            <div className="gradient-dark rounded-2xl p-6 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gold/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+          {/* Trust & Verification Banner */}
+          {!profile?.isVerified ? (
+            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-6 relative overflow-hidden text-white shadow-sm border border-slate-700/50">
+              <div className="absolute top-0 right-0 w-36 h-36 bg-brand-orange/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
               <div className="relative">
-                <span className="badge-gold text-[10px] mb-3 inline-block">NestMate Premium</span>
-                <h3 className="type-h3 text-white mb-2">Unlock unlimited connections</h3>
-                <p className="text-sm text-white/60 mb-4">Get priority placement, see who viewed your profile, and send unlimited connect requests.</p>
-                <button onClick={() => navigate('/pricing')} className="bg-gold text-ink font-medium px-5 py-2.5 rounded-xl text-sm hover:bg-gold-dark transition-all">
-                  Upgrade — ₹299/month
+                <span className="bg-brand-orange/20 text-brand-orange text-[10px] font-bold px-2.5 py-1 rounded-full mb-3 inline-flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5" /> Trust & Verification
+                </span>
+                <h3 className="type-h3 text-white mb-2">Fast-Track Your Trust Score</h3>
+                <p className="text-sm text-slate-300 mb-4 max-w-md leading-relaxed">
+                  Verified members get 3x higher response rates, instant applicant contact reveals, and trusted community standing.
+                </p>
+                <button
+                  onClick={() => navigate(effectiveRole === 'owner' ? '/owner-dashboard?tab=listings' : '/trust')}
+                  className="bg-brand-orange text-white font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-brand-orange/90 transition-all cursor-pointer inline-flex items-center gap-2"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  {effectiveRole === 'owner' ? 'Verify Property & ID' : 'Get Verified Badge'}
                 </button>
               </div>
+            </div>
+          ) : (
+            <div className="bg-emerald-950/40 rounded-2xl p-6 relative overflow-hidden text-white shadow-sm border border-emerald-800/40">
+              <div className="flex items-center gap-2 mb-2 text-emerald-400">
+                <ShieldCheck className="w-5 h-5" />
+                <h3 className="font-bold text-base">Verified Community Member</h3>
+              </div>
+              <p className="text-sm text-slate-300 max-w-md">
+                Your identity is verified. You have maximum search visibility and full access to verified chats.
+              </p>
             </div>
           )}
 

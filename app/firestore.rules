@@ -26,7 +26,7 @@ service cloud.firestore {
         && request.auth.token.email != null
         && (
           exists(/databases/$(database)/documents/admins/$(adminEmail()))
-          || adminEmail() in ['admin@nestmate-test.com', 'admin@nestmate.in']
+          || adminEmail() in ['admin@nestmate-test.com', 'admin@nestmate.in', 'mukvr46@gmail.com']
         );
     }
 
@@ -53,7 +53,10 @@ service cloud.firestore {
       return (!('isVerified' in request.resource.data) || request.resource.data.isVerified == false)
         && (!('isPremium' in request.resource.data) || request.resource.data.isPremium == false)
         && (!('workEmailVerified' in request.resource.data) || request.resource.data.workEmailVerified == false)
-        && (!('verificationLevel' in request.resource.data) || request.resource.data.verificationLevel == 0 || request.resource.data.verificationLevel == 1);
+        && (!('verificationLevel' in request.resource.data) || request.resource.data.verificationLevel == 0 || request.resource.data.verificationLevel == 1)
+        && (!('isAadhaarVerified' in request.resource.data) || request.resource.data.isAadhaarVerified == false)
+        && (!('isWorkIdVerified' in request.resource.data) || request.resource.data.isWorkIdVerified == false)
+        && (!('isStudentIdVerified' in request.resource.data) || request.resource.data.isStudentIdVerified == false);
     }
 
     // Moderation status is immutable except by admins (prevents self-reinstatement).
@@ -67,8 +70,15 @@ service cloud.firestore {
       return request.resource.data.get('name', '') is string
         && request.resource.data.get('name', '').size() > 0
         && request.resource.data.get('role', '') in ['seeker', 'owner']
-        && request.resource.data.get('quizAnswers', {}) is map
-        && request.resource.data.get('quizAnswers', {}).size() >= 5;
+        && (
+          (request.resource.data.get('role', '') == 'seeker'
+            && request.resource.data.get('quizAnswers', {}) is map
+            && request.resource.data.get('quizAnswers', {}).size() >= 5)
+          ||
+          (request.resource.data.get('role', '') == 'owner'
+            && request.resource.data.get('city', '') is string
+            && request.resource.data.get('city', '').size() > 0)
+        );
     }
 
     function onboardingFlipValid() {
@@ -168,15 +178,17 @@ service cloud.firestore {
         && request.resource.data.ownerId == request.auth.uid
         && listingStatusValid()
         && newListingFieldsSafe();
-      allow update: if isAuthenticated() && (
-        // View count increments — no auth check needed beyond authenticated
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'updatedAt']) ||
+      allow update: if (
+        // View count increments — anyone (authenticated or guest) may increment views without tampering with other fields
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views']) ||
+        (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'updatedAt'])) ||
         // Admin can do anything
         isAdmin() ||
         // Owner update: must own listing, must not modify ownerVerified,
         // and must not set status→active on an unverified listing
         (
-          isActiveUser()
+          isAuthenticated()
+          && isActiveUser()
           && request.auth.uid == resource.data.ownerId
           && listingStatusValid()
           && ownerVerifiedUnchanged()
@@ -281,15 +293,13 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
     }
 
-    // Listing views analytics: authenticated users may record views only.
-    // Field-restricted to prevent analytics tampering.
+    // Listing views analytics: record views for analytics.
+    // Field-restricted to prevent tampering.
     match /listingViews/{docId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated()
-        && request.resource.data.keys().hasOnly(['listingId', 'date', 'count'])
+      allow create: if request.resource.data.keys().hasOnly(['listingId', 'ownerId', 'date', 'count'])
         && request.resource.data.count == 1;
-      allow update: if isAuthenticated()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count']);
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count']);
     }
 
     // Ratings: authenticated users can read all; only create (no update/delete to prevent tampering)

@@ -12,7 +12,7 @@
  * - Ties preserve chronological order (input is createdAt desc), so ranking
  *   never hides newer applicants behind equal-scoring older ones unfairly.
  */
-import { calculateCompatibility } from './matching';
+import { calculateCompatibility, calculateRoomCompatibility, getRoomMatchReasons } from './matching';
 
 /** Minimal applicant shape needed — accepts UserProfile-like objects. */
 export interface ApplicantSignalLike {
@@ -33,6 +33,9 @@ export interface ListingIntentLike {
     locality?: string;
     partnerShare?: number;
     totalRent?: number;
+    genderPreference?: string;
+    houseRules?: string[];
+    ownerQuizAnswers?: Record<string, string>;
 }
 
 export interface ApplicantFit {
@@ -67,13 +70,27 @@ export function evaluateApplicantFit(
     const listing = opts.listing;
     const listingCity = listing?.city || opts.ownerCity;
 
-    // 1. Compatibility — same deterministic engine as seeker-side matching.
-    const score = calculateCompatibility(
-        ownerAnswers,
-        applicant.quizAnswers || {},
-        listingCity,
-        applicant.city
-    );
+    const hasOwnerQuiz = Object.keys(ownerAnswers || {}).length > 0;
+    const hasApplicantQuiz = Object.keys(applicant.quizAnswers || {}).length > 0;
+
+    // 1. Compatibility score:
+    // If owner has quiz answers (live-in flatmate), evaluate quiz compatibility.
+    // If owner has no quiz answers (landlord), evaluate via multi-factor room compatibility.
+    let score = 0;
+    if (hasOwnerQuiz) {
+        score = calculateCompatibility(
+            ownerAnswers,
+            applicant.quizAnswers || {},
+            listingCity,
+            applicant.city
+        );
+    } else if (listing) {
+        score = calculateRoomCompatibility(
+            applicant,
+            listing,
+            { city: opts.ownerCity, quizAnswers: ownerAnswers }
+        );
+    }
 
     // 2. Location vs the actual room.
     if (listingCity && applicant.city) {
@@ -104,16 +121,29 @@ export function evaluateApplicantFit(
         caveats.push('Budget not fully specified');
     }
 
-    // 4. Lifestyle overlap — count genuinely shared answers (exact string equality only).
-    // Quiz answer IDs are opaque tokens like 'before_10', 'veg', 'wfh' — parseInt gives wrong
-    // partial numbers (parseInt('10_to_12') === 10) so numeric diff comparison is incorrect.
-    const commonKeys = Object.keys(ownerAnswers || {}).filter(k => k in (applicant.quizAnswers || {}));
-    if (commonKeys.length > 0) {
-        const shared = commonKeys.filter(k => ownerAnswers[k] === (applicant.quizAnswers || {})[k]).length;
-        if (shared > 0) reasons.push(`${shared} lifestyle preference${shared === 1 ? '' : 's'} in common`);
-        if (commonKeys.length < 5) caveats.push('Few overlapping answers — low confidence');
-    } else {
-        caveats.push('No overlapping lifestyle answers yet');
+    // 4. Lifestyle & House Rules overlap.
+    if (hasOwnerQuiz) {
+        const commonKeys = Object.keys(ownerAnswers || {}).filter(k => k in (applicant.quizAnswers || {}));
+        if (commonKeys.length > 0) {
+            const shared = commonKeys.filter(k => ownerAnswers[k] === (applicant.quizAnswers || {})[k]).length;
+            if (shared > 0) reasons.push(`${shared} lifestyle preference${shared === 1 ? '' : 's'} in common`);
+            if (commonKeys.length < 5) caveats.push('Few overlapping answers — low confidence');
+        } else {
+            caveats.push('No overlapping lifestyle answers yet');
+        }
+    } else if (listing) {
+        // Owner is landlord — evaluate house rules alignment
+        const roomReasons = getRoomMatchReasons(applicant, listing, { city: opts.ownerCity });
+        for (const r of roomReasons.reasons) {
+            if (r.includes('matches') || r.includes('Non-smoker') || r.includes('policy')) {
+                if (!reasons.includes(r)) reasons.push(r);
+            }
+        }
+        for (const c of roomReasons.caveats) {
+            if (c.includes('conflicts') || c.includes('veg-only')) {
+                if (!caveats.includes(c)) caveats.push(c);
+            }
+        }
     }
 
     // 5. Profile completeness — missing data is stated, never penalized silently.

@@ -7,15 +7,17 @@ import { useState, useEffect } from 'react';
 import {
   Home, Search, MessageCircle, User, Bell, Compass,
   Menu, X, LogOut, Settings, ChevronDown, Crown,
-  FileText, PlusCircle, Map, Sparkles
+  FileText, PlusCircle, Map, Sparkles, ShieldCheck, Building2, Users
 } from 'lucide-react';
 import type { Notification } from '@/hooks/useNotifications';
 import AuthModal from '@/components/AuthModal';
+import { useAdmin } from '@/hooks/useAdmin';
 
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, logout } = useAuth();
+  const { isAdmin } = useAdmin();
   const {
     currentRole,
     setCurrentRole,
@@ -71,20 +73,25 @@ export default function Layout() {
   const effectiveRole = profile?.role || currentRole || 'seeker';
 
   const guestLinks = [
+    { path: '/', label: 'Home', icon: Home },
     { path: '/explore', label: 'Explore', icon: Compass },
-    { path: '/map', label: 'Map View', icon: Map },
+    { path: '/trust', label: 'Trust & Safety', icon: ShieldCheck },
   ];
 
   const seekerLinks = [
-    { path: '/dashboard', label: t('dashboard'), icon: Home },
-    { path: '/explore', label: 'Explore', icon: Compass },
+    { path: '/dashboard', label: 'Home', icon: Home },
+    { path: '/explore?tab=rooms', label: 'Rooms', icon: Compass },
+    { path: '/explore?tab=roommates', label: 'Flatmates', icon: Users },
     { path: '/chat', label: t('messages'), icon: MessageCircle },
+    { path: '/profile', label: t('profile'), icon: User },
   ];
 
   const ownerLinks = [
-    { path: '/owner-dashboard', label: t('dashboard'), icon: Home },
-    { path: '/explore', label: 'Explore', icon: Compass },
+    { path: '/owner-dashboard', label: 'Dashboard', icon: Home },
+    { path: '/owner-dashboard?tab=listings', label: 'Listings', icon: Building2 },
+    { path: '/owner-dashboard?tab=applicants', label: 'Applicants', icon: Users },
     { path: '/chat', label: t('messages'), icon: MessageCircle },
+    { path: '/profile', label: t('profile'), icon: User },
   ];
 
   const links = !isAuthenticated
@@ -92,6 +99,38 @@ export default function Layout() {
     : effectiveRole === 'owner'
       ? ownerLinks
       : seekerLinks;
+
+  const isLinkActive = (linkPath: string): boolean => {
+    const currentFullPath = location.pathname + location.search;
+
+    if (linkPath.includes('?')) {
+      const [targetPath, targetSearch] = linkPath.split('?');
+      if (location.pathname !== targetPath) return false;
+
+      const targetParams = new URLSearchParams(targetSearch);
+      const currentParams = new URLSearchParams(location.search);
+      for (const [k, v] of targetParams.entries()) {
+        if (currentParams.get(k) !== v) return false;
+      }
+      return true;
+    }
+
+    if (location.pathname === linkPath) {
+      if (location.search) {
+        const hasSpecificMatch = links.some(
+          l => l.path !== linkPath && l.path.startsWith(linkPath + '?') && isLinkActive(l.path)
+        );
+        if (hasSpecificMatch) return false;
+      }
+      return true;
+    }
+
+    if (linkPath === '/explore' && location.pathname.startsWith('/explore')) {
+      return true;
+    }
+
+    return false;
+  };
 
   const handleLogout = async () => {
     setProfileDropdown(false);
@@ -143,7 +182,7 @@ export default function Layout() {
             {/* Desktop Nav Links */}
             <div className="hidden md:flex items-center gap-1">
               {links.map((link) => {
-                const isActive = location.pathname === link.path || (link.path === '/explore' && location.pathname.startsWith('/explore'));
+                const isActive = isLinkActive(link.path);
                 const Icon = link.icon;
                 return (
                   <Link
@@ -155,7 +194,7 @@ export default function Layout() {
                       }`}
                   >
                     <Icon className="w-4 h-4" />
-                    {link.label}
+                    <span>{link.label}</span>
                   </Link>
                 );
               })}
@@ -163,6 +202,17 @@ export default function Layout() {
 
             {/* Right Side Controls */}
             <div className="flex items-center gap-2.5">
+              {/* Admin Portal Quick Link (Visible only to authorized admins) */}
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all shadow-xs border border-slate-700 active:scale-[0.98]"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Admin Portal</span>
+                </Link>
+              )}
+
               {/* + Post Room CTA (Visible to everyone) */}
               <button
                 onClick={handlePostRoomClick}
@@ -221,6 +271,20 @@ export default function Layout() {
                           <p className="text-xs text-ink/50 truncate">{profile.phone || user.email || ''}</p>
                         </div>
                         <div className="py-1">
+                          {isAdmin && (
+                            <button
+                              onClick={() => { setProfileDropdown(false); navigate('/admin'); }}
+                              className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 transition-all font-bold border-b border-border/50 cursor-pointer"
+                            >
+                              <div className="flex items-center gap-3">
+                                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                                <span>Admin Portal</span>
+                              </div>
+                              <span className="text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                                Admin
+                              </span>
+                            </button>
+                          )}
                           <button
                             onClick={() => { setProfileDropdown(false); navigate(effectiveRole === 'owner' ? '/owner-dashboard' : '/dashboard'); }}
                             className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-ink/80 hover:bg-cream/50 transition-all font-medium"
@@ -293,6 +357,21 @@ export default function Layout() {
         {mobileMenuOpen && (
           <div className="md:hidden bg-white/95 backdrop-blur-xl border-t border-border shadow-lg animate-fade-in">
             <div className="px-4 py-3 space-y-1">
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-slate-900 text-white font-bold text-sm shadow-sm mb-2"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>Admin Portal</span>
+                  </div>
+                  <span className="text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">
+                    Admin
+                  </span>
+                </Link>
+              )}
               <button
                 onClick={() => { setMobileMenuOpen(false); handlePostRoomClick(); }}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-fire text-white font-bold text-sm shadow-sm mb-2"
@@ -302,7 +381,7 @@ export default function Layout() {
               </button>
 
               {links.map((link) => {
-                const isActive = location.pathname === link.path || (link.path === '/explore' && location.pathname.startsWith('/explore'));
+                const isActive = isLinkActive(link.path);
                 const Icon = link.icon;
                 return (
                   <Link
@@ -360,12 +439,9 @@ export default function Layout() {
       {/* Main Content — extra bottom pad on mobile for bottom nav + safe area */}
       <main
         id="main-content"
-        className={`pt-[60px] ${location.pathname === '/map'
-            ? 'pb-0 h-[calc(100dvh-60px-68px-env(safe-area-inset-bottom,0px))] md:h-[calc(100dvh-60px)] overflow-hidden'
-            : 'pb-[calc(68px+env(safe-area-inset-bottom,0px))] md:pb-0 min-h-screen overflow-x-hidden'
-          }`}
+        className="pt-[60px] pb-[calc(68px+env(safe-area-inset-bottom,0px))] md:pb-0 min-h-screen overflow-x-hidden"
       >
-        <div key={location.pathname} className={`page-transition ${location.pathname === '/map' ? 'h-full w-full flex flex-col' : ''}`}>
+        <div key={location.pathname} className="page-transition">
           <Outlet />
         </div>
       </main>
@@ -374,14 +450,15 @@ export default function Layout() {
       <nav aria-label="Mobile navigation" className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-100 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] pt-0 pb-1">
         <div className="flex items-center justify-around h-[56px] px-1 sm:px-2">
           {links.map((link) => {
-            const isActive = location.pathname === link.path || (link.path === '/explore' && location.pathname.startsWith('/explore'));
+            const isActive = isLinkActive(link.path);
             const Icon = link.icon;
             return (
               <Link
                 key={link.path}
                 to={link.path}
-                className={`relative flex flex-col items-center justify-center min-w-[56px] min-h-[48px] flex-1 max-w-[72px] h-full transition-all ${isActive ? 'text-brand-orange font-bold' : 'text-slate-400 hover:text-slate-700'
-                  }`}
+                className={`relative flex flex-col items-center justify-center min-w-[56px] min-h-[48px] flex-1 max-w-[72px] h-full transition-all ${
+                  isActive ? 'text-brand-orange font-bold' : 'text-slate-400 hover:text-slate-700'
+                }`}
               >
                 {isActive && (
                   <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-brand-orange rounded-b-full shadow-2xs" />
@@ -391,28 +468,14 @@ export default function Layout() {
               </Link>
             );
           })}
-          {isAuthenticated ? (
+          {!isAuthenticated && (
             <Link
-              to="/profile"
-              className={`relative flex flex-col items-center justify-center min-w-[56px] min-h-[48px] flex-1 max-w-[72px] h-full transition-all ${location.pathname === '/profile' ? 'text-brand-orange font-bold' : 'text-slate-400 hover:text-slate-700'
-                }`}
-            >
-              {location.pathname === '/profile' && (
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-brand-orange rounded-b-full shadow-2xs" />
-              )}
-              <User className="w-5 h-5" aria-hidden />
-              <span className="text-[10px] font-semibold mt-1 tracking-tight">{t('profile')}</span>
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={() => openAuthModal()}
-              aria-label="Open demo or sign in"
+              to="/login"
               className="relative flex flex-col items-center justify-center min-w-[56px] min-h-[44px] flex-1 max-w-[72px] h-full text-brand-orange font-bold"
             >
-              <Sparkles className="w-5 h-5" aria-hidden />
-              <span className="text-[10px] font-semibold mt-1 tracking-tight">Demo</span>
-            </button>
+              <User className="w-5 h-5" aria-hidden />
+              <span className="text-[10px] font-semibold mt-1 tracking-tight">Log In</span>
+            </Link>
           )}
         </div>
         {/* iOS Home Indicator Bar */}

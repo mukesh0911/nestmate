@@ -37,9 +37,18 @@ const TYPE_LABELS: Record<string, string> = {
   student_id: 'Student ID',
 };
 
-function formatDate(ts: Timestamp | null | undefined): string {
-  if (!ts || !(ts as Timestamp).toDate) return '—';
-  return (ts as Timestamp).toDate().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+function formatDate(ts: Timestamp | string | Date | null | undefined): string {
+  if (!ts) return '—';
+  if ((ts as Timestamp).toDate) {
+    return (ts as Timestamp).toDate().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  if (typeof ts === 'string' || ts instanceof Date) {
+    const d = new Date(ts);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+  }
+  return '—';
 }
 
 function StatusBadge({ status, ownerVerifStatus }: { status: string; ownerVerifStatus?: string }) {
@@ -172,7 +181,7 @@ export default function AdminVerifications() {
     finally { setActionLoading(false); }
   };
 
-  const getName = (uid: string) => profiles[uid]?.name || uid.slice(0, 8) + '...';
+  const getName = (uid: string, declaredName?: string) => profiles[uid]?.name || declaredName || (uid ? uid.slice(0, 8) + '...' : 'Unknown');
   const getEmail = (uid: string) => profiles[uid]?.email || '';
 
   if (loading) return <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 text-fire animate-spin" /></div>;
@@ -237,30 +246,38 @@ export default function AdminVerifications() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.slice(0, 50).map(v => (
-                <tr key={v.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => setSelected(v)}>
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900 truncate max-w-[140px]">{getName(v.userId)}</p>
-                    <p className="text-[10px] text-gray-400">{getEmail(v.userId)}</p>
-                    {v._declaredName && <p className="text-[10px] text-blue-500 font-medium">"{v._declaredName}"</p>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">{TYPE_LABELS[v.type] || v.type}</span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs hidden sm:table-cell">{formatDate(v.submittedAt)}</td>
-                  <td className="px-4 py-3"><StatusBadge status={v.status} ownerVerifStatus={v._ownerVerifStatus} /></td>
-                  <td className="px-4 py-3">
-                    {v._source === 'ownerVerification' ? (
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">🔒 ID Gate</span>
-                    ) : (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Legacy</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <button onClick={e => { e.stopPropagation(); setSelected(v); }} className="text-xs text-fire font-medium hover:underline">Review</button>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-sm text-gray-400">
+                    No verifications match the selected filters.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filtered.slice(0, 50).map(v => (
+                  <tr key={v.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => setSelected(v)}>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-900 truncate max-w-[140px]">{getName(v.userId, v._declaredName)}</p>
+                      <p className="text-[10px] text-gray-400">{getEmail(v.userId)}</p>
+                      {v._declaredName && <p className="text-[10px] text-blue-500 font-medium">"{v._declaredName}"</p>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">{TYPE_LABELS[v.type] || v.type}</span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs hidden sm:table-cell">{formatDate(v.submittedAt)}</td>
+                    <td className="px-4 py-3"><StatusBadge status={v.status} ownerVerifStatus={v._ownerVerifStatus} /></td>
+                    <td className="px-4 py-3">
+                      {v._source === 'ownerVerification' ? (
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">🔒 ID Gate</span>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Legacy</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button onClick={e => { e.stopPropagation(); setSelected(v); }} className="text-xs text-fire font-medium hover:underline">Review</button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

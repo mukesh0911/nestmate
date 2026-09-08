@@ -91,6 +91,10 @@ export interface UserProfile {
     linkedin?: string;
     instagram?: string;
   };
+  ownerType?: string;
+  propertyBasics?: any;
+  householdExpectations?: any;
+  preferences?: any;
   lastActiveAt?: any;
   createdAt: any;
   updatedAt: any;

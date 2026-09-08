@@ -6,8 +6,19 @@ import { useAuth } from '@/hooks/useAuth';
 export default function OTPVerify() {
   const navigate = useNavigate();
   const location = useLocation();
-  const phone: string = location.state?.phone || '';
-  const verificationId: string = location.state?.verificationId || '';
+
+  // Restore pending OTP verification if page was refreshed
+  const savedState = (() => {
+    try {
+      const raw = sessionStorage.getItem('nestmate_otp_pending');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const phone: string = location.state?.phone || savedState?.phone || '';
+  const verificationId: string = location.state?.verificationId || savedState?.verificationId || '';
 
   const { verifyOTP, error: authError } = useAuth();
 
@@ -21,7 +32,7 @@ export default function OTPVerify() {
   const isTestPhone = ['+91 650 555 3434', '+91 650 555 3435', '+91 650 555 3436'].includes(phone);
   const isDevelopment = import.meta.env.DEV;
 
-  // Redirect if no verificationId (e.g. page refresh)
+  // Redirect if no verificationId anywhere
   useEffect(() => {
     if (!verificationId) {
       navigate('/login');
@@ -74,6 +85,7 @@ export default function OTPVerify() {
     setError('');
     try {
       const { isNew, role, onboardingComplete } = await verifyOTP(verificationId, finalCode);
+      try { sessionStorage.removeItem('nestmate_otp_pending'); } catch {}
       setLoading(false);
       if (isNew || !role) {
         navigate('/role-select');
@@ -89,7 +101,7 @@ export default function OTPVerify() {
   };
 
   const handleResend = () => {
-    // Navigate back to login with phone pre-filled so user can re-trigger OTP
+    try { sessionStorage.removeItem('nestmate_otp_pending'); } catch {}
     navigate('/login', { state: { phone } });
   };
 
@@ -98,7 +110,10 @@ export default function OTPVerify() {
       <div className="w-full max-w-[440px]">
         {/* Back */}
         <button
-          onClick={() => navigate('/login')}
+          onClick={() => {
+            try { sessionStorage.removeItem('nestmate_otp_pending'); } catch {}
+            navigate('/login');
+          }}
           className="flex items-center gap-2 text-sm text-ink/60 hover:text-ink mb-6 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />

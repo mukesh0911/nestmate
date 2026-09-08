@@ -35,7 +35,15 @@ export default function AdminListings() {
 
   const filtered = useMemo(() => {
     let r = listings;
-    if (search) { const s = search.toLowerCase(); r = r.filter(l => l.ownerName?.toLowerCase().includes(s) || l.city?.toLowerCase().includes(s) || l.title?.toLowerCase().includes(s)); }
+    if (search) {
+      const s = search.toLowerCase();
+      r = r.filter(l =>
+        l.ownerName?.toLowerCase().includes(s) ||
+        l.city?.toLowerCase().includes(s) ||
+        l.locality?.toLowerCase().includes(s) ||
+        l.title?.toLowerCase().includes(s)
+      );
+    }
     if (statusFilter !== 'all') r = r.filter(l => l.status === statusFilter);
     return r;
   }, [listings, search, statusFilter]);
@@ -53,13 +61,14 @@ export default function AdminListings() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search owner, city, title..."
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search owner, city, locality, title..."
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-fire" />
         </div>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
           className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none">
           <option value="all">All Status</option>
           <option value="active">Active</option>
+          <option value="pending_verification">Pending Verification</option>
           <option value="paused">Paused</option>
           <option value="filled">Filled</option>
         </select>
@@ -89,7 +98,14 @@ export default function AdminListings() {
                   <td className="px-4 py-3 text-gray-500 hidden md:table-cell">{l.city}</td>
                   <td className="px-4 py-3 font-semibold text-fire">₹{(l.partnerShare || l.totalRent || 0).toLocaleString()}</td>
                   <td className="px-4 py-3 hidden lg:table-cell">
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${l.status === 'active' ? 'bg-green-50 text-green-600' : l.status === 'paused' ? 'bg-amber-50 text-amber-600' : 'bg-gray-100 text-gray-500'}`}>{l.status}</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      l.status === 'active' ? 'bg-green-50 text-green-600' :
+                      l.status === 'pending_verification' ? 'bg-amber-100 text-amber-800' :
+                      l.status === 'paused' ? 'bg-amber-50 text-amber-600' :
+                      'bg-gray-100 text-gray-500'
+                    }`}>
+                      {l.status === 'pending_verification' ? 'Pending Verification' : l.status}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">{l.views || 0}</td>
                   <td className="px-4 py-3 flex gap-2">
@@ -122,6 +138,14 @@ export default function AdminListings() {
               ))}
             </div>
             {detail.description && <p className="text-sm text-gray-600 mt-4">{detail.description}</p>}
+            {detail.status === 'pending_verification' && (
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
+                <p className="text-xs text-amber-800 font-medium">This listing is pending owner identity verification.</p>
+                <a href="/admin/verifications" className="text-xs font-bold px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700">
+                  Review Queue
+                </a>
+              </div>
+            )}
           </div>
         </div>
       )}

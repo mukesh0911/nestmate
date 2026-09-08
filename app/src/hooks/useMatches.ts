@@ -18,13 +18,13 @@ import { db } from '@/lib/firebase';
 import type { UserProfile } from './useAuth';
 import { useState, useRef } from 'react';
 import { sanitizePublicProfile } from '@/lib/sanitizeProfile';
-import { calculateCompatibility } from '@/lib/matching';
+import { calculateCompatibility, calculateRoomCompatibility, getRoomMatchReasons } from '@/lib/matching';
 import { isDiscoverable } from '@/lib/listingFreshness';
 import { isAccountActive } from '@/lib/accountStatus';
 import { isDemoProfile } from '@/lib/demoUsers';
 import { isPubliclyVisibleProfile, isPubliclyVisibleListing } from '@/lib/marketplaceVisibility';
 
-export { calculateCompatibility, getActiveStatus } from '@/lib/matching';
+export { calculateCompatibility, calculateRoomCompatibility, getRoomMatchReasons, getActiveStatus } from '@/lib/matching';
 
 export interface Match {
   id: string;
@@ -203,15 +203,19 @@ export function useMatches() {
           (profileToUse as any)._listing = listingData;
         }
 
-        return {
-          profile: sanitizePublicProfile(profileToUse as unknown as Record<string, unknown>) as unknown as UserProfile,
-          listingId: listingData?.id,
-          compatibilityScore: calculateCompatibility(
+        const compatibilityScore = listingData
+          ? calculateRoomCompatibility(currentUser, listingData, u)
+          : calculateCompatibility(
             currentUser.quizAnswers || {},
             u.quizAnswers || {},
             currentUser.city,
-            listingData?.city || u.city
-          ),
+            u.city
+          );
+
+        return {
+          profile: sanitizePublicProfile(profileToUse as unknown as Record<string, unknown>) as unknown as UserProfile,
+          listingId: listingData?.id,
+          compatibilityScore,
         };
       });
 
@@ -362,20 +366,30 @@ export function useMatches() {
 
           const user = { uid: snap.id, ...snap.data() } as UserProfile;
 
-          let listingId;
+          let listingId: string | undefined;
+          let listingData: any;
           if (user.role === 'owner') {
             const lq = query(collection(db, 'listings'), where('ownerId', '==', user.uid), where('status', '==', 'active'));
             const lsnap = await getDocs(lq);
-            if (!lsnap.empty) listingId = lsnap.docs[0].id;
+            if (!lsnap.empty) {
+              listingId = lsnap.docs[0].id;
+              listingData = { id: listingId, ...lsnap.docs[0].data() };
+            }
           }
+
+          const compatibilityScore = listingData
+            ? calculateRoomCompatibility(currentUser, listingData, user)
+            : calculateCompatibility(
+              currentUser.quizAnswers || {},
+              user.quizAnswers || {},
+              currentUser.city,
+              user.city
+            );
 
           return {
             profile: user,
             listingId,
-            compatibilityScore: calculateCompatibility(
-              currentUser.quizAnswers || {},
-              user.quizAnswers || {}
-            ),
+            compatibilityScore,
           } as MatchedUser;
         })
       );

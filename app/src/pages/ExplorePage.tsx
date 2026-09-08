@@ -27,10 +27,10 @@ export default function ExplorePage() {
 
   const subtitle =
     activeTab === 'rooms'
-      ? 'Rooms & apartments across India'
+      ? 'Verified rooms & shared apartments across Bangalore'
       : isOwner
-        ? 'Room seekers looking for accommodation'
-        : 'Compatible flatmates & room owners near you';
+        ? 'Room seekers looking for accommodation in Bangalore'
+        : 'Compatible flatmates & room owners in Bangalore';
 
   return (
     <div className="min-h-screen bg-[#fbf9f9] pb-24 sm:pb-16 overflow-x-hidden">

@@ -27,9 +27,18 @@ const REASON_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
-function formatDate(ts: Timestamp | undefined): string {
-  if (!ts || !ts.toDate) return '—';
-  return ts.toDate().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+function formatDate(ts: Timestamp | string | Date | undefined): string {
+  if (!ts) return '—';
+  if ((ts as Timestamp).toDate) {
+    return (ts as Timestamp).toDate().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  if (typeof ts === 'string' || ts instanceof Date) {
+    const d = new Date(ts);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+  }
+  return '—';
 }
 
 function StatusBadge({ status }: { status: string }) {

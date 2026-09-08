@@ -135,7 +135,7 @@ export async function submitOwnerVerification(
 
   const auditEntry = {
     status: 'SUBMITTED' as OwnerVerificationStatus,
-    timestamp: serverTimestamp(),
+    timestamp: new Date().toISOString(),
     actorId: userId,
     note: isResubmission ? 'Owner resubmitted after rejection' : 'Initial submission',
   };
@@ -177,50 +177,52 @@ export async function adminApproveOwnerVerification(
   adminId: string,
   note?: string
 ): Promise<{ listingsUnlocked: number }> {
-  // 1. Update verification document
-  await updateDoc(ownerVerificationRef(userId), {
-    status: 'APPROVED' as OwnerVerificationStatus,
-    reviewedBy: adminId,
-    reviewedAt: serverTimestamp(),
-    reviewNote: note ?? null,
-    updatedAt: serverTimestamp(),
-    auditTrail: [],  // will be merged below
-  });
-
-  // We do a separate setDoc with arrayUnion for auditTrail
-  // (updateDoc with FieldValue.arrayUnion cannot be combined with nested writes cleanly)
-  // Instead we use setDoc merge to append:
   const existing = await getDoc(ownerVerificationRef(userId));
   const existingTrail = existing.exists() ? (existing.data()?.auditTrail ?? []) : [];
+
+  // 1. Update verification document
   await setDoc(
     ownerVerificationRef(userId),
     {
+      status: 'APPROVED' as OwnerVerificationStatus,
+      reviewedBy: adminId,
+      reviewedAt: serverTimestamp(),
+      reviewNote: note ?? null,
+      updatedAt: serverTimestamp(),
       auditTrail: [
         ...existingTrail,
-        { status: 'APPROVED', timestamp: serverTimestamp(), actorId: adminId, note: note ?? 'Approved' },
+        { status: 'APPROVED', timestamp: new Date().toISOString(), actorId: adminId, note: note ?? 'Approved' },
       ],
     },
     { merge: true }
   );
 
   // 2. Update user trust fields
-  await updateDoc(doc(db, 'users', userId), {
-    isVerified: true,
-    verificationLevel: 3,
-    isAadhaarVerified: true,
-    updatedAt: serverTimestamp(),
-  });
-
-  // 3. Unlock all pending_verification listings owned by this user and set ownerVerified=true
-  const ownerListings = await getDocs(
-    query(
-      collection(db, 'listings'),
-      where('ownerId', '==', userId)
-    )
+  await setDoc(
+    doc(db, 'users', userId),
+    {
+      isVerified: true,
+      verificationLevel: 3,
+      isAadhaarVerified: true,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
   );
 
+  // 3. Unlock all pending_verification listings owned by this user and set ownerVerified=true
+  const [ownerListingsByOwnerId, ownerListingsByUserId] = await Promise.all([
+    getDocs(query(collection(db, 'listings'), where('ownerId', '==', userId))).catch(() => ({ docs: [] })),
+    getDocs(query(collection(db, 'listings'), where('userId', '==', userId))).catch(() => ({ docs: [] })),
+  ]);
+
+  const allDocs = [...ownerListingsByOwnerId.docs, ...ownerListingsByUserId.docs];
+  const seenIds = new Set<string>();
   let unlocked = 0;
-  for (const listingDoc of ownerListings.docs) {
+
+  for (const listingDoc of allDocs) {
+    if (seenIds.has(listingDoc.id)) continue;
+    seenIds.add(listingDoc.id);
+
     const data = listingDoc.data();
     if (data.status === 'pending_verification') {
       await updateDoc(listingDoc.ref, {
@@ -265,7 +267,7 @@ export async function adminRejectOwnerVerification(
       updatedAt: serverTimestamp(),
       auditTrail: [
         ...existingTrail,
-        { status: 'REJECTED', timestamp: serverTimestamp(), actorId: adminId, note },
+        { status: 'REJECTED', timestamp: new Date().toISOString(), actorId: adminId, note },
       ],
     },
     { merge: true }
@@ -293,7 +295,7 @@ export async function adminRequestResubmission(
       updatedAt: serverTimestamp(),
       auditTrail: [
         ...existingTrail,
-        { status: 'RESUBMISSION_REQUIRED', timestamp: serverTimestamp(), actorId: adminId, note },
+        { status: 'RESUBMISSION_REQUIRED', timestamp: new Date().toISOString(), actorId: adminId, note },
       ],
     },
     { merge: true }
@@ -315,7 +317,7 @@ export async function adminBeginReview(userId: string, adminId: string): Promise
       updatedAt: serverTimestamp(),
       auditTrail: [
         ...existingTrail,
-        { status: 'UNDER_REVIEW', timestamp: serverTimestamp(), actorId: adminId },
+        { status: 'UNDER_REVIEW', timestamp: new Date().toISOString(), actorId: adminId },
       ],
     },
     { merge: true }

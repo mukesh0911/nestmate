@@ -107,4 +107,47 @@ describe('rankApplicants — ordering + stability', () => {
         rankApplicants(input, (x) => evaluateApplicantFit(ownerAnswers, x.profile as any, { listing }));
         expect(input).toEqual(snapshot);
     });
+
+    it('ranks applicants accurately when owner has no quiz answers (landlord mode)', () => {
+        const emptyOwnerAnswers = {};
+        const bangaloreListing = {
+            city: 'Bengaluru',
+            locality: 'Koramangala',
+            partnerShare: 15000,
+            totalRent: 15000,
+        };
+
+        const topApplicant = {
+            uid: 'top',
+            city: 'Bengaluru',
+            locality: 'Koramangala',
+            budget: 15000,
+            isVerified: true,
+            workEmailVerified: true,
+            quizAnswers: { food_pref: 'veg', smoking: 'never' },
+            onboardingComplete: true,
+        };
+
+        const lowApplicant = {
+            uid: 'low',
+            city: 'Hyderabad', // cross-city
+            budget: 6000, // big budget gap
+            isVerified: false,
+            quizAnswers: {},
+            onboardingComplete: false,
+        };
+
+        const ranked = rankApplicants(
+            [{ profile: lowApplicant }, { profile: topApplicant }],
+            (item) => evaluateApplicantFit(emptyOwnerAnswers, item.profile as any, { listing: bangaloreListing })
+        );
+
+        expect(ranked[0].profile.uid).toBe('top');
+        expect(ranked[0].fit.score).toBeGreaterThan(80);
+        expect(ranked[0].fit.reasons.some(r => r.includes('Same locality'))).toBe(true);
+        expect(ranked[0].fit.reasons.some(r => r.includes('Budget fits'))).toBe(true);
+        expect(ranked[1].profile.uid).toBe('low');
+        expect(ranked[1].fit.score).toBeLessThanOrEqual(40);
+        expect(ranked[1].fit.caveats.some(c => c.includes('Different city'))).toBe(true);
+    });
 });

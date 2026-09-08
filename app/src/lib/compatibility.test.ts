@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateCompatibility, getActiveStatus } from './matching';
+import { calculateCompatibility, calculateRoomCompatibility, getRoomMatchReasons, getActiveStatus } from './matching';
 
 describe('calculateCompatibility', () => {
   it('returns 100 for identical numeric answers', () => {
@@ -74,3 +74,107 @@ describe('getActiveStatus', () => {
     expect(getActiveStatus(null).status).toBe('offline');
   });
 });
+
+describe('calculateRoomCompatibility & getRoomMatchReasons (5-Factor Engine)', () => {
+  const perfectSeeker = {
+    uid: 'seeker1',
+    name: 'Priya',
+    gender: 'female',
+    city: 'Bengaluru',
+    locality: 'Koramangala',
+    localities: ['Koramangala', 'HSR Layout'],
+    budget: 15000,
+    quizAnswers: { food_pref: 'veg', smoking: 'never', pets: 'no' },
+    isVerified: true,
+    workEmailVerified: true,
+    onboardingComplete: true,
+  };
+
+  const perfectListing = {
+    id: 'listing1',
+    city: 'Bengaluru',
+    locality: 'Koramangala',
+    totalRent: 14000,
+    partnerShare: 14000,
+    genderPreference: 'female',
+    houseRules: ['Veg kitchen only', 'No smoking inside', 'No pets'],
+  };
+
+  it('calculates 100% for a perfect match across all 5 dimensions', () => {
+    const breakdown = getRoomMatchReasons(perfectSeeker, perfectListing);
+    expect(breakdown.score).toBe(100);
+    expect(breakdown.budgetScore).toBe(25);
+    expect(breakdown.locationScore).toBe(20);
+    expect(breakdown.genderScore).toBe(20);
+    expect(breakdown.rulesScore).toBe(20);
+    expect(breakdown.trustScore).toBe(15);
+    expect(breakdown.reasons.some(r => r.includes('Budget fits'))).toBe(true);
+    expect(breakdown.reasons.some(r => r.includes('Same locality'))).toBe(true);
+    expect(breakdown.reasons.some(r => r.includes('Female-only'))).toBe(true);
+    expect(breakdown.reasons.some(r => r.includes('Vegetarian matches'))).toBe(true);
+    expect(breakdown.reasons.some(r => r.includes('Non-smoker'))).toBe(true);
+    expect(breakdown.reasons.some(r => r.includes('ID verified'))).toBe(true);
+  });
+
+  it('penalizes significant budget shortfall', () => {
+    const tightSeeker = { ...perfectSeeker, budget: 8000 };
+    const breakdown = getRoomMatchReasons(tightSeeker, perfectListing);
+    expect(breakdown.budgetScore).toBe(0);
+    expect(breakdown.score).toBeLessThanOrEqual(75);
+    expect(breakdown.caveats.some(c => c.includes('below rent'))).toBe(true);
+  });
+
+  it('caps explicit gender mismatch to max 40%', () => {
+    const maleSeeker = { ...perfectSeeker, gender: 'male' };
+    const breakdown = getRoomMatchReasons(maleSeeker, perfectListing);
+    expect(breakdown.genderScore).toBe(0);
+    expect(breakdown.score).toBeLessThanOrEqual(40);
+    expect(breakdown.caveats.some(c => c.includes('Female-only'))).toBe(true);
+  });
+
+  it('flags diet and smoking conflicts honestly', () => {
+    const smokerNonVeg = {
+      ...perfectSeeker,
+      quizAnswers: { food_pref: 'non_veg', smoking: 'regularly', pets: 'love' },
+    };
+    const breakdown = getRoomMatchReasons(smokerNonVeg, perfectListing);
+    expect(breakdown.rulesScore).toBeLessThan(10);
+    expect(breakdown.caveats.some(c => c.includes('veg-only'))).toBe(true);
+    expect(breakdown.caveats.some(c => c.includes('Smoking habit conflicts'))).toBe(true);
+    expect(breakdown.caveats.some(c => c.includes('Loves pets'))).toBe(true);
+  });
+
+  it('caps cross-city matches at 60%', () => {
+    const chennaiSeeker = { ...perfectSeeker, city: 'Chennai', localities: ['OMR'] };
+    const score = calculateRoomCompatibility(chennaiSeeker, perfectListing);
+    expect(score).toBeLessThanOrEqual(60);
+  });
+
+  it('gives verified trust points only when genuine verification exists', () => {
+    const unverified = { ...perfectSeeker, isVerified: false, workEmailVerified: false };
+    const breakdown = getRoomMatchReasons(unverified, perfectListing);
+    expect(breakdown.trustScore).toBe(0);
+    expect(breakdown.score).toBe(85);
+    expect(breakdown.caveats).toContain('Profile not ID verified yet');
+  });
+
+  it('correctly ranks a high-match room above a low-match room', () => {
+    const seeker = perfectSeeker;
+    const highMatchListing = perfectListing;
+    const lowMatchListing = {
+      city: 'Bengaluru',
+      locality: 'Whitefield',
+      partnerShare: 28000, // way above 15k budget
+      genderPreference: 'male', // mismatch
+      houseRules: [],
+    };
+
+    const highScore = calculateRoomCompatibility(seeker, highMatchListing);
+    const lowScore = calculateRoomCompatibility(seeker, lowMatchListing);
+
+    expect(highScore).toBeGreaterThan(lowScore);
+    expect(highScore).toBe(100);
+    expect(lowScore).toBeLessThanOrEqual(40);
+  });
+});
+

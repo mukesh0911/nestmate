@@ -107,6 +107,309 @@ export function getMatchReasons(
 }
 
 /**
+ * Seeker signal required for room matching.
+ */
+export interface SeekerMatchSignal {
+  uid?: string;
+  name?: string | null;
+  gender?: string | null;
+  city?: string | null;
+  localities?: string[];
+  locality?: string | null;
+  budget?: number | null;
+  quizAnswers?: Record<string, string>;
+  isVerified?: boolean;
+  workEmailVerified?: boolean;
+  onboardingComplete?: boolean;
+}
+
+/**
+ * Listing intent required for room matching.
+ */
+export interface ListingMatchSignal {
+  id?: string;
+  title?: string;
+  city?: string;
+  locality?: string;
+  monthlyRent?: number;
+  partnerShare?: number;
+  totalRent?: number;
+  deposit?: number;
+  genderPreference?: string;
+  houseRules?: string[];
+  amenities?: string[];
+  ownerQuizAnswers?: Record<string, string>;
+}
+
+/**
+ * Optional owner context for room matching.
+ */
+export interface OwnerMatchSignal {
+  uid?: string;
+  role?: string | null;
+  ownerType?: 'owner_flatmate' | 'landlord' | string | null;
+  city?: string | null;
+  isVerified?: boolean;
+  workEmailVerified?: boolean;
+  quizAnswers?: Record<string, string>;
+  householdExpectations?: {
+    genderPref?: string;
+    dietPref?: string;
+    smokingPolicy?: string;
+    petPolicy?: string;
+  };
+}
+
+export interface RoomMatchBreakdown {
+  score: number;
+  budgetScore: number;
+  locationScore: number;
+  genderScore: number;
+  rulesScore: number;
+  trustScore: number;
+  reasons: string[];
+  caveats: string[];
+}
+
+/**
+ * Multi-Factor Room Compatibility Engine (0–100%).
+ *
+ * Outperforms single-dimensional quiz comparison by evaluating:
+ * 1. Budget Fit (25%)
+ * 2. Location & Locality Fit (20%)
+ * 3. Gender Requirement Fit (20%)
+ * 4. House Rules & Habits Alignment (20%)
+ * 5. Trust & Verification Signals (15%)
+ */
+export function getRoomMatchReasons(
+  seeker: SeekerMatchSignal = {},
+  listing: ListingMatchSignal = {},
+  owner: OwnerMatchSignal = {}
+): RoomMatchBreakdown {
+  const reasons: string[] = [];
+  const caveats: string[] = [];
+
+  // 1. Budget Fit (Max 25 pts)
+  const rent = listing.partnerShare || listing.monthlyRent || listing.totalRent || 0;
+  const budget = seeker.budget || 0;
+  let budgetScore = 12; // neutral baseline when unstated
+
+  if (rent > 0 && budget > 0) {
+    if (budget >= rent) {
+      budgetScore = 25;
+      reasons.push(`Budget fits (₹${budget.toLocaleString()} accommodates ₹${rent.toLocaleString()} rent)`);
+    } else if (budget >= rent * 0.85) {
+      budgetScore = 20;
+      reasons.push(`Budget is close (within 15% of ₹${rent.toLocaleString()} rent)`);
+    } else if (budget >= rent * 0.75) {
+      budgetScore = 12;
+      caveats.push(`Budget (₹${budget.toLocaleString()}) is below rent (₹${rent.toLocaleString()})`);
+    } else {
+      budgetScore = 0;
+      caveats.push(`Budget (₹${budget.toLocaleString()}) is significantly below rent (₹${rent.toLocaleString()})`);
+    }
+  } else {
+    caveats.push('Budget not fully specified');
+  }
+
+  // 2. Location & Locality Fit (Max 20 pts)
+  const seekerCity = (seeker.city || '').toLowerCase().trim();
+  const listingCity = (listing.city || owner.city || '').toLowerCase().trim();
+  const listingLocality = (listing.locality || '').toLowerCase().trim();
+  let locationScore = 10; // neutral baseline when unstated
+
+  if (seekerCity && listingCity) {
+    if (seekerCity === listingCity) {
+      const seekerLocs = (seeker.localities || []).map(l => (l || '').toLowerCase().trim());
+      if (seeker.locality) seekerLocs.push(seeker.locality.toLowerCase().trim());
+
+      if (listingLocality && seekerLocs.some(loc => loc === listingLocality || listingLocality.includes(loc) || loc.includes(listingLocality))) {
+        locationScore = 20;
+        reasons.push(`Same locality (${listing.locality}, ${listing.city || seeker.city})`);
+      } else {
+        locationScore = 14;
+        reasons.push(`Same city (${listing.city || seeker.city})`);
+      }
+    } else {
+      locationScore = 0;
+      caveats.push(`Different city (${listing.city || 'Listing'} vs ${seeker.city || 'Seeker'})`);
+    }
+  } else {
+    caveats.push('Location not fully specified');
+  }
+
+  // 3. Gender Requirement Fit (Max 20 pts)
+  const genderPref = (listing.genderPreference || owner.householdExpectations?.genderPref || 'any').toLowerCase().trim();
+  const seekerGender = (seeker.gender || '').toLowerCase().trim();
+  let genderScore = 20;
+  let isExplicitGenderMismatch = false;
+
+  if (genderPref === 'female' || genderPref === 'female only') {
+    if (seekerGender === 'female') {
+      genderScore = 20;
+      reasons.push('Matches Female-only requirement');
+    } else if (seekerGender === 'male') {
+      genderScore = 0;
+      isExplicitGenderMismatch = true;
+      caveats.push('Listing specifies Female-only flatmates');
+    } else {
+      genderScore = 10;
+      caveats.push('Gender not specified on profile');
+    }
+  } else if (genderPref === 'male' || genderPref === 'male only') {
+    if (seekerGender === 'male') {
+      genderScore = 20;
+      reasons.push('Matches Male-only requirement');
+    } else if (seekerGender === 'female') {
+      genderScore = 0;
+      isExplicitGenderMismatch = true;
+      caveats.push('Listing specifies Male-only flatmates');
+    } else {
+      genderScore = 10;
+      caveats.push('Gender not specified on profile');
+    }
+  } else {
+    // Open to any gender
+    genderScore = 20;
+    if (seekerGender) {
+      reasons.push('Gender open (Any flatmate welcome)');
+    }
+  }
+
+  // 4. House Rules & Habits Alignment (Max 20 pts)
+  const rules = (listing.houseRules || []).map(r => (r || '').toLowerCase());
+  const expectations = owner.householdExpectations || {};
+  const seekerQuiz = seeker.quizAnswers || {};
+  let rulesScore = 0;
+
+  // A. Food Norms (5 pts)
+  const isVegOnly = rules.some(r => r.includes('veg') && !r.includes('non-veg') && !r.includes('allowed')) ||
+    expectations.dietPref === 'veg';
+  if (isVegOnly) {
+    if (seekerQuiz.food_pref === 'veg' || seekerQuiz.food_pref === 'vegan') {
+      rulesScore += 5;
+      reasons.push('Vegetarian matches veg kitchen rule');
+    } else if (seekerQuiz.food_pref === 'non_veg') {
+      caveats.push('Non-vegetarian applying for veg-only kitchen');
+    } else {
+      rulesScore += 3;
+    }
+  } else {
+    rulesScore += 5;
+  }
+
+  // B. Smoking Policy (5 pts)
+  const isNoSmoking = rules.some(r => r.includes('no smoking') || r.includes('smoke-free')) ||
+    expectations.smokingPolicy === 'no_smoking';
+  if (isNoSmoking) {
+    if (seekerQuiz.smoking === 'never') {
+      rulesScore += 5;
+      reasons.push('Non-smoker matches smoke-free home');
+    } else if (seekerQuiz.smoking === 'outside') {
+      rulesScore += 3;
+      reasons.push('Smokes outside only');
+    } else if (seekerQuiz.smoking === 'regularly' || seekerQuiz.smoking === 'socially') {
+      caveats.push('Smoking habit conflicts with smoke-free home rule');
+    } else {
+      rulesScore += 3;
+    }
+  } else {
+    rulesScore += 5;
+  }
+
+  // C. Pet Policy (5 pts)
+  const isNoPets = rules.some(r => r.includes('no pets')) || expectations.petPolicy === 'no_pets';
+  if (isNoPets) {
+    if (seekerQuiz.pets === 'no' || seekerQuiz.pets === 'allergic') {
+      rulesScore += 5;
+      reasons.push('No pets matches building policy');
+    } else if (seekerQuiz.pets === 'love') {
+      rulesScore += 2;
+      caveats.push('Loves pets but listing has no-pets rule');
+    } else {
+      rulesScore += 4;
+    }
+  } else {
+    rulesScore += 5;
+  }
+
+  // D. Lifestyle / Live-in Host Overlap (5 pts)
+  const hostQuiz = listing.ownerQuizAnswers || owner.quizAnswers;
+  if (hostQuiz && Object.keys(hostQuiz).length > 0 && Object.keys(seekerQuiz).length > 0) {
+    const sharedKeys = Object.keys(hostQuiz).filter(k => k in seekerQuiz);
+    if (sharedKeys.length > 0) {
+      const matches = sharedKeys.filter(k => hostQuiz[k] === seekerQuiz[k]).length;
+      const ratio = matches / sharedKeys.length;
+      if (ratio >= 0.5) {
+        rulesScore += 5;
+        reasons.push('Shared lifestyle rhythm with host');
+      } else {
+        rulesScore += Math.round(ratio * 5);
+      }
+    } else {
+      rulesScore += 3;
+    }
+  } else {
+    // Standalone landlord property: general compliance
+    if (seeker.onboardingComplete !== false) {
+      rulesScore += 5;
+    } else {
+      rulesScore += 3;
+    }
+  }
+
+  // 5. Trust & Verification (Max 15 pts)
+  let trustScore = 0;
+  if (seeker.isVerified) {
+    trustScore += 10;
+    reasons.push('ID verified resident');
+  }
+  if (seeker.workEmailVerified) {
+    trustScore += 5;
+    reasons.push('Work email verified');
+  }
+  if (trustScore === 0) {
+    caveats.push('Profile not ID verified yet');
+  }
+
+  let totalScore = budgetScore + locationScore + genderScore + rulesScore + trustScore;
+
+  // Hard Constraint: Explicit gender mismatch is capped at 40%
+  if (isExplicitGenderMismatch) {
+    totalScore = Math.min(40, totalScore);
+  }
+
+  // City Mismatch: Cross-city compatibility capped at 60%
+  if (seekerCity && listingCity && seekerCity !== listingCity) {
+    totalScore = Math.min(60, Math.round(totalScore * 0.6));
+  }
+
+  const finalScore = Math.min(100, Math.max(0, Math.round(totalScore)));
+
+  return {
+    score: finalScore,
+    budgetScore,
+    locationScore,
+    genderScore,
+    rulesScore,
+    trustScore,
+    reasons,
+    caveats,
+  };
+}
+
+/**
+ * Pure scalar helper for calculating room compatibility score (0-100%).
+ */
+export function calculateRoomCompatibility(
+  seeker: SeekerMatchSignal = {},
+  listing: ListingMatchSignal = {},
+  owner: OwnerMatchSignal = {}
+): number {
+  return getRoomMatchReasons(seeker, listing, owner).score;
+}
+
+/**
  * Get active status based on lastActiveAt timestamp.
  */
 export function getActiveStatus(timestamp: any): { status: 'online' | 'recent' | 'offline'; text: string } {
@@ -131,3 +434,4 @@ export function getActiveStatus(timestamp: any): { status: 'online' | 'recent' |
     return { status: 'offline', text: `Active ${diffDays} days ago` };
   }
 }
+

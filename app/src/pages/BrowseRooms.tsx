@@ -1,20 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { MapItem } from '@/pages/MapView';
 import { useStore } from '@/store/useStore';
 import { useListings } from '@/hooks/useListings';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { calculateCompatibility } from '@/hooks/useMatches';
+import { calculateCompatibility, calculateRoomCompatibility } from '@/hooks/useMatches';
 import {
   Search, MapPin, Heart, ShieldCheck, Bed, Loader2,
   SlidersHorizontal, X, ChevronLeft, ChevronRight, Map,
   ShieldAlert
 } from 'lucide-react';
-import { cities, amenitiesList as allAmenities } from '@/lib/staticData';
+import { amenitiesList as allAmenities } from '@/lib/staticData';
 import StateEmpty from '@/components/StateEmpty';
 import RoomCard from '@/components/RoomCard';
 import { isPubliclyVisibleListing } from '@/lib/marketplaceVisibility';
+import AdvancedFiltersModal, { DEFAULT_ADVANCED_FILTERS } from '@/components/AdvancedFiltersModal';
+import type { AdvancedFilterState } from '@/components/AdvancedFiltersModal';
 
 export default function BrowseRooms({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate();
@@ -27,6 +29,7 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
   const [showFilters, setShowFilters] = useState(false);
   const [savingRoomId, setSavingRoomId] = useState<string | null>(null);
   const [localFilters, setLocalFilters] = useState(filters);
+  const [advFilters, setAdvFilters] = useState<AdvancedFilterState>(DEFAULT_ADVANCED_FILTERS);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [imageIndexes, setImageIndexes] = useState<Record<string, number>>({});
 
@@ -45,6 +48,7 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
     const reset = { city: '', budgetMin: 1000, budgetMax: 25000, localities: [], gender: 'any', verifiedOnly: false, amenities: [] };
     updateFilters(reset);
     setLocalFilters(reset as any);
+    setAdvFilters(DEFAULT_ADVANCED_FILTERS);
     setSearchQuery('');
     setShowFilters(false);
   };
@@ -104,10 +108,73 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
     if (profile?.blockedUserIds?.includes(l.ownerId)) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      return l.title?.toLowerCase().includes(q) || l.locality?.toLowerCase().includes(q) || l.city?.toLowerCase().includes(q);
+      const match = l.title?.toLowerCase().includes(q) || l.locality?.toLowerCase().includes(q) || l.city?.toLowerCase().includes(q);
+      if (!match) return false;
     }
+
+    // Advanced Filters (DISC-02)
+    if (advFilters.highMatchOnly && profile) {
+      const score = calculateRoomCompatibility(profile, l);
+      if (score < 70) return false;
+    }
+    if (advFilters.dietary !== 'any') {
+      const d = (l as any).rules?.dietary;
+      if (d && d !== 'any' && d !== advFilters.dietary) return false;
+    }
+    if (advFilters.smoking !== 'any') {
+      const s = (l as any).rules?.smoking;
+      if (s && s !== 'any' && s !== advFilters.smoking) return false;
+    }
+    if (advFilters.alcohol !== 'any') {
+      const a = (l as any).rules?.alcohol;
+      if (a && a !== 'any' && a !== advFilters.alcohol) return false;
+    }
+    if (advFilters.petPolicy !== 'any') {
+      const p = (l as any).rules?.petPolicy;
+      if (p && p !== 'any' && p !== advFilters.petPolicy) return false;
+    }
+    if (advFilters.furnishing !== 'any') {
+      if (l.furnishing && l.furnishing !== advFilters.furnishing) return false;
+    }
+    if (advFilters.bachelorsFriendly) {
+      if ((l as any).rules?.bachelorsAllowed === false) return false;
+    }
+    if (advFilters.amenities.length > 0) {
+      const listingAmenities = l.amenities || [];
+      const hasAll = advFilters.amenities.every(a => listingAmenities.includes(a));
+      if (!hasAll) return false;
+    }
+
     return true;
   });
+
+  const hasActiveFilters =
+    Boolean(filters.city && filters.city !== 'Bengaluru') ||
+    Boolean(filters.budgetMax && filters.budgetMax < 25000) ||
+    advFilters.dietary !== 'any' ||
+    advFilters.smoking !== 'any' ||
+    advFilters.alcohol !== 'any' ||
+    advFilters.furnishing !== 'any' ||
+    advFilters.petPolicy !== 'any' ||
+    advFilters.bachelorsFriendly ||
+    advFilters.highMatchOnly ||
+    advFilters.amenities.length > 0;
+
+  // Prioritize rooms by compatibility score when seeker is logged in
+  const sortedListings = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      if (profile) {
+        const scoreA = calculateRoomCompatibility(profile, a);
+        const scoreB = calculateRoomCompatibility(profile, b);
+        if (scoreB !== scoreA) {
+          return scoreB - scoreA;
+        }
+      }
+      const aTime = a.createdAt?.toMillis?.() || 0;
+      const bTime = b.createdAt?.toMillis?.() || 0;
+      return bTime - aTime;
+    });
+  }, [filtered, profile]);
 
   const contentGrid = (
     <div>
@@ -118,7 +185,7 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search by locality, title, or city..."
+            placeholder="Search Bangalore localities (e.g. Koramangala, HSR, Indiranagar)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             aria-label="Search rooms"
@@ -140,14 +207,14 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
           type="button"
           onClick={() => setShowFilters(true)}
           aria-label="Open filters"
-          className={`flex-shrink-0 flex items-center gap-2 px-4 py-3 min-h-[44px] bg-white border rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs cursor-pointer ${filters.city || (filters.budgetMax && filters.budgetMax < 25000)
+          className={`flex-shrink-0 flex items-center gap-2 px-4 py-3 min-h-[44px] bg-white border rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs cursor-pointer ${hasActiveFilters
               ? 'border-brand-orange text-brand-orange bg-brand-orange/5'
               : 'border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50'
             }`}
         >
           <SlidersHorizontal className="w-4 h-4" />
           <span>Filters</span>
-          {filters.city || (filters.budgetMax && filters.budgetMax < 25000) ? (
+          {hasActiveFilters ? (
             <span className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
           ) : null}
         </button>
@@ -186,15 +253,17 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
       {/* Room Grid — 1 col mobile, 2 col tablet, 4 col desktop */}
       {!isLoading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-          {filtered.map(room => {
+          {sortedListings.map(room => {
             const isSaved = savedRoomIds.includes(room.id);
             const isSaving = savingRoomId === room.id;
+            const compatibilityScore = profile ? calculateRoomCompatibility(profile, room) : undefined;
             return (
               <RoomCard
                 key={room.id}
                 room={room}
                 isSaved={isSaved}
                 isSaving={isSaving}
+                compatibilityScore={compatibilityScore}
                 onToggleSave={handleToggleSave}
                 onClick={() => navigate(`/room/${room.id}`)}
               />
@@ -266,82 +335,17 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
     </div>
   );
 
-  const filterDrawer = showFilters && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-fade-in">
-      <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border border-border">
-        <div className="p-5 border-b border-border flex items-center justify-between bg-cream/30">
-          <h3 className="font-bold text-lg text-ink">Room Filters</h3>
-          <button onClick={() => setShowFilters(false)} className="p-1 rounded-full text-ink/40 hover:text-ink hover:bg-black/5">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="p-6 overflow-y-auto space-y-6 flex-1 text-sm">
-          <div>
-            <label className="font-bold text-xs uppercase tracking-wider text-ink/60 mb-2 block">City</label>
-            <select
-              value={localFilters.city}
-              onChange={(e) => setLocalFilters({ ...localFilters, city: e.target.value, localities: [] })}
-              className="w-full p-3 bg-white border border-border rounded-xl font-semibold outline-none focus:border-fire"
-            >
-              <option value="">All Cities</option>
-              {cities.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="font-bold text-xs uppercase tracking-wider text-ink/60 mb-2 block">
-              Max Budget (₹{localFilters.budgetMax?.toLocaleString() || '25,000'})
-            </label>
-            <input
-              type="range"
-              min="3000"
-              max="50000"
-              step="1000"
-              value={localFilters.budgetMax || 25000}
-              onChange={(e) => setLocalFilters({ ...localFilters, budgetMax: Number(e.target.value) })}
-              className="w-full accent-fire"
-            />
-            <div className="flex justify-between text-xs text-ink/50 mt-1 font-medium">
-              <span>₹3,000</span>
-              <span>₹50,000+</span>
-            </div>
-          </div>
-
-          <div>
-            <label className="font-bold text-xs uppercase tracking-wider text-ink/60 mb-2 block">Amenities</label>
-            <div className="flex flex-wrap gap-2">
-              {allAmenities.slice(0, 8).map((amt: any) => {
-                const label = typeof amt === 'string' ? amt : (amt as any).label || (amt as any).name;
-                const selected = (localFilters.amenities || []).includes(label);
-                return (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => handleAmenityToggle(label)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${selected ? 'bg-fire text-white border-fire' : 'bg-cream/40 border-border text-ink/70 hover:bg-cream'
-                      }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        <div className="p-4 border-t border-border flex gap-3 bg-cream/20">
-          <button onClick={clearFilters} className="flex-1 py-3 border border-border bg-white text-xs font-bold rounded-xl hover:bg-cream/40 transition-colors">
-            Clear all
-          </button>
-          <button onClick={applyFilters} className="flex-[2] py-3 bg-fire text-white text-xs font-bold rounded-xl hover:bg-fire-dark transition-colors shadow-md">
-            Apply Filters
-          </button>
-        </div>
-      </div>
-    </div>
+  const filterDrawer = (
+    <AdvancedFiltersModal
+      isOpen={showFilters}
+      onClose={() => setShowFilters(false)}
+      filters={advFilters}
+      onApply={(updated) => {
+        setAdvFilters(updated);
+        setShowFilters(false);
+      }}
+      totalResultsCount={filtered.length}
+    />
   );
 
   if (embedded) {

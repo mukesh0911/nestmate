@@ -88,8 +88,14 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
           return r === targetRole;
         });
 
-        const filtered = searchCity.trim()
-          ? fetched.filter(r => r.city?.toLowerCase().includes(searchCity.trim().toLowerCase()))
+        const q = searchCity.trim().toLowerCase();
+        const filtered = q
+          ? fetched.filter(r =>
+              (r.city && r.city.toLowerCase().includes(q)) ||
+              (r.locality && r.locality.toLowerCase().includes(q)) ||
+              (r.name && r.name.toLowerCase().includes(q)) ||
+              (r.profession && r.profession.toLowerCase().includes(q))
+            )
           : fetched;
 
         const scored = filtered.map(u => ({
@@ -154,17 +160,17 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Filter by city (e.g. Hyderabad)..."
+            placeholder="Search Bangalore flatmates by locality, profession or name..."
             value={searchCity}
             onChange={(e) => setSearchCity(e.target.value)}
-            aria-label="Filter by city"
+            aria-label="Search flatmates"
             className="w-full pl-10 pr-8 py-3 min-h-[44px] bg-white rounded-xl text-xs sm:text-sm border border-slate-200 shadow-xs outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/10 transition-all text-slate-800 placeholder:text-slate-400"
           />
           {searchCity && (
             <button
               onClick={() => setSearchCity('')}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
-              aria-label="Clear city filter"
+              aria-label="Clear search filter"
             >
               <X className="w-3.5 h-3.5" />
             </button>

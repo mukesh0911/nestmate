@@ -31,6 +31,9 @@ export default function PhoneLogin() {
     try {
       const e164 = `+91${phone}`;
       const verificationId = await sendOTP(e164);
+      try {
+        sessionStorage.setItem('nestmate_otp_pending', JSON.stringify({ phone: `+91 ${phone}`, verificationId }));
+      } catch {}
       navigate('/verify-otp', { state: { phone: `+91 ${phone}`, verificationId } });
     } catch (err: any) {
       setError(err.message || 'Failed to send OTP. Please try again.');

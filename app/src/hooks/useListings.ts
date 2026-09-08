@@ -16,6 +16,7 @@ import {
   limit,
   startAfter,
   DocumentSnapshot,
+  increment,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { isDiscoverable } from '@/lib/listingFreshness';
@@ -24,6 +25,24 @@ import { isPubliclyVisibleListing } from '@/lib/marketplaceVisibility';
 import { applyClientFilters, type ListingFilters } from '@/lib/listingFilters';
 import { useAnalytics } from './useAnalytics';
 import { getAuth } from 'firebase/auth';
+
+/**
+ * Local calendar date string YYYY-MM-DD.
+ * Prevents UTC timezone drift near midnight.
+ */
+export function getLocalDateString(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export interface WeeklyViewItem {
+  day: string;
+  date: string;
+  views: number;
+  isToday: boolean;
+}
 
 export interface Listing {
   id: string;
@@ -358,67 +377,173 @@ export function useListings() {
   }, [logEvent]);
 
   const incrementViews = useCallback(async (id: string) => {
-    const ref = doc(db, 'listings', id);
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
-      await updateDoc(ref, { views: (snap.data().views || 0) + 1 });
+    try {
+      const ref = doc(db, 'listings', id);
+      await updateDoc(ref, { views: increment(1) });
+    } catch {
+      // Fallback if atomic increment fails on legacy doc
+      const ref = doc(db, 'listings', id);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        await updateDoc(ref, { views: (snap.data().views || 0) + 1 });
+      }
     }
   }, []);
 
   /**
-   * Record a listing view:
-   * 1. Increment listings/{id}.views
-   * 2. Upsert listingViews/{listingId}_{YYYY-MM-DD}.count for analytics
+   * Record a listing view (Industry Standard):
+   * 1. Ignore owner self-views (previews do not count as visitor traffic).
+   * 2. Deduplicate per session/day using sessionStorage.
+   * 3. Atomically increment listings/{id}.views using Firestore increment(1).
+   * 4. Atomically upsert listingViews/{listingId}_{YYYY-MM-DD}.count.
+   * 5. Log marketplace analytics event for conversion funnels.
    */
-  const recordView = useCallback(async (listingId: string) => {
-    // Increment total views on listing doc
-    const listingRef = doc(db, 'listings', listingId);
-    const snap = await getDoc(listingRef);
-    if (snap.exists()) {
-      await updateDoc(listingRef, { views: (snap.data().views || 0) + 1 });
+  const recordView = useCallback(async (listingId: string, ownerId?: string) => {
+    if (!listingId) return;
+
+    // 1. Owner self-view exclusion: creators checking their own listing do not inflate metrics
+    const currentUserId = getAuth().currentUser?.uid;
+    if (ownerId && currentUserId && currentUserId === ownerId) {
+      return;
     }
 
-    // Upsert daily analytics record
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    const viewDocId = `${listingId}_${today}`;
-    const viewRef = doc(db, 'listingViews', viewDocId);
-    const viewSnap = await getDoc(viewRef);
-    if (viewSnap.exists()) {
-      await updateDoc(viewRef, { count: (viewSnap.data().count || 0) + 1 });
-    } else {
-      await setDoc(viewRef, { listingId, date: today, count: 1 });
+    const todayStr = getLocalDateString(new Date());
+
+    // 2. Session deduplication: 1 view event per listing per visitor session/day
+    const sessionKey = `nestmate_view_${listingId}_${todayStr}`;
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        if (window.sessionStorage.getItem(sessionKey)) {
+          return; // Already counted in this session
+        }
+        window.sessionStorage.setItem(sessionKey, '1');
+      }
+    } catch {
+      // Ignore storage errors (private browsing quota/disabled)
     }
-  }, []);
+
+    try {
+      // 3. Atomically increment total views on listing document
+      const listingRef = doc(db, 'listings', listingId);
+      await updateDoc(listingRef, { views: increment(1) }).catch(async () => {
+        // Fallback for doc without views field
+        const snap = await getDoc(listingRef);
+        if (snap.exists()) {
+          const currentViews = snap.data().views || 0;
+          await updateDoc(listingRef, { views: currentViews + 1 });
+        }
+      });
+
+      // 4. Atomically upsert daily analytics record
+      const viewDocId = `${listingId}_${todayStr}`;
+      const viewRef = doc(db, 'listingViews', viewDocId);
+      await setDoc(
+        viewRef,
+        {
+          listingId,
+          ...(ownerId ? { ownerId } : {}),
+          date: todayStr,
+          count: increment(1),
+        },
+        { merge: true }
+      );
+
+      // 5. Supply-side & marketplace analytics event
+      logEvent({
+        name: 'listing_viewed',
+        actorId: currentUserId || 'guest',
+        entityId: listingId,
+      });
+    } catch (err) {
+      console.warn('Failed to record listing view:', err);
+    }
+  }, [logEvent]);
 
   /**
-   * Get last 7 days of view counts for a listing.
-   * Returns array of { date: 'Mon', count: N } ready for charting.
+   * Get trailing 7 days of view counts for a listing.
+   * Chronological order: Day -6, Day -5, ... Yesterday, Today.
+   * Returns array of WeeklyViewItem ready for direct charting.
    */
-  const getWeeklyViews = useCallback(async (listingId: string): Promise<{ day: string; views: number }[]> => {
-    const days: { day: string; date: string; views: number }[] = [];
+  const getWeeklyViews = useCallback(async (listingId: string): Promise<WeeklyViewItem[]> => {
+    if (!listingId) return [];
     const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const days: WeeklyViewItem[] = [];
+
+    const today = new Date();
+    const todayStr = getLocalDateString(today);
 
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().slice(0, 10);
+      d.setDate(today.getDate() - i);
+      const dateStr = getLocalDateString(d);
       const label = dayLabels[d.getDay()];
-      days.push({ day: label, date: dateStr, views: 0 });
+      days.push({
+        day: label,
+        date: dateStr,
+        views: 0,
+        isToday: dateStr === todayStr,
+      });
     }
 
-    // Batch fetch all 7 docs
-    const fetches = days.map(d =>
-      getDoc(doc(db, 'listingViews', `${listingId}_${d.date}`))
+    // Batch fetch all 7 daily docs
+    try {
+      const fetches = days.map(d =>
+        getDoc(doc(db, 'listingViews', `${listingId}_${d.date}`))
+      );
+      const snaps = await Promise.all(fetches);
+      snaps.forEach((snap, i) => {
+        if (snap.exists()) {
+          days[i].views = snap.data().count || 0;
+        }
+      });
+    } catch (err) {
+      console.warn('Failed to load weekly views for listing:', listingId, err);
+    }
+
+    return days;
+  }, []);
+
+  /**
+   * Portfolio-wide weekly analytics:
+   * Aggregates trailing 7-day views across ALL listings belonging to an owner.
+   */
+  const getOwnerWeeklyViews = useCallback(async (listingIds: string[]): Promise<WeeklyViewItem[]> => {
+    const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const today = new Date();
+    const todayStr = getLocalDateString(today);
+
+    const baseDays: WeeklyViewItem[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(today.getDate() - i);
+      const dateStr = getLocalDateString(d);
+      baseDays.push({
+        day: dayLabels[d.getDay()],
+        date: dateStr,
+        views: 0,
+        isToday: dateStr === todayStr,
+      });
+    }
+
+    if (!listingIds || listingIds.length === 0) {
+      return baseDays;
+    }
+
+    // Fetch weekly views for each listing and sum them up per day
+    const allListingViews = await Promise.all(
+      listingIds.map(id => getWeeklyViews(id))
     );
-    const snaps = await Promise.all(fetches);
-    snaps.forEach((snap, i) => {
-      if (snap.exists()) {
-        days[i].views = snap.data().count || 0;
-      }
+
+    allListingViews.forEach(viewsForListing => {
+      viewsForListing.forEach((item, idx) => {
+        if (baseDays[idx]) {
+          baseDays[idx].views += item.views;
+        }
+      });
     });
 
-    return days.map(d => ({ day: d.day, views: d.views }));
-  }, []);
+    return baseDays;
+  }, [getWeeklyViews]);
 
   return {
     listings,
@@ -437,6 +562,7 @@ export function useListings() {
     incrementViews,
     recordView,
     getWeeklyViews,
+    getOwnerWeeklyViews,
   };
 }
 

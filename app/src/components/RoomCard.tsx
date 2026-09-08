@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Heart, ChevronLeft, ChevronRight, Image as ImageIcon, Sofa, ShieldCheck, Loader2 } from 'lucide-react';
+import { Heart, ChevronLeft, ChevronRight, Image as ImageIcon, Sofa, ShieldCheck, Loader2, Sparkles } from 'lucide-react';
 import type { Listing } from '@/hooks/useListings';
 // Sprint 4B (truth): missing listing data renders honest neutral states —
 // never stock photos, invented furnishing, assumed flat type, or ₹0 rent.
@@ -13,6 +13,7 @@ interface RoomCardProps {
   onToggleSave?: (e: React.MouseEvent, roomId: string) => void;
   onClick?: () => void;
   className?: string;
+  compatibilityScore?: number;
 }
 
 export default function RoomCard({
@@ -22,6 +23,7 @@ export default function RoomCard({
   onToggleSave,
   onClick,
   className = '',
+  compatibilityScore,
 }: RoomCardProps) {
   const navigate = useNavigate();
   const [currentImgIdx, setCurrentImgIdx] = useState(0);
@@ -80,14 +82,22 @@ export default function RoomCard({
         {/* Gradient Scrim Overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
 
-        {/* Top Left Badge: Flat Type — shown ONLY when the owner set one */}
-        {room.flatType && (
-          <div className="absolute top-3 left-3 z-10">
-            <span className="bg-white/90 backdrop-blur-md text-slate-800 text-xs font-extrabold px-3 py-1 rounded-full shadow-sm tracking-wide">
+        {/* Top Left Badges: Flat Type & Compatibility */}
+        <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5 items-start pointer-events-none">
+          {room.flatType && (
+            <span className="bg-white/95 backdrop-blur-md text-slate-800 text-xs font-extrabold px-3 py-1 rounded-full shadow-sm tracking-wide">
               {room.flatType}
             </span>
-          </div>
-        )}
+          )}
+          {compatibilityScore !== undefined && compatibilityScore > 0 && (
+            <span className={`backdrop-blur-md text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-full shadow-sm tracking-wide flex items-center gap-1 ${
+              compatibilityScore >= 80 ? 'bg-emerald-600/95' : 'bg-amber-600/95'
+            }`}>
+              <Sparkles className="w-3 h-3 text-white" />
+              {compatibilityScore}% Match
+            </span>
+          )}
+        </div>
 
         {/* Top Right Heart Button */}
         {onToggleSave && (

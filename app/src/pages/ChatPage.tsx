@@ -596,11 +596,6 @@ export default function ChatPage() {
                         <span className={`text-[10px] ${isMe ? 'text-white/70' : 'text-ink/40'}`}>
                           {formatTime(msg.createdAt)}
                         </span>
-                        {isMe && (
-                          msg.read
-                            ? <CheckCheck className={`w-3.5 h-3.5 ${isMe ? 'text-blue-200' : 'text-blue-500'}`} />
-                            : <Check className={`w-3.5 h-3.5 ${isMe ? 'text-white/50' : 'text-ink/30'}`} />
-                        )}
                       </div>
                     </div>
                   </div>

@@ -20,7 +20,6 @@ const SeekerOnboarding = lazy(() => import('@/pages/SeekerOnboarding'));
 const OwnerOnboarding = lazy(() => import('@/pages/OwnerOnboarding'));
 const SeekerDashboard = lazy(() => import('@/pages/SeekerDashboard'));
 const OwnerDashboard = lazy(() => import('@/pages/OwnerDashboard'));
-const BrowseDashboard = lazy(() => import('@/pages/BrowseDashboard'));
 const ExplorePage = lazy(() => import('@/pages/ExplorePage'));
 const RoomDetail = lazy(() => import('@/pages/RoomDetail'));
 const MatchDetail = lazy(() => import('@/pages/MatchDetail'));
@@ -37,8 +36,15 @@ const PrivacyPolicy = lazy(() => import('@/pages/PrivacyPolicy'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 const EditListing = lazy(() => import('@/pages/EditListing'));
 const BrowseSeekers = lazy(() => import('@/pages/BrowseSeekers'));
-const MapView = lazy(() => import('@/pages/MapView'));
 const SeedData = lazy(() => import('@/pages/SeedData'));
+
+// Target screens
+const TrustCenter = lazy(() => import('@/pages/TrustCenter'));
+const PreferencesPage = lazy(() => import('@/pages/PreferencesPage'));
+const ProfilePreview = lazy(() => import('@/pages/ProfilePreview'));
+const SafetyCenter = lazy(() => import('@/pages/SafetyCenter'));
+const ApplicantCompare = lazy(() => import('@/pages/ApplicantCompare'));
+const HelpSupport = lazy(() => import('@/pages/HelpSupport'));
 
 // Admin pages - extra lazy since rarely visited
 const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout'));
@@ -56,10 +62,9 @@ import Layout from '@/components/Layout';
 
 // ----- Page title manager -----
 const PAGE_TITLES: Record<string, string> = {
-  '/': 'NestMate — Find Your Perfect Roommate in India',
+  '/': 'NestMate — Find Your Perfect Roommate in Bangalore',
   '/login': 'Log In | NestMate',
   '/how-it-works': 'How It Works | NestMate',
-  '/pricing': 'Pricing | NestMate',
   '/about': 'About Us | NestMate',
   '/privacy': 'Privacy Policy | NestMate',
   '/terms': 'Terms of Service | NestMate',
@@ -76,7 +81,12 @@ const PAGE_TITLES: Record<string, string> = {
   '/edit-profile': 'Edit Profile | NestMate',
   '/settings': 'Settings | NestMate',
   '/notifications': 'Notifications | NestMate',
-  '/map': 'Map View | NestMate',
+  '/trust': 'Trust & Safety Center | NestMate',
+  '/preferences': 'Matching Preferences | NestMate',
+  '/profile/preview': 'Public Profile Preview | NestMate',
+  '/safety': 'Safety Center | NestMate',
+  '/applicants/compare': 'Applicant Compare | NestMate',
+  '/help': 'Help & Support | NestMate',
   '/admin': 'Admin Dashboard | NestMate',
 };
 
@@ -323,12 +333,16 @@ function AppRoutes() {
           <Route path="/find-flatmates" element={<Navigate to="/explore?tab=roommates" replace />} />
           <Route path="/room/:id" element={<RoomDetail />} />
           <Route path="/match/:id" element={<MatchDetail />} />
-          <Route path="/map" element={<MapView />} />
+          <Route path="/trust" element={<TrustCenter />} />
+          <Route path="/help" element={<HelpSupport />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
-          <Route path="/pricing" element={<PricingPage />} />
           <Route path="/about" element={<AboutUs />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<PrivacyPolicy />} />
+
+          {/* Out-of-scope routes redirected */}
+          <Route path="/map" element={<Navigate to="/explore" replace />} />
+          <Route path="/pricing" element={<Navigate to="/" replace />} />
 
           {/* Authenticated user routes */}
           <Route path="/dashboard" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState} expectedRole="seeker"><SeekerDashboard /></OnboardingGuard>} />
@@ -337,7 +351,11 @@ function AppRoutes() {
           <Route path="/chat" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><ChatPage /></OnboardingGuard>} />
           <Route path="/chat/:roomId" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><ChatPage /></OnboardingGuard>} />
           <Route path="/profile" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><ProfilePage /></OnboardingGuard>} />
+          <Route path="/profile/preview" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><ProfilePreview /></OnboardingGuard>} />
           <Route path="/edit-profile" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><EditProfile /></OnboardingGuard>} />
+          <Route path="/preferences" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState} expectedRole="seeker"><PreferencesPage /></OnboardingGuard>} />
+          <Route path="/safety" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><SafetyCenter /></OnboardingGuard>} />
+          <Route path="/applicants/compare" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState} expectedRole="owner"><ApplicantCompare /></OnboardingGuard>} />
           <Route path="/settings" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><SettingsPage /></OnboardingGuard>} />
           <Route path="/notifications" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><NotificationsPage /></OnboardingGuard>} />
         </Route>
@@ -364,10 +382,10 @@ function AppRoutes() {
         {/* Deep Link & Convenience Redirects */}
         <Route path="/home" element={<Navigate to={getDashboardRoute()} replace />} />
         <Route path="/connections" element={<Navigate to="/dashboard?tab=connections" replace />} />
-        <Route path="/applicants" element={<Navigate to="/owner-dashboard" replace />} />
+        <Route path="/applicants" element={<Navigate to="/owner-dashboard?tab=applicants" replace />} />
         <Route path="/create-listing" element={<Navigate to="/edit-listing/new" replace />} />
-        <Route path="/listings" element={<Navigate to="/owner-dashboard" replace />} />
-        <Route path="/my-listings" element={<Navigate to="/owner-dashboard" replace />} />
+        <Route path="/listings" element={<Navigate to="/owner-dashboard?tab=listings" replace />} />
+        <Route path="/my-listings" element={<Navigate to="/owner-dashboard?tab=listings" replace />} />
         <Route path="/my-profile" element={<Navigate to="/profile" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

@@ -37,6 +37,7 @@ export function useUserProfile() {
     const workEmailToSave = workEmail !== undefined ? String(workEmail) : (existing.workEmail as string | undefined);
 
     if (phoneToSave || emailToSave || workEmailToSave) {
+      console.log('Writing to privateUserData:', userId);
       await savePrivateUserData(userId, {
         ...(phoneToSave ? { phone: phoneToSave } : {}),
         ...(emailToSave ? { email: emailToSave } : {}),
@@ -44,15 +45,23 @@ export function useUserProfile() {
       });
     }
 
+    console.log('Existing doc in Firestore:', userId, JSON.stringify(existing));
     const publicData = stripPiiFromWrite({ ...rest } as Record<string, unknown>);
-    await setDoc(userRef, {
-      ...publicData,
-      // Clear legacy PII from publicly readable users doc
-      phone: '',
-      email: '',
-      workEmail: '',
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
+    console.log('Writing to users doc:', userId, JSON.stringify(publicData));
+    try {
+      await setDoc(userRef, {
+        ...publicData,
+        // Clear legacy PII from publicly readable users doc
+        phone: '',
+        email: '',
+        workEmail: '',
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      console.log('Successfully wrote to users doc:', userId);
+    } catch (setDocErr: any) {
+      console.error('CRITICAL setDoc failure:', setDocErr.code, setDocErr.message);
+      throw setDocErr;
+    }
   }, []);
 
   const setRole = useCallback(async (userId: string, role: 'seeker' | 'owner') => {

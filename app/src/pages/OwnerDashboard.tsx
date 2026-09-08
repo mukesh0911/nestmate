@@ -5,7 +5,7 @@ import { useListings } from '@/hooks/useListings';
 import { useConnections } from '@/hooks/useConnections';
 import { useChat } from '@/hooks/useChat';
 import { useNotifications } from '@/hooks/useNotifications';
-import type { Listing } from '@/hooks/useListings';
+import type { Listing, WeeklyViewItem } from '@/hooks/useListings';
 import type { Connection } from '@/hooks/useConnections';
 import type { UserProfile } from '@/hooks/useAuth';
 import { doc, getDoc, Timestamp } from 'firebase/firestore';
@@ -21,7 +21,7 @@ import {
 import {
   TrendingUp, MessageCircle, Edit3, Eye, Users, Settings, MapPin,
   Shield, ShieldCheck, Check, X, Pause, Play, Trash2, AlertTriangle, CheckCircle2, Plus,
-  FileText, ArrowRight, User, Mail, Star, ChevronRight, Lightbulb, Home
+  FileText, ArrowRight, User, Mail, Star, ChevronRight, Lightbulb, Home, Building2
 } from 'lucide-react';
 import StateLoading from '@/components/StateLoading';
 import PageShell from '@/components/PageShell';
@@ -48,7 +48,7 @@ function UserAvatar({ src, name, className }: { src?: string; name?: string; cla
 export default function OwnerDashboard() {
   const navigate = useNavigate();
   const { profile, user } = useAuth();
-  const { getMyListings, updateListing, deleteListing, getWeeklyViews, confirmAvailability, closeListing } = useListings();
+  const { getMyListings, updateListing, deleteListing, getWeeklyViews, getOwnerWeeklyViews, confirmAvailability, closeListing } = useListings();
   const { subscribeToIncoming, getMyConnections, acceptRequest, rejectRequest } = useConnections();
   const { subscribeToChatRooms, getOrCreateChatRoom } = useChat();
   const { createNotification } = useNotifications();
@@ -58,15 +58,22 @@ export default function OwnerDashboard() {
   const [pendingApplicants, setPendingApplicants] = useState<PendingApplicant[]>([]);
   const [acceptedConnections, setAcceptedConnections] = useState<PendingApplicant[]>([]);
   const [chatCount, setChatCount] = useState(0);
-  const [weeklyViews, setWeeklyViews] = useState<{ day: string; views: number }[]>([]);
+  const [weeklyViews, setWeeklyViews] = useState<WeeklyViewItem[]>([]);
+  const [portfolioWeeklyViews, setPortfolioWeeklyViews] = useState<WeeklyViewItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [processingApplicantId, setProcessingApplicantId] = useState<string | null>(null);
   const [ownerVerification, setOwnerVerification] = useState<OwnerVerification | null>(null);
 
-  // Deep-link support: /owner-dashboard?request={connectionId}
-  const [searchParams] = useSearchParams();
+  // Deep-link & tab support: /owner-dashboard?tab=listings | applicants, ?request={connectionId}
+  const [searchParams, setSearchParams] = useSearchParams();
   const highlightedRequestId = searchParams.get('request');
+  const tabParam = searchParams.get('tab');
+
+  const activeTab: 'overview' | 'listings' | 'applicants' =
+    tabParam === 'listings' ? 'listings' :
+    tabParam === 'applicants' ? 'applicants' :
+    highlightedRequestId ? 'applicants' : 'overview';
 
   // Auto-scroll to highlighted request when landing from a notification deep-link
   useEffect(() => {
@@ -76,6 +83,13 @@ export default function OwnerDashboard() {
       setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400);
     }
   }, [highlightedRequestId, pendingApplicants]);
+
+  // Scroll to top smoothly when switching tabs explicitly
+  useEffect(() => {
+    if (tabParam && !highlightedRequestId) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [tabParam, highlightedRequestId]);
 
   // Subscribe to owner verification status
   useEffect(() => {
@@ -92,6 +106,15 @@ export default function OwnerDashboard() {
         setAllListings(listings);
         const listing = listings.find(l => l.status === 'active') || listings[0] || null;
         setMyListing(listing);
+
+        // Fetch portfolio-wide views across all owner listings
+        const allIds = listings.map(l => l.id).filter(Boolean);
+        if (allIds.length > 0) {
+          const portfolioViews = await getOwnerWeeklyViews(allIds);
+          setPortfolioWeeklyViews(portfolioViews);
+        }
+
+        // Fetch specific selected listing weekly views
         if (listing?.id) {
           const views = await getWeeklyViews(listing.id);
           setWeeklyViews(views);
@@ -140,6 +163,9 @@ export default function OwnerDashboard() {
             locality: myListing.locality,
             partnerShare: (myListing as any).partnerShare,
             totalRent: myListing.totalRent,
+            genderPreference: (myListing as any).genderPreference,
+            houseRules: myListing.houseRules,
+            ownerQuizAnswers: myListing.ownerQuizAnswers,
           }
           : undefined,
         requestedAtMs: (a.connection as any)?.createdAt?.toMillis?.(),
@@ -314,20 +340,78 @@ export default function OwnerDashboard() {
 
   if (isLoading) return <StateLoading label="Loading dashboard..." fullScreen />;
 
-  const totalWeeklyViews = weeklyViews.reduce((s, d) => s + d.views, 0);
+  // Selected listing weekly views
+  const selectedListingWeeklyViews = weeklyViews.reduce((s, d) => s + d.views, 0);
+
+  // Active weekly data: Overview displays portfolio-wide activity; listings drilldown displays selected listing
+  const activeWeeklyData = (activeTab === 'overview' && portfolioWeeklyViews.length > 0)
+    ? portfolioWeeklyViews
+    : weeklyViews;
+
+  const totalWeeklyViews = activeWeeklyData.reduce((s, d) => s + d.views, 0);
+
+  // Total all-time views across all listings (overview) or for selected listing
+  const totalAllTimeViews = (activeTab === 'overview')
+    ? allListings.reduce((s, l) => s + (l.views || 0), 0)
+    : (myListing?.views || 0);
 
   const hasDuplicateProperties = allListings.some(l =>
     allListings.filter(x => x.locality.toLowerCase().trim() === l.locality.toLowerCase().trim() && x.flatType === l.flatType).length > 1
   );
 
-  const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const displayWeeklyViews = daysOfWeek.map(dayName => {
-    const found = weeklyViews.find(v => v.day.toLowerCase().startsWith(dayName.toLowerCase().slice(0, 3)));
-    return { day: dayName, views: found ? found.views : 0 };
-  });
+  const displayWeeklyViews = activeWeeklyData;
 
   return (
     <PageShell maxWidth="max-w-[1600px]" className="bg-brand-bg">
+
+      {/* Top Dynamic Page Header */}
+      <div className="mb-6 flex items-center justify-between flex-wrap gap-4 border-b border-border/80 pb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
+            <span>
+              {activeTab === 'listings'
+                ? 'My Listings & Properties'
+                : activeTab === 'applicants'
+                  ? 'Applicants & Requests'
+                  : 'Owner Dashboard'}
+            </span>
+            {ownerVerification?.status === 'APPROVED' ? (
+              <span className="text-xs font-semibold bg-emerald-50 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-200 inline-flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Verified
+              </span>
+            ) : (
+              <span className="text-xs font-semibold bg-amber-50 text-amber-800 px-2.5 py-0.5 rounded-full border border-amber-200 inline-flex items-center gap-1">
+                <Shield className="w-3.5 h-3.5 text-amber-600" /> Verification Pending
+              </span>
+            )}
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            {activeTab === 'listings'
+              ? 'Manage room availability, update photos, edit pricing, and track views.'
+              : activeTab === 'applicants'
+                ? 'Review incoming roommate requests, inspect match compatibility, and chat with applicants.'
+                : `Welcome back${profile?.name ? `, ${profile.name}` : ''}! Here is an overview of your properties, applicant requests, and performance.`}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {activeTab === 'applicants' ? (
+            <button
+              onClick={() => navigate('/chat')}
+              className="px-4 py-2 bg-brand-orange text-white text-xs font-bold rounded-xl hover:bg-orange-600 transition-all flex items-center gap-1.5 shadow-sm shadow-orange-500/20"
+            >
+              <MessageCircle className="w-4 h-4" /> Go to Messages
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/edit-listing/new')}
+              className="px-4 py-2 bg-brand-orange text-white text-xs font-bold rounded-xl hover:bg-orange-600 transition-all flex items-center gap-1.5 shadow-sm shadow-orange-500/20"
+            >
+              <Plus className="w-4 h-4" /> Add Property
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* ========================================================================= */}
       {/* 1. DESKTOP VIEW (Visible on lg screens and up: hidden lg:flex) */}
@@ -335,8 +419,278 @@ export default function OwnerDashboard() {
       <div className="hidden lg:flex flex-row gap-8 w-full">
         {/* BEGIN: Left Column (Desktop) */}
         <div className="flex-grow flex flex-col gap-6 max-w-5xl">
-          {/* Listing Selector Bar */}
-          {allListings.length > 0 && (
+
+          {/* ========================================================================= */}
+          {/* A. OVERVIEW SECTION (Desktop): Shown ONLY on Dashboard tab */}
+          {/* ========================================================================= */}
+          {activeTab === 'overview' && (
+            <div id="overview-section" className="flex flex-col gap-6">
+              {/* 4 KPI Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {/* 1. Live Properties */}
+                <div
+                  onClick={() => navigate('/owner-dashboard?tab=listings')}
+                  className="bg-white rounded-2xl p-5 border border-border shadow-xs hover:border-brand-orange/40 hover:shadow-md transition-all cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Properties</span>
+                    <div className="w-8 h-8 rounded-lg bg-orange-50 text-brand-orange flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Building2 className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-black text-slate-900">{allListings.length}</p>
+                  <p className="text-xs text-slate-400 mt-1 flex items-center gap-1 group-hover:text-brand-orange">
+                    <span>{allListings.filter(l => l.status === 'active').length} Active</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </p>
+                </div>
+
+                {/* 2. Pending Requests */}
+                <div
+                  onClick={() => navigate('/owner-dashboard?tab=applicants')}
+                  className={`bg-white rounded-2xl p-5 border shadow-xs hover:shadow-md transition-all cursor-pointer group ${
+                    pendingApplicants.length > 0 ? 'border-brand-orange/40 bg-orange-50/20' : 'border-border'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Requests</span>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform ${
+                      pendingApplicants.length > 0 ? 'bg-brand-orange text-white' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      <Users className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-black text-slate-900">{pendingApplicants.length}</p>
+                  <p className="text-xs text-slate-400 mt-1 flex items-center gap-1 group-hover:text-brand-orange">
+                    <span>{pendingApplicants.length > 0 ? 'Action needed' : 'All responded'}</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </p>
+                </div>
+
+                {/* 3. Messages */}
+                <div
+                  onClick={() => navigate('/chat')}
+                  className="bg-white rounded-2xl p-5 border border-border shadow-xs hover:border-brand-orange/40 hover:shadow-md transition-all cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Messages</span>
+                    <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <MessageCircle className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-black text-slate-900">{chatCount}</p>
+                  <p className="text-xs text-slate-400 mt-1 flex items-center gap-1 group-hover:text-teal-600">
+                    <span>Conversations</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </p>
+                </div>
+
+                {/* 4. Weekly Views */}
+                <div
+                  onClick={() => navigate('/owner-dashboard?tab=listings')}
+                  className="bg-white rounded-2xl p-5 border border-border shadow-xs hover:border-brand-orange/40 hover:shadow-md transition-all cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Views</span>
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <TrendingUp className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-2xl font-black text-slate-900">{totalWeeklyViews}</p>
+                    <span className="text-xs text-slate-400 font-medium">this week</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 flex items-center justify-between group-hover:text-blue-600">
+                    <span>{totalAllTimeViews} all time</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </p>
+                </div>
+              </div>
+
+              {/* Verification Gate Banner (if pending) */}
+              {myListing && (myListing.status === 'pending_verification' || myListing.ownerVerified === false) && ownerVerification?.status !== 'APPROVED' && (
+                <OwnerVerificationGate listingTitle={myListing.title} />
+              )}
+
+              {/* Urgent Requests / Action Center */}
+              {pendingApplicants.length > 0 ? (
+                <section className="bg-white rounded-2xl p-6 shadow-sm border border-brand-orange/30">
+                  <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-2.5 w-2.5 rounded-full bg-brand-orange animate-pulse" />
+                      <h2 className="text-lg font-bold text-slate-900">
+                        Pending Requests ({pendingApplicants.length})
+                      </h2>
+                    </div>
+                    <button
+                      onClick={() => navigate('/owner-dashboard?tab=applicants')}
+                      className="text-xs font-bold text-brand-orange hover:underline flex items-center gap-1"
+                    >
+                      Review all <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {rankedApplicants.slice(0, 2).map(applicant => {
+                      const p = applicant.profile;
+                      return (
+                        <div
+                          key={applicant.connection.id}
+                          className="flex items-center justify-between gap-4 p-4 rounded-xl border border-border bg-slate-50/70"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <UserAvatar src={p.avatar} name={p.name} className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-xs shrink-0" />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-bold text-slate-900 text-sm">{p.name}</h4>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal">
+                                  {applicant.fit.score}% match
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-500 mt-0.5">{p.profession || 'Roommate Seeker'} · Budget ₹{p.budget?.toLocaleString() || 'Flexible'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => handleAccept(applicant)}
+                              disabled={!!processingApplicantId}
+                              className="px-3.5 py-1.5 bg-brand-orange text-white rounded-xl text-xs font-bold hover:bg-orange-600 transition-all flex items-center gap-1 shadow-xs"
+                            >
+                              <Check className="w-3.5 h-3.5" /> Accept
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : (
+                <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent rounded-2xl p-5 border border-emerald-500/20 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-700 shrink-0">
+                      <CheckCircle2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">Everything is running smoothly</h4>
+                      <p className="text-xs text-slate-600">No pending roommate applications right now. Your property is actively receiving views.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate('/explore?tab=roommates')}
+                    className="text-xs font-bold text-emerald-800 hover:underline shrink-0 hidden sm:block"
+                  >
+                    Browse Seeking Roommates →
+                  </button>
+                </div>
+              )}
+
+              {/* Properties Overview Grid */}
+              <section className="bg-white rounded-2xl p-6 shadow-sm border border-border">
+                <div className="flex justify-between items-center mb-5">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Your Properties ({allListings.length})</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">Quick summary of all active and listed rooms</p>
+                  </div>
+                  <button
+                    onClick={() => navigate('/owner-dashboard?tab=listings')}
+                    className="text-xs font-bold text-brand-orange hover:underline flex items-center gap-1"
+                  >
+                    Manage All <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {allListings.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {allListings.map(listing => (
+                      <div
+                        key={listing.id}
+                        className="p-4 rounded-xl border border-border hover:border-brand-orange/40 hover:shadow-xs transition-all flex flex-col justify-between gap-3 bg-slate-50/50"
+                      >
+                        <div className="flex gap-3">
+                          <div className="w-20 h-20 rounded-xl overflow-hidden bg-slate-200 shrink-0">
+                            {listing.images && listing.images.length > 0 ? (
+                              <img src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-brand-navy flex items-center justify-center text-white text-xs font-bold">
+                                NestMate
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                listing.status === 'active'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+                              }`}>
+                                {listing.status === 'active' ? 'LIVE' : 'PAUSED'}
+                              </span>
+                              <span className="text-[10px] text-slate-400 truncate">
+                                {listing.flatType}
+                              </span>
+                            </div>
+                            <h4 className="font-bold text-slate-900 text-sm truncate">{listing.title || `${listing.locality} Flat`}</h4>
+                            <p className="text-xs text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                              <MapPin className="w-3 h-3 text-brand-orange shrink-0" />
+                              {listing.locality}, {listing.city}
+                            </p>
+                            <p className="text-xs font-bold text-slate-900 mt-1">
+                              ₹{listing.totalRent?.toLocaleString() || '0'}<span className="text-[10px] font-normal text-slate-500">/mo</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-xs">
+                          <span className="text-slate-500 text-[11px]">{listing.views || 0} views</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => navigate(`/room/${listing.id}`)}
+                              className="px-2.5 py-1 text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 rounded-lg font-semibold text-[11px] transition-colors flex items-center gap-1"
+                            >
+                              <Eye className="w-3 h-3" />
+                              View
+                            </button>
+                            <button
+                              onClick={() => navigate(`/edit-listing/${listing.id}`)}
+                              className="px-2.5 py-1 text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 rounded-lg font-semibold text-[11px] transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleSelectListing(listing);
+                                navigate('/owner-dashboard?tab=listings');
+                              }}
+                              className="px-3 py-1 bg-brand-navy text-white hover:bg-slate-800 rounded-lg font-bold text-[11px] transition-colors"
+                            >
+                              Manage →
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-slate-500 text-sm mb-3">You don't have any properties listed yet.</p>
+                    <button
+                      onClick={() => navigate('/edit-listing/new')}
+                      className="px-4 py-2 bg-brand-orange text-white text-xs font-bold rounded-xl hover:bg-orange-600"
+                    >
+                      + Create Your First Listing
+                    </button>
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* B. LISTINGS MANAGEMENT SECTION (Desktop): Shown ONLY on Listings tab */}
+          {/* ========================================================================= */}
+          {activeTab === 'listings' && (
+            <div id="listings-section" className="flex flex-col gap-6">
+              {/* Listing Selector Bar */}
+              {allListings.length > 0 && (
             <div className="flex flex-row items-center justify-between gap-4 bg-white rounded-2xl p-5 shadow-sm border border-border">
               <div>
                 <div className="flex items-center gap-2 mb-2">
@@ -522,7 +876,7 @@ export default function OwnerDashboard() {
                     <p className="text-[11px] text-slate-300 font-medium uppercase tracking-wider">Chats</p>
                   </div>
                   <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-3 flex flex-col items-center justify-center shadow-sm">
-                    <p className="text-2xl font-bold">{totalWeeklyViews}</p>
+                    <p className="text-2xl font-bold">{selectedListingWeeklyViews}</p>
                     <p className="text-[11px] text-slate-300 font-medium uppercase tracking-wider">This Week</p>
                   </div>
                 </div>
@@ -577,17 +931,24 @@ export default function OwnerDashboard() {
               </div>
             </section>
           )}
-
-          {/* Pending Requests (Desktop) — Sprint 6A: primary task surface;
-              warm accent border while applicants are waiting */}
-          <section className={`bg-white rounded-2xl p-8 shadow-sm border flex flex-col justify-between min-h-[280px] relative ${pendingApplicants.length > 0 ? 'border-brand-orange/30' : 'border-border'}`}>
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center gap-2 type-h2">
-                <Users className="w-5 h-5" />
-                Pending Requests ({pendingApplicants.length})
-              </div>
-              <button onClick={() => navigate('/notifications')} className="text-brand-orange font-medium hover:underline text-sm">View all</button>
             </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* C. APPLICANTS SECTION (Desktop): Shown ONLY on Applicants tab */}
+          {/* ========================================================================= */}
+          {activeTab === 'applicants' && (
+            <div id="applicants-section" className="flex flex-col gap-6">
+              {/* Pending Requests (Desktop) — Sprint 6A: primary task surface;
+                  warm accent border while applicants are waiting */}
+              <section className={`bg-white rounded-2xl p-8 shadow-sm border flex flex-col justify-between min-h-[280px] relative ${pendingApplicants.length > 0 ? 'border-brand-orange/30' : 'border-border'}`}>
+                <div className="flex justify-between items-center mb-6">
+                  <div className="flex items-center gap-2 type-h2">
+                    <Users className="w-5 h-5" />
+                    Pending Requests ({pendingApplicants.length})
+                  </div>
+                  <span className="text-xs text-slate-500 font-medium">{pendingApplicants.length} pending review</span>
+                </div>
 
             {pendingApplicants.length > 0 ? (
               <div className="w-full space-y-4">
@@ -750,55 +1111,98 @@ export default function OwnerDashboard() {
               </div>
             )}
           </section>
+            </div>
+          )}
         </div>
         {/* END: Left Column (Desktop) */}
 
         {/* BEGIN: Right Sidebar (Desktop) */}
         <div className="w-[380px] shrink-0 flex flex-col gap-6">
           {/* Weekly Views Analytics (Desktop) */}
-          <section className="bg-white rounded-2xl p-6 shadow-sm border border-border relative">
-            <div className="flex justify-between items-center mb-8">
-              <h3 className="type-h3">Weekly Views</h3>
-              <span className="text-slate-500 text-sm">{totalWeeklyViews} total</span>
-            </div>
-
-            {totalWeeklyViews > 0 ? (
-              <div className="h-32 mb-6">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={displayWeeklyViews} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
-                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ fontSize: 12, borderRadius: 12, border: '1px solid #f1f5f9', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
-                      formatter={(v: number) => [v, 'Views']}
-                    />
-                    <Bar dataKey="views" radius={[6, 6, 0, 0]}>
-                      {displayWeeklyViews.map((_, i) => (
-                        <Cell key={i} fill={i === displayWeeklyViews.length - 1 ? '#f05a28' : '#ffebd9'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center text-center mb-8">
-                <div className="w-14 h-14 bg-brand-orangeLight/50 rounded-2xl flex items-center justify-center mb-4">
-                  <TrendingUp className="w-6 h-6 text-brand-orange" />
+          {(activeTab === 'overview' || activeTab === 'listings') && (
+            <section className="bg-white rounded-2xl p-6 shadow-sm border border-border relative">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h3 className="type-h3">Weekly Views</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Last 7 days activity</p>
                 </div>
-                <h4 className="type-h3 mb-1">No views yet</h4>
-                <p className="text-slate-500 text-sm">Create a listing to see analytics and insights.</p>
-              </div>
-            )}
-
-            <div className="flex justify-between items-end border-t border-border pt-4 px-2">
-              {displayWeeklyViews.map(d => (
-                <div key={d.day} className="flex flex-col items-center gap-1">
-                  <span className="text-xs text-slate-400">{d.day}</span>
-                  <span className="text-sm text-slate-600 font-medium">{d.views}</span>
+                <div className="text-right">
+                  <span className="text-sm font-bold text-slate-900 block">{totalWeeklyViews} this week</span>
+                  <span className="text-xs text-slate-400">{totalAllTimeViews} all time</span>
                 </div>
-              ))}
-            </div>
-          </section>
+              </div>
+
+              {totalWeeklyViews > 0 ? (
+                <div className="h-32 mb-6">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={displayWeeklyViews} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
+                      <XAxis
+                        dataKey="day"
+                        tick={({ x, y, payload }) => {
+                          const item = displayWeeklyViews.find(d => d.day === payload.value);
+                          const isToday = item?.isToday;
+                          return (
+                            <text
+                              x={x}
+                              y={y + 12}
+                              textAnchor="middle"
+                              fill={isToday ? '#f05a28' : '#64748b'}
+                              fontWeight={isToday ? 700 : 400}
+                              fontSize={11}
+                            >
+                              {isToday ? 'Today' : payload.value}
+                            </text>
+                          );
+                        }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        contentStyle={{ fontSize: 12, borderRadius: 12, border: '1px solid #f1f5f9', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
+                        formatter={(v: number) => [v, 'Views']}
+                        labelFormatter={(label, payload) => {
+                          const item = payload?.[0]?.payload as WeeklyViewItem;
+                          return item ? `${item.day} (${item.date})${item.isToday ? ' - Today' : ''}` : label;
+                        }}
+                      />
+                      <Bar dataKey="views" radius={[6, 6, 0, 0]}>
+                        {displayWeeklyViews.map((d, i) => (
+                          <Cell
+                            key={d.date || i}
+                            fill={d.isToday ? '#f05a28' : d.views > 0 ? '#fb923c' : '#ffebd9'}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center text-center mb-6">
+                  <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-3">
+                    <TrendingUp className="w-5 h-5" />
+                  </div>
+                  <h4 className="font-semibold text-slate-800 text-sm mb-1">No views yet this week</h4>
+                  <p className="text-slate-400 text-xs max-w-[240px]">
+                    Share your listing or complete verification to boost your search presence.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-between items-end border-t border-border pt-4 px-2">
+                {displayWeeklyViews.map(d => (
+                  <div key={d.date} className="flex flex-col items-center gap-1">
+                    <span className={`text-xs ${d.isToday ? 'font-bold text-brand-orange' : 'text-slate-400'}`}>
+                      {d.isToday ? 'Today' : d.day}
+                    </span>
+                    <span className={`text-sm font-medium ${d.isToday ? 'font-bold text-brand-orange' : 'text-slate-600'}`}>
+                      {d.views}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Quick Actions (Desktop) */}
           <section className="bg-white rounded-2xl p-6 shadow-sm border border-border">
@@ -873,8 +1277,195 @@ export default function OwnerDashboard() {
       {/* 2. MOBILE VIEW (Visible ONLY on mobile/tablet screens: lg:hidden) */}
       {/* ========================================================================= */}
       <div className="flex lg:hidden flex-col gap-4 w-full">
-        {/* Listing Selector Bar (Mobile) */}
-        {allListings.length > 0 && (
+
+        {/* ========================================================================= */}
+        {/* A. OVERVIEW SECTION (Mobile): Shown ONLY on Dashboard tab */}
+        {/* ========================================================================= */}
+        {activeTab === 'overview' && (
+          <div id="overview-section-mobile" className="flex flex-col gap-4">
+            {/* 4 KPI Summary Cards (Mobile) */}
+            <div className="grid grid-cols-2 gap-3">
+              <div
+                onClick={() => navigate('/owner-dashboard?tab=listings')}
+                className="bg-white rounded-2xl p-4 border border-border shadow-xs hover:border-brand-orange/40 transition-all cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase">Properties</span>
+                  <Building2 className="w-4 h-4 text-brand-orange" />
+                </div>
+                <p className="text-xl font-black text-slate-900">{allListings.length}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{allListings.filter(l => l.status === 'active').length} Active</p>
+              </div>
+
+              <div
+                onClick={() => navigate('/owner-dashboard?tab=applicants')}
+                className={`bg-white rounded-2xl p-4 border shadow-xs hover:border-brand-orange/40 transition-all cursor-pointer ${
+                  pendingApplicants.length > 0 ? 'border-brand-orange/40 bg-orange-50/20' : 'border-border'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase">Requests</span>
+                  <Users className={`w-4 h-4 ${pendingApplicants.length > 0 ? 'text-brand-orange' : 'text-slate-400'}`} />
+                </div>
+                <p className="text-xl font-black text-slate-900">{pendingApplicants.length}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{pendingApplicants.length > 0 ? 'Action needed' : 'All clear'}</p>
+              </div>
+
+              <div
+                onClick={() => navigate('/chat')}
+                className="bg-white rounded-2xl p-4 border border-border shadow-xs hover:border-brand-orange/40 transition-all cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase">Messages</span>
+                  <MessageCircle className="w-4 h-4 text-teal-600" />
+                </div>
+                <p className="text-xl font-black text-slate-900">{chatCount}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Conversations</p>
+              </div>
+
+              <div
+                onClick={() => navigate('/owner-dashboard?tab=listings')}
+                className="bg-white rounded-2xl p-4 border border-border shadow-xs hover:border-brand-orange/40 transition-all cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase">Views</span>
+                  <TrendingUp className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <p className="text-xl font-black text-slate-900">{totalWeeklyViews}</p>
+                  <span className="text-[10px] text-slate-400 font-medium">this week</span>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-0.5">{totalAllTimeViews} all time</p>
+              </div>
+            </div>
+
+            {/* Verification Gate Banner (Mobile) */}
+            {myListing && (myListing.status === 'pending_verification' || myListing.ownerVerified === false) && ownerVerification?.status !== 'APPROVED' && (
+              <OwnerVerificationGate listingTitle={myListing.title} />
+            )}
+
+            {/* Urgent Requests / Action Center (Mobile) */}
+            {pendingApplicants.length > 0 ? (
+              <section className="bg-white rounded-2xl p-4 shadow-sm border border-brand-orange/30">
+                <div className="flex justify-between items-center mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-2 w-2 rounded-full bg-brand-orange animate-pulse" />
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Requests Waiting ({pendingApplicants.length})
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => navigate('/owner-dashboard?tab=applicants')}
+                    className="text-xs font-bold text-brand-orange flex items-center gap-0.5"
+                  >
+                    View all <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {rankedApplicants.slice(0, 2).map(applicant => {
+                    const p = applicant.profile;
+                    return (
+                      <div
+                        key={applicant.connection.id}
+                        className="flex items-center justify-between gap-3 p-3 rounded-xl border border-border bg-slate-50/60"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <UserAvatar src={p.avatar} name={p.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-slate-900 text-xs truncate">{p.name}</h4>
+                            <p className="text-[10px] text-slate-500 truncate">{applicant.fit.score}% match · ₹{p.budget?.toLocaleString() || 'Flex'}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleAccept(applicant)}
+                          disabled={!!processingApplicantId}
+                          className="px-3 py-1.5 bg-brand-orange text-white rounded-lg text-xs font-bold hover:bg-orange-600 transition-all flex items-center gap-1 shrink-0"
+                        >
+                          <Check className="w-3 h-3" /> Accept
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : (
+              <div className="bg-emerald-50/80 rounded-2xl p-4 border border-emerald-200 flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <div>
+                  <h4 className="font-bold text-slate-900 text-xs">Everything is running smoothly</h4>
+                  <p className="text-[11px] text-slate-600">No pending roommate requests right now.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Properties Summary (Mobile) */}
+            <section className="bg-white rounded-2xl p-4 shadow-sm border border-border">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-sm font-bold text-slate-900">Your Properties ({allListings.length})</h3>
+                <button
+                  onClick={() => navigate('/owner-dashboard?tab=listings')}
+                  className="text-xs font-bold text-brand-orange flex items-center gap-0.5"
+                >
+                  Manage <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {allListings.length > 0 ? (
+                <div className="space-y-3">
+                  {allListings.map(listing => (
+                    <div
+                      key={listing.id}
+                      className="p-3 rounded-xl border border-border bg-slate-50/50 flex items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-200 shrink-0">
+                          {listing.images && listing.images.length > 0 ? (
+                            <img src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-brand-navy flex items-center justify-center text-white text-[10px] font-bold">
+                              NestMate
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-slate-900 text-xs truncate">{listing.title || `${listing.locality} Flat`}</h4>
+                          <p className="text-[11px] text-slate-500 truncate">{listing.locality} · ₹{listing.totalRent?.toLocaleString()}/mo</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          handleSelectListing(listing);
+                          navigate('/owner-dashboard?tab=listings');
+                        }}
+                        className="px-2.5 py-1 bg-brand-navy text-white rounded-lg text-[11px] font-bold shrink-0"
+                      >
+                        Manage
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-xs text-slate-500 mb-2">No properties listed yet.</p>
+                  <button
+                    onClick={() => navigate('/edit-listing/new')}
+                    className="px-3 py-1.5 bg-brand-orange text-white text-xs font-bold rounded-lg"
+                  >
+                    + Add Property
+                  </button>
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* B. LISTINGS MANAGEMENT SECTION (Mobile): Shown ONLY on Listings tab */}
+        {/* ========================================================================= */}
+        {activeTab === 'listings' && (
+          <div id="listings-section-mobile" className="flex flex-col gap-4">
+            {/* Listing Selector Bar (Mobile) */}
+            {allListings.length > 0 && (
           <div className="flex flex-col items-start justify-between gap-3 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
             <div className="w-full">
               <div className="flex items-center justify-between gap-2 mb-2">
@@ -1027,7 +1618,7 @@ export default function OwnerDashboard() {
                   <p className="text-[9px] text-gray-300 font-medium uppercase">Chats</p>
                 </div>
                 <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-lg p-2 text-center">
-                  <p className="text-lg font-bold">{totalWeeklyViews}</p>
+                  <p className="text-lg font-bold">{selectedListingWeeklyViews}</p>
                   <p className="text-[9px] text-gray-300 font-medium uppercase">Week</p>
                 </div>
               </div>
@@ -1052,22 +1643,29 @@ export default function OwnerDashboard() {
             </div>
           </section>
         )}
+          </div>
+        )}
 
-        {/* Pending Requests Card (Mobile) */}
-        <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-brand-lightOrange rounded-xl flex items-center justify-center text-brand-orange">
-                <Users className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="font-bold text-lg text-ink">Pending Requests ({pendingApplicants.length})</h2>
-                <p className="text-[11px] text-gray-400">Sorted by compatibility — reasons shown on each request.</p>
-              </div>
-            </div>
+        {/* ========================================================================= */}
+        {/* C. APPLICANTS SECTION (Mobile): Shown ONLY on Applicants tab */}
+        {/* ========================================================================= */}
+        {activeTab === 'applicants' && (
+          <div id="applicants-section-mobile" className="flex flex-col gap-4">
+            {/* Pending Requests Card (Mobile) */}
+            <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-brand-lightOrange rounded-xl flex items-center justify-center text-brand-orange">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-lg text-ink">Pending Requests ({pendingApplicants.length})</h2>
+                    <p className="text-[11px] text-gray-400">Sorted by compatibility — reasons shown on each request.</p>
+                  </div>
+                </div>
             <button
-              onClick={() => navigate('/notifications')}
-              className="text-brand-orange text-sm font-medium flex items-center gap-1 hover:underline"
+              onClick={() => navigate('/owner-dashboard?tab=applicants')}
+              className="text-brand-orange text-sm font-medium flex items-center gap-1 hover:underline cursor-pointer"
             >
               View all
               <ChevronRight className="w-4 h-4" />
@@ -1206,40 +1804,51 @@ export default function OwnerDashboard() {
             </div>
           )}
         </section>
+          </div>
+        )}
 
         {/* Weekly Views Analytics Card (Mobile) */}
-        <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              {/* Sprint 6A: off-palette purple replaced with brand tokens */}
-              <div className="w-10 h-10 bg-brand-lightOrange rounded-xl flex items-center justify-center text-brand-orange">
-                <TrendingUp className="w-5 h-5" />
-              </div>
-              <h2 className="font-bold text-lg text-ink">Weekly Views</h2>
-            </div>
-            <span className="text-sm text-gray-500">{totalWeeklyViews} total</span>
-          </div>
-
-          {/* Sprint 6A truth fix: this copy previously rendered unconditionally,
-              even for owners with an active listing and recorded views */}
-          {totalWeeklyViews === 0 && (
-            <p className="text-sm text-center text-gray-500 mb-6">No views recorded yet this week.</p>
-          )}
-
-          <div className="flex justify-between items-end border-t border-gray-50 pt-4 px-2">
-            {displayWeeklyViews.map((d, index) => (
-              <div key={d.day} className="contents">
-                <div className="flex flex-col items-center gap-2">
-                  <span className="text-xs text-gray-500">{d.day}</span>
-                  <span className="text-sm font-medium text-ink">{d.views}</span>
+        {(activeTab === 'overview' || activeTab === 'listings') && (
+          <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-brand-lightOrange rounded-xl flex items-center justify-center text-brand-orange">
+                  <TrendingUp className="w-5 h-5" />
                 </div>
-                {index < displayWeeklyViews.length - 1 && (
-                  <div className="w-px h-6 bg-gray-200"></div>
-                )}
+                <div>
+                  <h2 className="font-bold text-lg text-ink leading-tight">Weekly Views</h2>
+                  <span className="text-xs text-gray-400">Last 7 days</span>
+                </div>
               </div>
-            ))}
-          </div>
-        </section>
+              <div className="text-right">
+                <span className="text-sm font-bold text-ink block">{totalWeeklyViews} this week</span>
+                <span className="text-xs text-gray-400">{totalAllTimeViews} all time</span>
+              </div>
+            </div>
+
+            {totalWeeklyViews === 0 && (
+              <p className="text-sm text-center text-gray-500 mb-6">No views recorded yet this week.</p>
+            )}
+
+            <div className="flex justify-between items-end border-t border-gray-50 pt-4 px-2">
+              {displayWeeklyViews.map((d, index) => (
+                <div key={d.date || d.day} className="contents">
+                  <div className="flex flex-col items-center gap-2">
+                    <span className={`text-xs ${d.isToday ? 'font-bold text-brand-orange' : 'text-gray-500'}`}>
+                      {d.isToday ? 'Today' : d.day}
+                    </span>
+                    <span className={`text-sm font-medium ${d.isToday ? 'font-bold text-brand-orange' : 'text-ink'}`}>
+                      {d.views}
+                    </span>
+                  </div>
+                  {index < displayWeeklyViews.length - 1 && (
+                    <div className="w-px h-6 bg-gray-200"></div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Quick Actions List (Mobile) */}
         <section>

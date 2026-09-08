@@ -201,7 +201,7 @@ export default function SeekerOnboarding() {
         budget: safeBudget,
         moveInDate: moveIn || '',
         quizAnswers: effectiveQuizAnswers,
-        onboardingComplete: false,
+        onboardingComplete: true,
         role: 'seeker',
         ...(resolvedGeo && { geoLocation: { lat: resolvedGeo.lat, lng: resolvedGeo.lng, formattedAddress: `${localities?.[0] || city}, ${city}` } }),
       });

@@ -15,6 +15,7 @@ interface Metrics {
   dailySignups: { date: string; count: number }[];
   seekers: number;
   owners: number;
+  pendingVerifications?: number;
 }
 
 export default function AdminDashboard() {
@@ -132,10 +133,21 @@ export default function AdminDashboard() {
           <p className="text-sm font-semibold text-gray-700 group-hover:text-fire transition-colors">View Reports</p>
           <p className="text-xs text-gray-400">Review pending reports</p>
         </Link>
-        <Link to="/admin/verifications" className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:border-fire/30 transition-all group">
-          <ShieldCheck className="w-5 h-5 text-teal-500 mb-2" />
+        <Link to="/admin/verifications" className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:border-fire/30 transition-all group relative">
+          <div className="flex items-center justify-between mb-2">
+            <ShieldCheck className="w-5 h-5 text-teal-500" />
+            {(metrics.pendingVerifications ?? 0) > 0 && (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 animate-pulse">
+                {metrics.pendingVerifications} Pending
+              </span>
+            )}
+          </div>
           <p className="text-sm font-semibold text-gray-700 group-hover:text-fire transition-colors">Verifications</p>
-          <p className="text-xs text-gray-400">Review pending verifications</p>
+          <p className="text-xs text-gray-400">
+            {(metrics.pendingVerifications ?? 0) > 0
+              ? `${metrics.pendingVerifications} document(s) waiting for review`
+              : 'All verifications reviewed'}
+          </p>
         </Link>
         <Link to="/admin/users" className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:border-fire/30 transition-all group">
           <Users className="w-5 h-5 text-blue-500 mb-2" />
