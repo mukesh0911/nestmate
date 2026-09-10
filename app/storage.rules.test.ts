@@ -24,7 +24,7 @@ import { resolve } from 'node:path';
 const runStorage = process.env.RUN_STORAGE_RULES_TESTS === '1';
 const d = runStorage ? describe : describe.skip;
 
-const PROJECT_ID = 'rules-test-nestmate';
+const PROJECT_ID = process.env.GCLOUD_PROJECT || 'demo-nestmate';
 // The Storage emulator derives the default bucket from the projectId.
 const BUCKET = `${PROJECT_ID}.appspot.com`;
 const RULES_PATH = resolve(__dirname, 'storage.rules');
@@ -46,14 +46,23 @@ const TEXT_BYTES = new Uint8Array([0x68, 0x65, 0x6c, 0x6c, 0x6f]); // "hello"
 
 d('Firebase Storage security rules (emulator)', () => {
     beforeAll(async () => {
+        const hostAndPort = process.env.FIREBASE_STORAGE_EMULATOR_HOST || '127.0.0.1:9199';
+        const [host, portStr] = hostAndPort.split(':');
+        const port = Number(portStr || 9199);
         env = await initializeTestEnvironment({
             projectId: PROJECT_ID,
-            storage: { rules: readFileSync(RULES_PATH, 'utf8') },
+            storage: {
+                host,
+                port,
+                rules: readFileSync(RULES_PATH, 'utf8'),
+            },
         });
     });
 
     afterAll(async () => {
-        await env.cleanup();
+        if (env) {
+            await env.cleanup();
+        }
     });
 
     // A. Unauthenticated access

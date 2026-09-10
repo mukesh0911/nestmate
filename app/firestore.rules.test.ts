@@ -39,7 +39,7 @@ import { resolve } from 'node:path';
 const runRules = process.env.RUN_RULES_TESTS === '1';
 const d = runRules ? describe : describe.skip;
 
-const PROJECT_ID = 'rules-test-nestmate';
+const PROJECT_ID = process.env.GCLOUD_PROJECT || 'demo-nestmate';
 const RULES_PATH = resolve(__dirname, 'firestore.rules');
 
 const ADMIN_EMAIL = 'admin@nestmate.test';
@@ -64,9 +64,9 @@ function fsOf(raw: ReturnType<RulesTestEnvironment['authenticatedContext']> exte
  * Needed because the admins registry cannot bootstrap itself through the
  * rules (chicken-and-egg).
  */
-async function seedDisabled(fn: (db: Firestore) => Promise<void>): Promise<void> {
-    await env.withSecurityRulesDisabled(async (ctx) => {
-        await fn(fsOf(ctx));
+async function seedDisabled<T = void>(fn: (db: Firestore) => Promise<T>): Promise<T> {
+    return await env.withSecurityRulesDisabled(async (ctx) => {
+        return await fn(fsOf(ctx));
     });
 }
 
@@ -105,15 +105,24 @@ async function seed() {
 
 d('Firestore security rules (emulator)', () => {
     beforeAll(async () => {
+        const hostAndPort = process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080';
+        const [host, portStr] = hostAndPort.split(':');
+        const port = Number(portStr || 8080);
         env = await initializeTestEnvironment({
             projectId: PROJECT_ID,
-            firestore: { rules: readFileSync(RULES_PATH, 'utf8') },
+            firestore: {
+                host,
+                port,
+                rules: readFileSync(RULES_PATH, 'utf8'),
+            },
         });
         await seed();
     });
 
     afterAll(async () => {
-        await env.cleanup();
+        if (env) {
+            await env.cleanup();
+        }
     });
 
     // ── Connections ────────────────────────────────────────────────
