@@ -4,8 +4,14 @@ import type { UserProfile } from '@/hooks/useAuth';
 import { getDoc, doc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
-import { Search, Loader2, X, CheckCircle, Shield, Ban, AlertTriangle, Flag } from 'lucide-react';
+import {
+  Search, Loader2, X, CheckCircle, Shield, Ban, AlertTriangle,
+  Flag, ChevronLeft, ChevronRight, ExternalLink, ShieldAlert
+} from 'lucide-react';
 import type { Timestamp } from 'firebase/firestore';
+import { Link } from 'react-router-dom';
+
+const PAGE_SIZE = 20;
 
 interface Report {
   id: string;
@@ -24,7 +30,7 @@ const REASON_LABELS: Record<string, string> = {
   spam: 'Spam',
   inappropriate_content: 'Inappropriate Content',
   misleading_listing: 'Misleading Listing',
-  other: 'Other',
+  other: 'Other Violation',
 };
 
 function formatDate(ts: Timestamp | string | Date | undefined): string {
@@ -42,9 +48,12 @@ function formatDate(ts: Timestamp | string | Date | undefined): string {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const cls = status === 'open' ? 'bg-red-500 text-white' : status === 'under_review' ? 'bg-amber-100 text-amber-800' : 'bg-green-500 text-white';
+  const cls =
+    status === 'open' ? 'bg-red-50 text-red-700 border border-red-200' :
+    status === 'under_review' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+    'bg-emerald-50 text-emerald-700 border border-emerald-200';
   const label = status === 'under_review' ? 'Under Review' : status.charAt(0).toUpperCase() + status.slice(1);
-  return <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${cls}`}>{label}</span>;
+  return <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${cls}`}>{label}</span>;
 }
 
 export default function AdminReports() {
@@ -55,6 +64,7 @@ export default function AdminReports() {
   const [search, setSearch] = useState('');
   const [reasonFilter, setReasonFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
 
   // Profile cache for reporter/reported names
   const [profiles, setProfiles] = useState<Record<string, UserProfile>>({});
@@ -67,32 +77,58 @@ export default function AdminReports() {
   const [actionLoading, setActionLoading] = useState(false);
 
   // Load reports
+  const fetchReports = async () => {
+    try {
+      const r = await getAllReports();
+      setReports(r as Report[]);
+    } catch {
+      toast.error('Failed to load reports');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    getAllReports()
-      .then(r => { setReports(r as Report[]); setLoading(false); })
-      .catch(() => setLoading(false));
+    fetchReports();
   }, [getAllReports]);
 
-  // Fetch profiles for all unique user IDs
+  // Parallel fetch profiles for missing unique user IDs
   useEffect(() => {
     if (reports.length === 0) return;
     const ids = new Set<string>();
-    reports.forEach(r => { ids.add(r.reporterId); ids.add(r.reportedUserId); });
+    reports.forEach(r => {
+      if (r.reporterId) ids.add(r.reporterId);
+      if (r.reportedUserId) ids.add(r.reportedUserId);
+    });
 
-    const fetchMissing = async () => {
-      const newProfiles = { ...profiles };
-      let changed = false;
-      for (const uid of ids) {
-        if (!newProfiles[uid]) {
+    const missingIds = Array.from(ids).filter(uid => !profiles[uid]);
+    if (missingIds.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.all(
+        missingIds.map(async uid => {
           try {
             const snap = await getDoc(doc(db, 'users', uid));
-            if (snap.exists()) { newProfiles[uid] = snap.data() as UserProfile; changed = true; }
-          } catch { /* skip */ }
-        }
+            return { uid, data: snap.exists() ? (snap.data() as UserProfile) : null };
+          } catch {
+            return { uid, data: null };
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setProfiles(prev => {
+          const next = { ...prev };
+          results.forEach(r => {
+            if (r.data) next[r.uid] = r.data;
+          });
+          return next;
+        });
       }
-      if (changed) setProfiles(newProfiles);
-    };
-    fetchMissing();
+    })();
+
+    return () => { cancelled = true; };
   }, [reports]);
 
   // Filtered + searched
@@ -100,41 +136,70 @@ export default function AdminReports() {
     let result = reports;
     if (reasonFilter !== 'all') result = result.filter(r => r.reason === reasonFilter);
     if (statusFilter !== 'all') result = result.filter(r => r.status === statusFilter);
-    if (search) {
-      const s = search.toLowerCase();
+    if (search.trim()) {
+      const s = search.toLowerCase().trim();
       result = result.filter(r => {
         const reporter = profiles[r.reporterId];
         const reported = profiles[r.reportedUserId];
-        return reporter?.name?.toLowerCase().includes(s) || reported?.name?.toLowerCase().includes(s) ||
-          reporter?.email?.toLowerCase().includes(s) || reported?.email?.toLowerCase().includes(s);
+        return (
+          reporter?.name?.toLowerCase().includes(s) ||
+          reported?.name?.toLowerCase().includes(s) ||
+          reporter?.email?.toLowerCase().includes(s) ||
+          reported?.email?.toLowerCase().includes(s) ||
+          r.details?.toLowerCase().includes(s)
+        );
       });
     }
     return result;
   }, [reports, reasonFilter, statusFilter, search, profiles]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, reasonFilter, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pagedReports = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   // Actions
   const handleMarkReviewed = async (id: string) => {
-    try { await updateReportStatus(id, 'under_review'); setReports(prev => prev.map(r => r.id === id ? { ...r, status: 'under_review' as const } : r)); toast.success('Marked as under review'); }
-    catch { toast.error('Failed'); }
+    try {
+      await updateReportStatus(id, 'under_review');
+      setReports(prev => prev.map(r => r.id === id ? { ...r, status: 'under_review' as const } : r));
+      if (selected?.id === id) setSelected(prev => prev ? { ...prev, status: 'under_review' } : null);
+      toast.success('Marked as under review');
+    } catch {
+      toast.error('Failed to update status');
+    }
   };
 
   const handleDismiss = async (id: string) => {
-    try { await updateReportStatus(id, 'resolved'); setReports(prev => prev.map(r => r.id === id ? { ...r, status: 'resolved' as const } : r)); setSelected(null); toast.success('Report dismissed'); }
-    catch { toast.error('Failed'); }
+    try {
+      await updateReportStatus(id, 'resolved');
+      setReports(prev => prev.map(r => r.id === id ? { ...r, status: 'resolved' as const } : r));
+      if (selected?.id === id) setSelected(null);
+      toast.success('Report resolved and closed');
+    } catch {
+      toast.error('Failed to resolve report');
+    }
   };
 
   const handleWarn = async (report: Report) => {
     try {
       await addDoc(collection(db, 'notifications'), {
-        userId: report.reportedUserId, type: 'system',
-        title: 'Community Warning',
-        description: `You have received a warning for ${REASON_LABELS[report.reason] || report.reason}. Please review our community guidelines.`,
-        read: false, createdAt: serverTimestamp(),
+        userId: report.reportedUserId,
+        type: 'system',
+        title: 'Community Guidelines Warning',
+        description: `Your account received a moderation flag for ${REASON_LABELS[report.reason] || report.reason}. Please maintain respectful communication and adhere to community policies.`,
+        read: false,
+        createdAt: serverTimestamp(),
       });
-      toast.success('Warning sent to user');
-    } catch { toast.error('Failed to send warning'); }
+      toast.success('Official warning dispatched to user');
+    } catch {
+      toast.error('Failed to send warning');
+    }
   };
 
+  // Fixed auto-resolve on ban/suspend
   const handleConfirmAction = async () => {
     if (!confirmAction) return;
     setActionLoading(true);
@@ -143,212 +208,340 @@ export default function AdminReports() {
       else await banUser(confirmAction.userId);
 
       await addDoc(collection(db, 'notifications'), {
-        userId: confirmAction.userId, type: 'system',
+        userId: confirmAction.userId,
+        type: 'system',
         title: confirmAction.type === 'suspend' ? 'Account Suspended' : 'Account Banned',
         description: confirmAction.type === 'suspend'
-          ? 'Your account has been suspended due to reports. Contact support for assistance.'
-          : 'Your account has been permanently banned due to policy violations.',
-        read: false, createdAt: serverTimestamp(),
+          ? 'Your account has been suspended following community moderation review. Contact support for appeals.'
+          : 'Your account has been permanently terminated due to policy violations.',
+        read: false,
+        createdAt: serverTimestamp(),
       });
 
-      toast.success(`User ${confirmAction.type === 'suspend' ? 'suspended' : 'banned'}`);
+      // Auto-resolve report upon taking action
+      if (selected) {
+        await updateReportStatus(selected.id, 'resolved');
+        setReports(prev => prev.map(r => r.id === selected.id ? { ...r, status: 'resolved' as const } : r));
+      }
+
+      toast.success(`User ${confirmAction.type === 'suspend' ? 'suspended' : 'banned'} & report resolved`);
       setConfirmAction(null);
       setSelected(null);
-    } catch { toast.error('Action failed'); }
-    finally { setActionLoading(false); }
+    } catch {
+      toast.error('Action failed');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const getName = (uid: string) => profiles[uid]?.name || uid.slice(0, 8) + '...';
+  const getName = (uid: string) => profiles[uid]?.name || (uid ? uid.slice(0, 8) + '...' : 'Unknown');
   const getAvatar = (uid: string) => profiles[uid]?.avatar || '';
   const getEmail = (uid: string) => profiles[uid]?.email || '';
 
-  if (loading) return <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 text-fire animate-spin" /></div>;
+  // Repeat offender report count
+  const offenderReportCount = useMemo(() => {
+    if (!selected?.reportedUserId) return 0;
+    return reports.filter(r => r.reportedUserId === selected.reportedUserId).length;
+  }, [reports, selected]);
 
-  // Empty state
-  if (reports.length === 0) {
+  if (loading) {
     return (
-      <div className="space-y-4">
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">User Reports & Moderation</h1>
-          <p className="text-sm text-gray-500">Review user-submitted reports, flags, and account infractions.</p>
-        </div>
-        <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-100 text-center">
-          <CheckCircle className="w-14 h-14 text-green-300 mx-auto mb-4" />
-          <h2 className="text-lg font-semibold text-gray-700 mb-2">No reports filed</h2>
-          <p className="text-sm text-gray-400">Users can report profiles, listings, or messages from the app</p>
-        </div>
+      <div className="flex flex-col items-center justify-center py-32 gap-3">
+        <Loader2 className="w-8 h-8 text-fire animate-spin" />
+        <p className="text-sm text-slate-400">Loading moderation reports...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold text-gray-900">User Reports & Moderation</h1>
-        <p className="text-sm text-gray-500">Review user-submitted reports, flags, and account infractions.</p>
-      </div>
-      {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search reporter or reported user..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-fire" />
+    <div className="space-y-5">
+      {/* Header & Controls */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">User Reports & Moderation</h2>
+            <p className="text-xs text-slate-500">Review user-submitted incident reports, misconduct flags, and policy violations.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-red-700 bg-red-50 border border-red-200/60 px-3 py-1.5 rounded-xl">
+              {reports.filter(r => r.status === 'open').length} Open Reports
+            </span>
+          </div>
         </div>
-        <select value={reasonFilter} onChange={e => setReasonFilter(e.target.value)}
-          className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none">
-          <option value="all">All Reasons</option>
-          {Object.entries(REASON_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none">
-          <option value="all">All Status</option>
-          <option value="open">Open</option>
-          <option value="under_review">Under Review</option>
-          <option value="resolved">Resolved</option>
-        </select>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {/* Search bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search reporter, reported user, or details..."
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-fire transition-colors"
+            />
+          </div>
+
+          {/* Reason Filter */}
+          <select
+            value={reasonFilter}
+            onChange={e => setReasonFilter(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 outline-none focus:border-fire">
+            <option value="all">All Violation Types</option>
+            {Object.entries(REASON_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+
+          {/* Status Filter */}
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 outline-none focus:border-fire">
+            <option value="all">All Statuses</option>
+            <option value="open">Open (Urgent)</option>
+            <option value="under_review">Under Review</option>
+            <option value="resolved">Resolved / Closed</option>
+          </select>
+        </div>
       </div>
 
-      <p className="text-xs text-gray-500">{filtered.length} reports found</p>
-
-      {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      {/* Reports Table */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50/80 border-b border-slate-200/80 text-slate-500 font-bold uppercase tracking-wider">
               <tr>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Reporter</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Reported User</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden md:table-cell">Reason</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Date</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                <th className="px-4 py-3.5">Reported User</th>
+                <th className="px-4 py-3.5 hidden sm:table-cell">Reporter</th>
+                <th className="px-4 py-3.5">Reason</th>
+                <th className="px-4 py-3.5 hidden md:table-cell">Filed Date</th>
+                <th className="px-4 py-3.5">Status</th>
+                <th className="px-4 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.slice(0, 50).map(report => (
-                <tr key={report.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => setSelected(report)}>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500 shrink-0 overflow-hidden">
-                        {getAvatar(report.reporterId) ? <img src={getAvatar(report.reporterId)} className="w-full h-full object-cover" alt="" /> : getName(report.reporterId).charAt(0)}
-                      </div>
-                      <span className="text-gray-700 truncate max-w-[100px]">{getName(report.reporterId)}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500 shrink-0 overflow-hidden">
-                        {getAvatar(report.reportedUserId) ? <img src={getAvatar(report.reportedUserId)} className="w-full h-full object-cover" alt="" /> : getName(report.reportedUserId).charAt(0)}
-                      </div>
-                      <span className="text-gray-700 truncate max-w-[100px]">{getName(report.reportedUserId)}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-gray-500 hidden md:table-cell">{REASON_LABELS[report.reason] || report.reason}</td>
-                  <td className="px-4 py-3 text-gray-500 hidden sm:table-cell text-xs">{formatDate(report.createdAt)}</td>
-                  <td className="px-4 py-3"><StatusBadge status={report.status} /></td>
-                  <td className="px-4 py-3">
-                    <button onClick={e => { e.stopPropagation(); setSelected(report); }} className="text-xs text-fire font-medium hover:underline">View</button>
+            <tbody className="divide-y divide-slate-100">
+              {pagedReports.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-slate-400">
+                    <CheckCircle className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+                    No reports match the selected filters.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                pagedReports.map(report => (
+                  <tr
+                    key={report.id}
+                    className="hover:bg-slate-50/70 transition-colors cursor-pointer"
+                    onClick={() => setSelected(report)}>
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-red-50 text-red-700 border border-red-200 flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden">
+                          {getAvatar(report.reportedUserId) ? (
+                            <img src={getAvatar(report.reportedUserId)} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            getName(report.reportedUserId).charAt(0)
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 truncate max-w-[130px]">{getName(report.reportedUserId)}</p>
+                          <p className="text-[10px] text-slate-400 truncate max-w-[130px]">{getEmail(report.reportedUserId)}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 hidden sm:table-cell text-slate-600">
+                      <p className="font-medium truncate max-w-[130px]">{getName(report.reporterId)}</p>
+                      <p className="text-[10px] text-slate-400 truncate max-w-[130px]">{getEmail(report.reporterId)}</p>
+                    </td>
+                    <td className="px-4 py-3.5 font-semibold text-slate-800">
+                      {REASON_LABELS[report.reason] || report.reason}
+                    </td>
+                    <td className="px-4 py-3.5 text-slate-500 hidden md:table-cell font-medium">
+                      {formatDate(report.createdAt)}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <StatusBadge status={report.status} />
+                    </td>
+                    <td className="px-4 py-3.5 text-right" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => setSelected(report)}
+                        className="text-xs text-fire font-semibold hover:text-orange-700 px-2 py-1">
+                        Inspect
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Bar */}
+        {totalPages > 1 && (
+          <div className="px-5 py-3.5 bg-slate-50/70 border-t border-slate-200/80 flex items-center justify-between">
+            <p className="text-xs text-slate-500 font-medium">
+              Showing <span className="font-bold text-slate-800">{(page - 1) * PAGE_SIZE + 1}</span> to{' '}
+              <span className="font-bold text-slate-800">{Math.min(page * PAGE_SIZE, filtered.length)}</span> of{' '}
+              <span className="font-bold text-slate-800">{filtered.length}</span> reports
+            </p>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition-colors">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-xs font-bold text-slate-700 px-3">
+                {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition-colors">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Detail Slide-out */}
+      {/* Detail Slide-out Drawer */}
       {selected && (
         <div className="fixed inset-0 z-50 flex justify-end" onClick={() => setSelected(null)}>
-          <div className="absolute inset-0 bg-black/30" />
-          <div className="relative w-full max-w-md bg-white shadow-2xl h-full overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
-              <h3 className="font-semibold flex items-center gap-2"><Flag className="w-4 h-4 text-red-400" /> Report Detail</h3>
-              <button onClick={() => setSelected(null)} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" />
+          <div
+            className="relative w-full max-w-md bg-white shadow-2xl h-full overflow-y-auto flex flex-col"
+            onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex items-center justify-between z-10">
+              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <Flag className="w-4 h-4 text-red-500" /> Moderation Incident File
+              </h3>
+              <button
+                onClick={() => setSelected(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <div className="p-6 space-y-6">
-              {/* Reporter */}
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Reporter</p>
-                <div className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
-                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-500 overflow-hidden shrink-0">
-                    {getAvatar(selected.reporterId) ? <img src={getAvatar(selected.reporterId)} className="w-full h-full object-cover" alt="" /> : getName(selected.reporterId).charAt(0)}
-                  </div>
+            <div className="p-6 space-y-5 flex-1">
+              {/* Repeat offender alert */}
+              {offenderReportCount > 1 && (
+                <div className="p-3.5 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-3">
+                  <ShieldAlert className="w-5 h-5 text-red-600 shrink-0" />
                   <div>
-                    <p className="text-sm font-medium">{getName(selected.reporterId)}</p>
-                    <p className="text-xs text-gray-400">{getEmail(selected.reporterId)}</p>
+                    <p className="text-xs font-bold text-red-900">Repeat Flagged User</p>
+                    <p className="text-[11px] text-red-700 mt-0.5">
+                      {offenderReportCount} reports have been registered against this user account.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Reported User Card */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Reported User</p>
+                  <Link
+                    to={`/admin/users?search=${encodeURIComponent(getName(selected.reportedUserId))}`}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-fire hover:underline">
+                    <span>Inspect Account</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </Link>
+                </div>
+                <div className="flex items-center gap-3 bg-red-50/50 rounded-2xl p-3.5 border border-red-100">
+                  <div className="w-11 h-11 rounded-full bg-red-100 flex items-center justify-center text-sm font-bold text-red-600 shrink-0 overflow-hidden">
+                    {getAvatar(selected.reportedUserId) ? (
+                      <img src={getAvatar(selected.reportedUserId)} className="w-full h-full object-cover" alt="" />
+                    ) : (
+                      getName(selected.reportedUserId).charAt(0)
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900 truncate">{getName(selected.reportedUserId)}</p>
+                    <p className="text-xs text-slate-500 truncate">{getEmail(selected.reportedUserId) || 'No email'}</p>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">UID: {selected.reportedUserId}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Reported User */}
+              {/* Reporter Card */}
               <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Reported User</p>
-                <div className="flex items-center gap-3 bg-red-50 rounded-xl p-3 border border-red-100">
-                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-500 overflow-hidden shrink-0">
-                    {getAvatar(selected.reportedUserId) ? <img src={getAvatar(selected.reportedUserId)} className="w-full h-full object-cover" alt="" /> : getName(selected.reportedUserId).charAt(0)}
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Reporting Party</p>
+                <div className="flex items-center gap-3 bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+                  <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0 overflow-hidden">
+                    {getAvatar(selected.reporterId) ? (
+                      <img src={getAvatar(selected.reporterId)} className="w-full h-full object-cover" alt="" />
+                    ) : (
+                      getName(selected.reporterId).charAt(0)
+                    )}
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">{getName(selected.reportedUserId)}</p>
-                    <p className="text-xs text-gray-400">{getEmail(selected.reportedUserId)}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 truncate">{getName(selected.reporterId)}</p>
+                    <p className="text-xs text-slate-500 truncate">{getEmail(selected.reporterId) || 'No email'}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Reason & Details */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-[10px] text-gray-400 uppercase font-bold">Reason</p>
-                  <p className="text-sm font-semibold text-gray-800 mt-1">{REASON_LABELS[selected.reason] || selected.reason}</p>
+              {/* Infraction Details */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold">Category</p>
+                  <p className="text-xs font-bold text-slate-800 mt-1">{REASON_LABELS[selected.reason] || selected.reason}</p>
                 </div>
-                <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-[10px] text-gray-400 uppercase font-bold">Status</p>
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold">Current Status</p>
                   <div className="mt-1"><StatusBadge status={selected.status} /></div>
                 </div>
               </div>
 
               <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Details</p>
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-sm text-gray-600 leading-relaxed">{selected.details || 'No additional details provided.'}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Submitted Description</p>
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                  <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
+                    {selected.details || 'No additional details provided by reporter.'}
+                  </p>
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-xl p-3">
-                <p className="text-[10px] text-gray-400 uppercase font-bold">Filed On</p>
-                <p className="text-sm font-medium text-gray-800 mt-1">{formatDate(selected.createdAt)}</p>
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                <p className="text-[10px] text-slate-400 uppercase font-bold">Timestamp</p>
+                <p className="text-xs font-semibold text-slate-700 mt-0.5">{formatDate(selected.createdAt)}</p>
               </div>
 
-              {/* Actions */}
-              <div className="space-y-2 pt-4 border-t border-gray-100">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Actions</p>
+              {/* Moderation Actions */}
+              <div className="space-y-2 pt-4 border-t border-slate-200">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Resolution Actions</p>
 
                 {selected.status === 'open' && (
-                  <button onClick={() => handleMarkReviewed(selected.id)}
-                    className="w-full py-2.5 border-2 border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-50 transition-all flex items-center justify-center gap-2">
-                    <Shield className="w-4 h-4" /> Mark as Reviewed
+                  <button
+                    onClick={() => handleMarkReviewed(selected.id)}
+                    className="w-full py-2.5 border border-slate-200 bg-white text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
+                    <Shield className="w-4 h-4" /> Move to Under Review
                   </button>
                 )}
 
-                <button onClick={() => handleWarn(selected)}
-                  className="w-full py-2.5 bg-amber-50 text-amber-700 rounded-xl text-sm font-bold hover:bg-amber-100 transition-all flex items-center justify-center gap-2">
-                  <AlertTriangle className="w-4 h-4" /> Warn User
+                <button
+                  onClick={() => handleWarn(selected)}
+                  className="w-full py-2.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs font-bold hover:bg-amber-100 transition-all flex items-center justify-center gap-2">
+                  <AlertTriangle className="w-4 h-4" /> Dispatch Official Warning Notice
                 </button>
 
-                <button onClick={() => setConfirmAction({ type: 'suspend', userId: selected.reportedUserId, userName: getName(selected.reportedUserId) })}
-                  className="w-full py-2.5 bg-fire/10 text-fire rounded-xl text-sm font-bold hover:bg-fire/20 transition-all flex items-center justify-center gap-2">
-                  <Shield className="w-4 h-4" /> Suspend User
+                <button
+                  onClick={() => setConfirmAction({ type: 'suspend', userId: selected.reportedUserId, userName: getName(selected.reportedUserId) })}
+                  className="w-full py-2.5 bg-orange-50 border border-orange-200 text-fire rounded-xl text-xs font-bold hover:bg-orange-100 transition-all flex items-center justify-center gap-2">
+                  <Shield className="w-4 h-4" /> Suspend Reported Account
                 </button>
 
-                <button onClick={() => setConfirmAction({ type: 'ban', userId: selected.reportedUserId, userName: getName(selected.reportedUserId) })}
-                  className="w-full py-2.5 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-all flex items-center justify-center gap-2">
-                  <Ban className="w-4 h-4" /> Ban User
+                <button
+                  onClick={() => setConfirmAction({ type: 'ban', userId: selected.reportedUserId, userName: getName(selected.reportedUserId) })}
+                  className="w-full py-2.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-bold hover:bg-red-100 transition-all flex items-center justify-center gap-2">
+                  <Ban className="w-4 h-4" /> Permanently Ban Reported User
                 </button>
 
                 {selected.status !== 'resolved' && (
-                  <button onClick={() => handleDismiss(selected.id)}
-                    className="w-full py-2.5 text-gray-400 rounded-xl text-sm font-medium hover:text-gray-600 hover:bg-gray-50 transition-all">
-                    Dismiss Report
+                  <button
+                    onClick={() => handleDismiss(selected.id)}
+                    className="w-full py-2.5 text-slate-500 rounded-xl text-xs font-semibold hover:text-slate-800 hover:bg-slate-100 transition-all">
+                    Resolve / Dismiss without Penalties
                   </button>
                 )}
               </div>
@@ -359,20 +552,30 @@ export default function AdminReports() {
 
       {/* Confirmation Modal */}
       {confirmAction && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmAction(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
-            <h3 className="text-lg font-bold mb-2">Confirm Action</h3>
-            <p className="text-sm text-gray-600 mb-6">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setConfirmAction(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 border border-slate-200">
+            <h3 className="text-base font-bold text-slate-900 mb-2">
+              Confirm {confirmAction.type === 'suspend' ? 'Suspension' : 'Permanent Ban'}
+            </h3>
+            <p className="text-xs text-slate-600 mb-6 leading-relaxed">
               {confirmAction.type === 'suspend'
-                ? `Suspend ${confirmAction.userName}? They will not be able to log in.`
-                : `Permanently ban ${confirmAction.userName}? This cannot be undone.`}
+                ? `Temporarily suspend ${confirmAction.userName}? This will automatically mark this report as resolved and pause user access.`
+                : `Permanently ban ${confirmAction.userName}? This will resolve the report, de-list their properties, and bar login.`}
             </p>
             <div className="flex gap-3">
-              <button onClick={() => setConfirmAction(null)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all">Cancel</button>
-              <button onClick={handleConfirmAction} disabled={actionLoading}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-50 ${confirmAction.type === 'ban' ? 'bg-red-500 hover:bg-red-600' : 'bg-fire hover:bg-fire-dark'}`}>
-                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Confirm'}
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="flex-1 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmAction}
+                disabled={actionLoading}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-bold text-white transition-all disabled:opacity-50 flex items-center justify-center ${
+                  confirmAction.type === 'ban' ? 'bg-red-600 hover:bg-red-700' : 'bg-fire hover:bg-orange-600'
+                }`}>
+                {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Confirm'}
               </button>
             </div>
           </div>

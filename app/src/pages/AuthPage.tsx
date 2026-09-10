@@ -16,13 +16,20 @@ export default function AuthPage() {
     error: authError
   } = useAuth();
 
-  const [authMethod, setAuthMethod] = useState<'phone' | 'email' | 'forgot'>('phone');
+  const redirectParam = new URLSearchParams(location.search).get('redirect') || '';
+  const isAdminRedirect = redirectParam === '/admin' || redirectParam.startsWith('/admin');
+
+  const [authMethod, setAuthMethod] = useState<'phone' | 'email' | 'forgot'>(() => {
+    return isAdminRedirect ? 'email' : 'phone';
+  });
   
   // Phone state
   const [phone, setPhone] = useState((location.state as any)?.phone?.replace('+91', '').trim() || '');
   
-  // Email state
-  const [email, setEmail] = useState('');
+  // Email state - prefill with mukvr46@gmail.com if entering via admin route
+  const [email, setEmail] = useState(() => {
+    return isAdminRedirect ? 'mukvr46@gmail.com' : '';
+  });
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   
@@ -70,7 +77,16 @@ export default function AuthPage() {
     setError('');
     setLoading(true);
     try {
-      const { isNew, role, onboardingComplete } = await signInWithGoogle();
+      const { isNew, role, onboardingComplete, email: signedEmail } = await signInWithGoogle();
+      const isTargetAdmin = isAdminRedirect || (signedEmail && signedEmail.toLowerCase() === 'mukvr46@gmail.com');
+      if (isTargetAdmin) {
+        navigate(redirectParam || '/admin');
+        return;
+      }
+      if (redirectParam && !redirectParam.startsWith('/admin')) {
+        navigate(redirectParam);
+        return;
+      }
       if (isNew || !role) {
         navigate('/role-select');
       } else if (!onboardingComplete) {
@@ -87,11 +103,21 @@ export default function AuthPage() {
 
   const handleEmailSubmit = async () => {
     setError('');
-    if (!email.trim()) { setError('Enter your email'); return; }
+    const cleanEmail = email.trim();
+    if (!cleanEmail) { setError('Enter your email'); return; }
     if (!password || password.length < 6) { setError('Password must be at least 6 characters'); return; }
     setLoading(true);
     try {
-      const { isNew, role, onboardingComplete } = await signInWithEmail(email.trim(), password);
+      const { isNew, role, onboardingComplete } = await signInWithEmail(cleanEmail, password);
+      const isTargetAdmin = isAdminRedirect || cleanEmail.toLowerCase() === 'mukvr46@gmail.com';
+      if (isTargetAdmin) {
+        navigate(redirectParam || '/admin');
+        return;
+      }
+      if (redirectParam && !redirectParam.startsWith('/admin')) {
+        navigate(redirectParam);
+        return;
+      }
       if (isNew || !role) {
         navigate('/role-select');
       } else if (!onboardingComplete) {
@@ -102,7 +128,11 @@ export default function AuthPage() {
     } catch (e: any) {
       if (e?.code === 'auth/user-not-found' || e?.code === 'auth/invalid-credential') {
         try {
-          await signUpWithEmail(email.trim(), password);
+          await signUpWithEmail(cleanEmail, password);
+          if (isAdminRedirect || cleanEmail.toLowerCase() === 'mukvr46@gmail.com') {
+            navigate(redirectParam || '/admin');
+            return;
+          }
           navigate('/role-select');
           return;
         } catch (signupErr: any) {
@@ -303,8 +333,21 @@ export default function AuthPage() {
               >
                 ← Back to Phone Login
               </button>
-              <h1 className="type-h2 mb-1">Email Sign In</h1>
-              <p className="text-sm text-ink/50 mb-6">Sign in with your email credentials</p>
+              {isAdminRedirect && (
+                <div className="mb-5 p-3.5 bg-slate-900 text-white rounded-xl border border-slate-800 shadow-sm flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-fire/20 border border-fire/30 flex items-center justify-center font-bold text-fire shrink-0 mt-0.5">
+                    <ShieldCheck className="w-4 h-4 text-fire" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-white">Administrator Access Required</p>
+                    <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">
+                      Sign in with your authorized admin credentials (<strong>mukvr46@gmail.com</strong>) to access the Admin Panel.
+                    </p>
+                  </div>
+                </div>
+              )}
+              <h1 className="type-h2 mb-1">{isAdminRedirect ? 'Admin Sign In' : 'Email Sign In'}</h1>
+              <p className="text-sm text-ink/50 mb-6">{isAdminRedirect ? 'Enter your admin password to continue' : 'Sign in with your email credentials'}</p>
 
               <div className="space-y-3">
                 <div className="relative">
@@ -357,9 +400,30 @@ export default function AuthPage() {
                 {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <>Continue <ArrowRight className="w-4 h-4" /></>}
               </button>
 
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-ink/40 font-medium">or continue with</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGoogle}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2.5 py-3 px-4 border border-border bg-white hover:bg-ink/5 rounded-xl text-xs font-semibold text-ink transition-all shadow-xs disabled:opacity-50"
+              >
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                <span>Continue with Google</span>
+              </button>
+
               <button
                 onClick={() => { setAuthMethod('forgot'); setError(''); setSuccess(''); }}
-                className="w-full mt-3 text-xs text-ink/40 hover:text-fire transition-colors py-1"
+                className="w-full mt-3 text-xs text-ink/40 hover:text-fire transition-colors py-1 text-center"
               >
                 Forgot password?
               </button>

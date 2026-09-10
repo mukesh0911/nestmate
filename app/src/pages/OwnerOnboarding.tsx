@@ -61,7 +61,8 @@ export default function OwnerOnboarding() {
 
     try {
       setCurrentRole('owner');
-      const finalName = ownerName.trim() || authProfile?.name?.trim() || user.displayName?.trim() || (user.email ? user.email.split('@')[0] : 'Property Owner');
+      const googlePhoto = user ? (user.photoURL || user.providerData?.find(p => p.photoURL)?.photoURL || '') : '';
+      const resolvedAvatar = authProfile?.avatar || googlePhoto || '';
 
       await updateProfile(user.uid, {
         name: finalName,
@@ -69,6 +70,7 @@ export default function OwnerOnboarding() {
         ownerType,
         city: 'Bengaluru',
         localities: [locality],
+        ...(resolvedAvatar ? { avatar: resolvedAvatar } : {}),
         propertyBasics: {
           locality,
           flatType,

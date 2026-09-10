@@ -112,6 +112,7 @@ export default function ProfilePage() {
                     <img
                       src={profile?.avatar || user?.photoURL || undefined}
                       alt=""
+                      referrerPolicy="no-referrer"
                       className="w-full h-full rounded-full object-cover"
                     />
                   ) : (

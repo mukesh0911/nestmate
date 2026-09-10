@@ -2,22 +2,49 @@ import { useState, useEffect } from 'react';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { Settings, Loader2, Trash2, Plus, Users, Shield } from 'lucide-react';
+import {
+  Loader2, Trash2, Plus, Users, Shield,
+  AlertTriangle, CheckCircle2, ShieldCheck, Mail, Database, Sparkles
+} from 'lucide-react';
 
-interface AdminRow { id: string; email?: string; name?: string; role?: string; [key: string]: unknown; }
+interface AdminRow {
+  id: string;
+  email?: string;
+  name?: string;
+  role?: string;
+  [key: string]: unknown;
+}
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function AdminSettings() {
-  const { getAdmins, addAdmin, removeAdmin, getAdminConfig, updateAdminEmails } = useAdmin();
-  const { user } = useAuth();
+  const { getAdmins, addAdmin, removeAdmin, getAdminConfig, updateAdminEmails, cleanDemoAndSeedData } = useAdmin();
+  const { user, profile } = useAuth();
 
   const [admins, setAdmins] = useState<AdminRow[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Database maintenance state
+  const [showCleanModal, setShowCleanModal] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanLogs, setCleanLogs] = useState<string[]>([]);
+  const [cleanResult, setCleanResult] = useState<number | null>(null);
+
+  // Form state
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
+  const [newRole, setNewRole] = useState<'admin' | 'moderator'>('moderator');
   const [adding, setAdding] = useState(false);
 
+  // Whitelist state
   const [emailList, setEmailList] = useState('');
   const [savingEmails, setSavingEmails] = useState(false);
+
+  // Delete modal
+  const [adminToDelete, setAdminToDelete] = useState<AdminRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const currentUserEmail = (user?.email || profile?.email || '').toLowerCase().trim();
 
   useEffect(() => {
     const load = async () => {
@@ -25,104 +52,473 @@ export default function AdminSettings() {
         const [adminList, config] = await Promise.all([getAdmins(), getAdminConfig()]);
         setAdmins(adminList as AdminRow[]);
         setEmailList((config.adminEmails || []).join('\n'));
-      } catch (e) { console.error(e); }
-      finally { setLoading(false); }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
     };
     load();
   }, [getAdmins, getAdminConfig]);
 
   const handleAddAdmin = async () => {
-    if (!newEmail.trim()) { toast.error('Email is required'); return; }
+    const cleanEmail = newEmail.trim().toLowerCase();
+    if (!cleanEmail) {
+      toast.error('Email address is required');
+      return;
+    }
+    if (!EMAIL_REGEX.test(cleanEmail)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
     setAdding(true);
     try {
-      await addAdmin(newEmail.trim().toLowerCase(), newName.trim() || newEmail.trim());
+      await addAdmin(cleanEmail, newName.trim() || cleanEmail, newRole);
       const updated = await getAdmins();
       setAdmins(updated as AdminRow[]);
-      setNewEmail(''); setNewName('');
-      toast.success('Admin added');
-    } catch { toast.error('Failed to add admin'); }
-    finally { setAdding(false); }
+      setNewEmail('');
+      setNewName('');
+      setNewRole('moderator');
+      toast.success(`Added ${cleanEmail} as ${newRole}`);
+    } catch {
+      toast.error('Failed to add admin');
+    } finally {
+      setAdding(false);
+    }
   };
 
-  const handleRemove = async (id: string) => {
-    if (!confirm('Remove this admin?')) return;
+  const handleConfirmRemove = async () => {
+    if (!adminToDelete) return;
+
+    setDeleting(true);
     try {
-      await removeAdmin(id);
-      setAdmins(prev => prev.filter(a => a.id !== id));
-      toast.success('Admin removed');
-    } catch { toast.error('Failed to remove'); }
+      await removeAdmin(adminToDelete.id);
+      setAdmins(prev => prev.filter(a => a.id !== adminToDelete.id));
+      toast.success(`Removed ${adminToDelete.email || adminToDelete.name} from admins`);
+      setAdminToDelete(null);
+    } catch {
+      toast.error('Failed to remove admin');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleSaveEmails = async () => {
     setSavingEmails(true);
     try {
-      const emails = emailList.split('\n').map(e => e.trim().toLowerCase()).filter(Boolean);
-      await updateAdminEmails(emails);
-      toast.success(`Saved ${emails.length} admin emails`);
-    } catch { toast.error('Failed to save'); }
-    finally { setSavingEmails(false); }
+      const rawLines = emailList.split('\n');
+      const validEmails: string[] = [];
+      const invalidEmails: string[] = [];
+
+      for (const line of rawLines) {
+        const trimmed = line.trim().toLowerCase();
+        if (!trimmed) continue;
+        if (EMAIL_REGEX.test(trimmed)) {
+          if (!validEmails.includes(trimmed)) validEmails.push(trimmed);
+        } else {
+          invalidEmails.push(trimmed);
+        }
+      }
+
+      if (invalidEmails.length > 0) {
+        toast.warning(`Ignored invalid email format(s): ${invalidEmails.slice(0, 3).join(', ')}`);
+      }
+
+      await updateAdminEmails(validEmails);
+      setEmailList(validEmails.join('\n'));
+      toast.success(`Successfully saved ${validEmails.length} whitelisted admin emails`);
+    } catch {
+      toast.error('Failed to save whitelist');
+    } finally {
+      setSavingEmails(false);
+    }
   };
 
-  if (loading) return <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 text-fire animate-spin" /></div>;
+  const handleExecuteCleanup = async () => {
+    setCleaning(true);
+    setCleanLogs([]);
+    setCleanResult(null);
+
+    try {
+      const deletedCount = await cleanDemoAndSeedData((msg) => {
+        setCleanLogs(prev => [...prev, msg]);
+      });
+      setCleanResult(deletedCount);
+      toast.success(`Successfully purged ${deletedCount} demo & seed records.`);
+    } catch (err) {
+      toast.error('Failed to complete cleanup. Check logs.');
+      setCleanLogs(prev => [...prev, `❌ Error: ${err instanceof Error ? err.message : 'Unknown failure'}`]);
+    } finally {
+      setCleaning(false);
+    }
+  };
+
+  const isSelf = (a: AdminRow) => {
+    const aEmail = (a.email || '').toLowerCase().trim();
+    return aEmail !== '' && aEmail === currentUserEmail;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3">
+        <Loader2 className="w-8 h-8 text-fire animate-spin" />
+        <p className="text-sm text-gray-500">Loading admin security settings...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-2xl space-y-6">
-      {/* Admin List */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-        <div className="flex items-center gap-2 mb-5">
-          <Users className="w-5 h-5 text-fire" />
-          <h2 className="text-lg font-semibold">Admin Accounts</h2>
+    <div className="max-w-3xl space-y-6">
+      {/* Page Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Security & Admin Access</h1>
+        <p className="text-sm text-gray-500">
+          Manage administrator roles, granted permissions, and platform-wide email whitelists.
+        </p>
+      </div>
+
+      {/* Admin Accounts List Card */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-fire/10 flex items-center justify-center text-fire">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Configured Administrators</h2>
+              <p className="text-xs text-gray-400">Users with direct platform moderation authority</p>
+            </div>
+          </div>
+          <span className="text-xs font-semibold bg-gray-100 text-gray-700 px-2.5 py-1 rounded-full">
+            {admins.length} active
+          </span>
         </div>
 
+        {/* Current Admins List */}
         {admins.length === 0 ? (
-          <p className="text-sm text-gray-400 py-4 text-center">No additional admins configured</p>
+          <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+            <p className="text-sm text-gray-400">No custom admins configured in the database.</p>
+          </div>
         ) : (
-          <div className="space-y-2 mb-4">
-            {admins.map(a => (
-              <div key={a.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-800">{a.name || a.email}</p>
-                  <p className="text-xs text-gray-400">{a.email} · <span className="capitalize">{a.role || 'moderator'}</span></p>
+          <div className="space-y-2">
+            {admins.map(a => {
+              const self = isSelf(a);
+              return (
+                <div
+                  key={a.id}
+                  className="flex items-center justify-between bg-gray-50/80 hover:bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 font-bold text-sm shrink-0">
+                      {(a.name || a.email || 'A').charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-gray-900">{a.name || a.email}</p>
+                        {self && (
+                          <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.2 rounded-full">
+                            You
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 flex items-center gap-2 mt-0.5">
+                        <span>{a.email}</span>
+                        <span>•</span>
+                        <span className={`capitalize font-semibold text-[11px] ${
+                          a.role === 'admin' ? 'text-fire' : 'text-blue-600'
+                        }`}>
+                          {a.role || 'moderator'}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setAdminToDelete(a)}
+                    disabled={self}
+                    className="p-2 text-gray-400 hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed hover:bg-red-50 rounded-lg transition-colors"
+                    title={self ? "Self-deletion disabled to prevent lockout" : "Revoke admin access"}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
-                <button onClick={() => handleRemove(a.id)} disabled={a.id === user?.uid}
-                  className="p-2 text-red-400 hover:text-red-600 disabled:opacity-20 disabled:cursor-not-allowed transition-colors" title={a.id === user?.uid ? "Can't remove yourself" : 'Remove admin'}>
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
-        {/* Add admin form */}
-        <div className="border-t border-gray-100 pt-4">
-          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Add New Admin</p>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="Email address"
-              className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-fire" />
-            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name (optional)"
-              className="sm:w-40 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-fire" />
-            <button onClick={handleAddAdmin} disabled={adding || !newEmail.trim()}
-              className="px-5 py-2.5 bg-fire text-white rounded-xl text-sm font-bold hover:bg-fire-dark transition-all disabled:opacity-50 flex items-center gap-2 justify-center">
-              {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Add
+        {/* Add Admin Form */}
+        <div className="border-t border-gray-100 pt-5 space-y-3">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Grant Admin Privilege</p>
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+            <div className="sm:col-span-5 relative">
+              <Mail className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="email"
+                value={newEmail}
+                onChange={e => setNewEmail(e.target.value)}
+                placeholder="admin@nestmate.com"
+                className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-fire/20 focus:border-fire transition-all"
+              />
+            </div>
+            <div className="sm:col-span-4">
+              <input
+                type="text"
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                placeholder="Full Name (optional)"
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-fire/20 focus:border-fire transition-all"
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <select
+                value={newRole}
+                onChange={e => setNewRole(e.target.value as 'admin' | 'moderator')}
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-fire/20 focus:border-fire text-gray-700"
+              >
+                <option value="moderator">Moderator</option>
+                <option value="admin">Full Admin</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-1">
+            <button
+              onClick={handleAddAdmin}
+              disabled={adding || !newEmail.trim()}
+              className="px-5 py-2.5 bg-fire hover:bg-fire-dark text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-2 shadow-sm"
+            >
+              {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Add Administrator
             </button>
           </div>
         </div>
       </div>
 
-      {/* Email Whitelist */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-        <div className="flex items-center gap-2 mb-5">
-          <Shield className="w-5 h-5 text-teal-500" />
-          <h2 className="text-lg font-semibold">Email Whitelist</h2>
+      {/* Global Email Whitelist Card */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-gray-900">Email Whitelist (System Override)</h2>
+            <p className="text-xs text-gray-400">
+              Users logging in with any of these email addresses automatically bypass access gates.
+            </p>
+          </div>
         </div>
-        <p className="text-xs text-gray-400 mb-3">One email per line. These emails will be recognized as admins when they log in.</p>
-        <textarea value={emailList} onChange={e => setEmailList(e.target.value)} rows={6} placeholder="admin@nestmate.com&#10;team@nestmate.com"
-          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-fire font-mono resize-none" />
-        <button onClick={handleSaveEmails} disabled={savingEmails}
-          className="mt-3 px-6 py-2.5 bg-fire text-white rounded-xl text-sm font-bold hover:bg-fire-dark transition-all disabled:opacity-50 flex items-center gap-2">
-          {savingEmails ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Whitelist'}
-        </button>
+
+        <div className="bg-slate-50 rounded-xl p-3 text-xs text-slate-600 space-y-1 border border-slate-200">
+          <p className="font-semibold text-slate-800">Whitelist Rules:</p>
+          <ul className="list-disc list-inside space-y-0.5 text-slate-500">
+            <li>Enter one email address per line.</li>
+            <li>Case insensitive; trailing spaces are automatically trimmed.</li>
+            <li>Changes take effect immediately across all active sessions.</li>
+          </ul>
+        </div>
+
+        <textarea
+          value={emailList}
+          onChange={e => setEmailList(e.target.value)}
+          rows={5}
+          placeholder="mukeshram2001@gmail.com&#10;admin@nestmate.com"
+          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-fire/20 focus:border-fire font-mono resize-none transition-all"
+        />
+
+        <div className="flex justify-end">
+          <button
+            onClick={handleSaveEmails}
+            disabled={savingEmails}
+            className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-2 shadow-sm"
+          >
+            {savingEmails ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" /> Saving Whitelist...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Save Whitelist
+              </>
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* Database Clean Up & Maintenance Card */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center text-red-600">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Database Clean Up & Maintenance</h2>
+              <p className="text-xs text-gray-400">
+                Purge sample data, demo accounts, and mock listings to maintain a clean production environment.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-amber-50 rounded-xl p-3.5 border border-amber-200 text-xs text-amber-900 space-y-1.5">
+          <p className="font-bold flex items-center gap-1.5">
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
+            Safe Purge Policy
+          </p>
+          <p className="text-amber-800 leading-relaxed">
+            This operation scans and deletes all demo users (<code>demo.*</code>, <code>isDemo: true</code>), seed accounts (<code>seed_user_*</code>, <code>@nestmate-seed.com</code>), and their sample listings.
+          </p>
+          <p className="text-amber-900 font-semibold">
+            🛡️ Your real administrator account (<strong>{user?.email || 'mukvr46@gmail.com'}</strong>) is strictly protected and will NOT be touched.
+          </p>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={() => {
+              setShowCleanModal(true);
+              setCleanLogs([]);
+              setCleanResult(null);
+            }}
+            className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
+          >
+            <Trash2 className="w-4 h-4" />
+            Purge Demo & Seed Data
+          </button>
+        </div>
+      </div>
+
+      {/* Clean Up Modal */}
+      {showCleanModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+          onClick={() => { if (!cleaning) setShowCleanModal(false); }}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 animate-scale-up max-h-[90vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-red-600 shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+                <Database className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-lg">Clean Up Demo & Seed Data</h3>
+                <p className="text-xs text-gray-500">Safely wipe test accounts and mock listings</p>
+              </div>
+            </div>
+
+            <div className="text-xs text-gray-600 space-y-2 shrink-0">
+              <p>The following will be permanently removed:</p>
+              <ul className="list-disc list-inside text-gray-500 space-y-0.5 bg-gray-50 p-2.5 rounded-lg">
+                <li>Demo user profiles & phone test accounts</li>
+                <li>Seed accounts created via sample generators</li>
+                <li>Sample room listings & associated mock reviews</li>
+                <li>Test chatrooms, messages, and demo notifications</li>
+              </ul>
+              <p className="text-emerald-700 font-semibold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                ✓ Administrator account (<strong>mukvr46@gmail.com</strong>) is preserved.
+              </p>
+            </div>
+
+            {/* Live Progress Logs */}
+            {cleanLogs.length > 0 && (
+              <div className="bg-slate-950 text-slate-200 font-mono text-[11px] p-3.5 rounded-xl max-h-48 overflow-y-auto space-y-1 shrink-0 border border-slate-800">
+                {cleanLogs.map((l, i) => (
+                  <p key={i} className="leading-tight">{l}</p>
+                ))}
+              </div>
+            )}
+
+            {cleanResult !== null && (
+              <div className="p-3 bg-emerald-50 text-emerald-800 text-xs font-semibold rounded-xl border border-emerald-200 flex items-center gap-2 shrink-0">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                Done! Removed {cleanResult} records from the database.
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowCleanModal(false)}
+                disabled={cleaning}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {cleanResult !== null ? 'Close' : 'Cancel'}
+              </button>
+              {cleanResult === null && (
+                <button
+                  type="button"
+                  onClick={handleExecuteCleanup}
+                  disabled={cleaning}
+                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {cleaning ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Purging Database...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" /> Start Safe Clean Up
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Revocation Confirmation Modal */}
+      {adminToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+          onClick={() => setAdminToDelete(null)}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 animate-scale-up"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-lg">Revoke Admin Access</h3>
+                <p className="text-xs text-gray-500">This action takes effect immediately.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Are you sure you want to revoke admin privileges from{' '}
+              <strong>{adminToDelete.name || adminToDelete.email}</strong> ({adminToDelete.email})?
+              They will no longer be able to access the admin panel or moderate platform content.
+            </p>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setAdminToDelete(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRemove}
+                disabled={deleting}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2"
+              >
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Revoke Access
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

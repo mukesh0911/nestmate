@@ -112,7 +112,7 @@ type ScreenId =
 
 export default function SeekerOnboarding() {
   const navigate = useNavigate();
-  const { user, refreshProfile } = useAuth();
+  const { user, profile: authProfile, refreshProfile } = useAuth();
   const { updateProfile } = useUserProfile();
   const { uploadProfilePicture } = useStorage();
   const { findMatches } = useMatches();
@@ -124,9 +124,27 @@ export default function SeekerOnboarding() {
   const [error, setError] = useState('');
 
   // Form state
+  const googlePhoto = user ? (user.photoURL || user.providerData?.find(p => p.photoURL)?.photoURL || '') : '';
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [name, setName] = useState('');
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(() => {
+    return authProfile?.avatar || googlePhoto || null;
+  });
+  const [name, setName] = useState(() => authProfile?.name || user?.displayName || '');
+
+  // Keep Google photo / profile avatar in sync if auth profile loads asynchronously
+  useEffect(() => {
+    if (!avatarPreview && !avatarFile) {
+      const existing = authProfile?.avatar || user?.photoURL || user?.providerData?.find(p => p.photoURL)?.photoURL;
+      if (existing) setAvatarPreview(existing);
+    }
+  }, [authProfile?.avatar, user?.photoURL, avatarPreview, avatarFile]);
+
+  useEffect(() => {
+    if (!name) {
+      const existingName = authProfile?.name || user?.displayName;
+      if (existingName) setName(existingName);
+    }
+  }, [authProfile?.name, user?.displayName, name]);
   const [gender, setGender] = useState('');
   const [age, setAge] = useState('');
   const [profession, setProfession] = useState('');
@@ -191,6 +209,10 @@ export default function SeekerOnboarding() {
       const parsedBudget = typeof budget === 'number' ? budget : parseInt(budget, 10);
       const safeBudget = isNaN(parsedBudget) ? 10000 : parsedBudget;
 
+      const fallbackAvatar = avatarPreview && !avatarPreview.startsWith('blob:')
+        ? avatarPreview
+        : (authProfile?.avatar || user.photoURL || user.providerData?.find(p => p.photoURL)?.photoURL || '');
+
       await updateProfile(user.uid, {
         name: name.trim(),
         age: safeAge,
@@ -203,6 +225,7 @@ export default function SeekerOnboarding() {
         quizAnswers: effectiveQuizAnswers,
         onboardingComplete: true,
         role: 'seeker',
+        ...(fallbackAvatar ? { avatar: fallbackAvatar } : {}),
         ...(resolvedGeo && { geoLocation: { lat: resolvedGeo.lat, lng: resolvedGeo.lng, formattedAddress: `${localities?.[0] || city}, ${city}` } }),
       });
 
@@ -307,21 +330,25 @@ export default function SeekerOnboarding() {
         onNext={() => next()} nextLabel="Continue" onBack={null}
         error={error}
       >
-        <div className="flex justify-center py-6">
+        <div className="flex flex-col items-center justify-center py-6">
           <label className="relative cursor-pointer group">
-            <div className={`w-36 h-36 rounded-full overflow-hidden border-4 ${avatarPreview ? 'border-fire' : 'border-dashed border-ink/20'} transition-all flex items-center justify-center bg-cream/50`}>
+            <div className={`w-36 h-36 rounded-full overflow-hidden border-4 ${avatarPreview ? 'border-fire' : 'border-dashed border-ink/20'} transition-all flex items-center justify-center bg-cream/50 shadow-md`}>
               {avatarPreview
-                ? <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
+                ? <img src={avatarPreview} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
                 : <div className="text-center"><Camera className="w-8 h-8 text-ink/30 mx-auto mb-1" /><p className="text-xs text-ink/40">Upload photo</p></div>
               }
             </div>
-            {avatarPreview && (
-              <div className="absolute inset-0 rounded-full bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <Camera className="w-6 h-6 text-white" />
-              </div>
-            )}
+            <div className="absolute inset-0 rounded-full bg-black/30 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-semibold">
+              <Camera className="w-6 h-6 mb-1 text-white" />
+              <span>{avatarPreview ? 'Change photo' : 'Upload photo'}</span>
+            </div>
             <input type="file" accept="image/*" className="hidden" onChange={handleAvatarSelect} />
           </label>
+          {avatarPreview && !avatarFile && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-teal/10 text-teal rounded-full text-xs font-medium mt-3 border border-teal/20">
+              <Check className="w-3.5 h-3.5" /> Photo imported from Google
+            </span>
+          )}
         </div>
         {!avatarPreview && (
           <button onClick={() => go(1)} className="w-full text-sm text-ink/40 hover:text-ink/60 transition-colors py-2 flex items-center justify-center gap-1">

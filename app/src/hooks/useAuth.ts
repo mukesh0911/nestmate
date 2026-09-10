@@ -8,6 +8,7 @@ import {
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
+  getAdditionalUserInfo,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
@@ -17,6 +18,24 @@ import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firest
 import { auth, db } from '@/lib/firebase';
 import { useStore } from '@/store/useStore';
 import { hydrateOwnProfile, savePrivateUserData } from '@/lib/privateUserData';
+
+export function extractGooglePhoto(
+  firebaseUser: FirebaseUser | null,
+  additionalProfile?: Record<string, any> | null
+): string {
+  if (!firebaseUser && !additionalProfile) return '';
+  const rawUrl =
+    (additionalProfile?.picture as string) ||
+    firebaseUser?.photoURL ||
+    firebaseUser?.providerData?.find((p) => p.photoURL)?.photoURL ||
+    '';
+  if (!rawUrl) return '';
+  // Upgrade Google photo resolution: replace e.g. =s96-c with =s400-c
+  if (rawUrl.includes('googleusercontent.com')) {
+    return rawUrl.replace(/=s\d+(-c)?$/, '=s400-c');
+  }
+  return rawUrl;
+}
 
 async function persistPublicUser(
   uid: string,
@@ -117,6 +136,11 @@ export function useAuth() {
 
           if (profileSnap.exists()) {
             const data = profileSnap.data() as UserProfile;
+            const googlePhoto = extractGooglePhoto(firebaseUser);
+            if (googlePhoto && (!data.avatar || data.avatar.trim() === '' || data.avatar.includes('dicebear'))) {
+              data.avatar = googlePhoto;
+              await persistPublicUser(firebaseUser.uid, { avatar: googlePhoto });
+            }
             setProfile(await hydrateOwnProfile({ ...data, uid: firebaseUser.uid }));
           } else {
             setProfile(null);
@@ -174,7 +198,13 @@ export function useAuth() {
     try {
       const profileSnap = await getDoc(doc(db, 'users', profileUid));
       if (profileSnap.exists()) {
-        const data = await hydrateOwnProfile({ ...(profileSnap.data() as UserProfile), uid: profileUid });
+        const rawData = profileSnap.data() as UserProfile;
+        const googlePhoto = extractGooglePhoto(user);
+        if (googlePhoto && (!rawData.avatar || rawData.avatar.trim() === '' || rawData.avatar.includes('dicebear'))) {
+          await persistPublicUser(profileUid, { avatar: googlePhoto });
+          rawData.avatar = googlePhoto;
+        }
+        const data = await hydrateOwnProfile({ ...rawData, uid: profileUid });
         setProfile(data);
         return data;
       }
@@ -463,12 +493,14 @@ export function useAuth() {
    * Google Sign-in flow
    * Continues seamlessly, creates profile if new.
    */
-  const signInWithGoogle = useCallback(async (): Promise<{ isNew: boolean; role?: string | null; onboardingComplete?: boolean }> => {
+  const signInWithGoogle = useCallback(async (): Promise<{ isNew: boolean; role?: string | null; onboardingComplete?: boolean; email?: string | null }> => {
     setError(null);
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const firebaseUser = result.user;
+      const additionalInfo = getAdditionalUserInfo(result);
+      const googlePhoto = extractGooglePhoto(firebaseUser, additionalInfo?.profile);
 
       const userRef = doc(db, 'users', firebaseUser.uid);
       const userSnap = await getDoc(userRef);
@@ -494,7 +526,7 @@ export function useAuth() {
           // Sprint 4A (truth): age/gender are NOT invented at signup.
           age: 0,
           gender: '',
-          avatar: firebaseUser.photoURL || '',
+          avatar: googlePhoto || '',
           quizAnswers: {},
           onboardingComplete: false,
           isPremium: false,
@@ -518,12 +550,16 @@ export function useAuth() {
         );
         setProfile(await hydrateOwnProfile({ ...newProfile, phone, email }));
         setUser(firebaseUser);
-        return { isNew: true, role: null, onboardingComplete: false };
+        return { isNew: true, role: null, onboardingComplete: false, email: firebaseUser.email };
       } else {
         const existingProfile = userSnap.data() as UserProfile;
+        if (googlePhoto && (!existingProfile.avatar || existingProfile.avatar.trim() === '' || existingProfile.avatar.includes('dicebear'))) {
+          await persistPublicUser(firebaseUser.uid, { avatar: googlePhoto });
+          existingProfile.avatar = googlePhoto;
+        }
         setProfile(await hydrateOwnProfile({ ...existingProfile, uid: firebaseUser.uid }));
         setUser(firebaseUser);
-        return { isNew: false, role: existingProfile.role || null, onboardingComplete: !!existingProfile.onboardingComplete };
+        return { isNew: false, role: existingProfile.role || null, onboardingComplete: !!existingProfile.onboardingComplete, email: firebaseUser.email };
       }
     } catch (err: any) {
       let msg = err.message || 'Google Sign-in failed';

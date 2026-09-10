@@ -4,7 +4,11 @@ import type { UserProfile } from '@/hooks/useAuth';
 import { getDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
-import { Search, Loader2, X, CheckCircle, ShieldCheck, XCircle, RefreshCcw, Eye, AlertTriangle } from 'lucide-react';
+import {
+  Search, Loader2, X, CheckCircle, ShieldCheck, XCircle,
+  RefreshCcw, Eye, AlertTriangle, RotateCw, ExternalLink,
+  ChevronLeft, ChevronRight, Clock, FileText
+} from 'lucide-react';
 import type { Timestamp } from 'firebase/firestore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -29,12 +33,14 @@ interface Verification {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const TYPE_LABELS: Record<string, string> = {
-  aadhaar: 'Aadhaar',
+  aadhaar: 'Aadhaar Card',
   passport: 'Passport',
   driving_license: 'Driving License',
   voter_id: 'Voter ID',
   work_id: 'Work ID',
   student_id: 'Student ID',
+  electricity_bill: 'Electricity Bill',
+  property_tax: 'Property Tax',
 };
 
 function formatDate(ts: Timestamp | string | Date | null | undefined): string {
@@ -57,18 +63,20 @@ function StatusBadge({ status, ownerVerifStatus }: { status: string; ownerVerifS
     display === 'APPROVED' || display === 'approved' ? 'bg-green-500 text-white' :
     display === 'REJECTED' || display === 'rejected' ? 'bg-red-500 text-white' :
     display === 'UNDER_REVIEW' ? 'bg-blue-500 text-white' :
-    display === 'RESUBMISSION_REQUIRED' ? 'bg-orange-500 text-white' :
+    display === 'RESUBMISSION_REQUIRED' ? 'bg-amber-500 text-white' :
     display === 'SUBMITTED' ? 'bg-amber-100 text-amber-800' :
-    'bg-amber-100 text-amber-800';
+    'bg-gray-100 text-gray-800';
   const label =
     display === 'SUBMITTED' ? 'Submitted' :
     display === 'UNDER_REVIEW' ? 'Under Review' :
     display === 'APPROVED' ? 'Approved' :
     display === 'REJECTED' ? 'Rejected' :
-    display === 'RESUBMISSION_REQUIRED' ? 'Resubmission Required' :
+    display === 'RESUBMISSION_REQUIRED' ? 'Resubmit Req.' :
     display;
   return <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${cls}`}>{label}</span>;
 }
+
+const ITEMS_PER_PAGE = 20;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -77,14 +85,20 @@ export default function AdminVerifications() {
 
   const [verifications, setVerifications] = useState<Verification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
   const [profiles, setProfiles] = useState<Record<string, UserProfile>>({});
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Detail modal
+  // Detail modal & rotation
   const [selected, setSelected] = useState<Verification | null>(null);
+  const [rotation, setRotation] = useState(0);
+
   // Lightbox
   const [lightbox, setLightbox] = useState(false);
+
   // Action modes
   const [actionMode, setActionMode] = useState<'reject' | 'resubmit' | null>(null);
   const [actionNote, setActionNote] = useState('');
@@ -96,32 +110,73 @@ export default function AdminVerifications() {
       .catch(() => setLoading(false));
   }, [getAllVerifications]);
 
-  // Fetch user profiles
+  // Fetch user profiles in parallel
   useEffect(() => {
     if (verifications.length === 0) return;
-    const ids = new Set(verifications.map(v => v.userId));
-    const fetchMissing = async () => {
-      const newProfiles = { ...profiles };
-      let changed = false;
-      for (const uid of ids) {
-        if (!newProfiles[uid]) {
-          try {
-            const snap = await getDoc(doc(db, 'users', uid));
-            if (snap.exists()) { newProfiles[uid] = snap.data() as UserProfile; changed = true; }
-          } catch { /* skip */ }
+    const ids = Array.from(new Set(verifications.map(v => v.userId))).filter(uid => uid && !profiles[uid]);
+    if (ids.length === 0) return;
+
+    let isMounted = true;
+    Promise.all(
+      ids.map(async uid => {
+        try {
+          const snap = await getDoc(doc(db, 'users', uid));
+          return snap.exists() ? { uid, data: snap.data() as UserProfile } : null;
+        } catch {
+          return null;
         }
+      })
+    ).then(results => {
+      if (!isMounted) return;
+      const loaded: Record<string, UserProfile> = {};
+      for (const res of results) {
+        if (res) loaded[res.uid] = res.data;
       }
-      if (changed) setProfiles(newProfiles);
-    };
-    fetchMissing();
-  }, [verifications]);
+      if (Object.keys(loaded).length > 0) {
+        setProfiles(prev => ({ ...prev, ...loaded }));
+      }
+    });
+
+    return () => { isMounted = false; };
+  }, [verifications, profiles]);
+
+  // Helper getters
+  const getName = (uid: string, declaredName?: string) => profiles[uid]?.name || declaredName || (uid ? uid.slice(0, 8) + '...' : 'Unknown');
+  const getEmail = (uid: string) => profiles[uid]?.email || '';
 
   const filtered = useMemo(() => {
     let result = verifications;
+    const q = search.toLowerCase().trim();
+    if (q) {
+      result = result.filter(v => {
+        const uName = (profiles[v.userId]?.name || '').toLowerCase();
+        const uEmail = (profiles[v.userId]?.email || '').toLowerCase();
+        const dName = (v._declaredName || '').toLowerCase();
+        const docId = (v.id || '').toLowerCase();
+        return uName.includes(q) || uEmail.includes(q) || dName.includes(q) || docId.includes(q);
+      });
+    }
     if (typeFilter !== 'all') result = result.filter(v => v.type === typeFilter);
     if (statusFilter !== 'all') result = result.filter(v => v.status === statusFilter);
+    if (sourceFilter !== 'all') result = result.filter(v => v._source === sourceFilter);
     return result;
-  }, [verifications, typeFilter, statusFilter]);
+  }, [verifications, search, typeFilter, statusFilter, sourceFilter, profiles]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const paginated = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filtered.slice(start, start + ITEMS_PER_PAGE);
+  }, [filtered, currentPage]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, typeFilter, statusFilter, sourceFilter]);
+
+  // Reset rotation when opening modal
+  useEffect(() => {
+    setRotation(0);
+  }, [selected]);
 
   // ─── Action handlers ─────────────────────────────────────────────────────
 
@@ -147,7 +202,7 @@ export default function AdminVerifications() {
         x.id === v.id ? { ...x, status: 'approved' as const, _ownerVerifStatus: 'APPROVED' } : x
       ));
       setSelected(null);
-      toast.success('✅ Verification approved. Listing(s) are now live.');
+      toast.success('Verification approved. Listing(s) are now live.');
     } catch { toast.error('Failed to approve'); }
     finally { setActionLoading(false); }
   };
@@ -181,272 +236,590 @@ export default function AdminVerifications() {
     finally { setActionLoading(false); }
   };
 
-  const getName = (uid: string, declaredName?: string) => profiles[uid]?.name || declaredName || (uid ? uid.slice(0, 8) + '...' : 'Unknown');
-  const getEmail = (uid: string) => profiles[uid]?.email || '';
+  const isPdf = (url?: string) => url ? url.toLowerCase().includes('.pdf') : false;
 
-  if (loading) return <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 text-fire animate-spin" /></div>;
+  // Check if declared name conflicts with profile name
+  const nameMismatch = useMemo(() => {
+    if (!selected?._declaredName || !selected?.userId) return false;
+    const profileName = (profiles[selected.userId]?.name || '').trim().toLowerCase();
+    const declared = selected._declaredName.trim().toLowerCase();
+    if (!profileName) return false;
+    return profileName !== declared && !profileName.includes(declared) && !declared.includes(profileName);
+  }, [selected, profiles]);
 
-  if (verifications.length === 0) {
-    return (
-      <div className="space-y-4">
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">Verifications Queue</h1>
-          <p className="text-sm text-gray-500">Review user identity proofs, Aadhaar, and owner verification documents.</p>
-        </div>
-        <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-100 text-center">
-          <CheckCircle className="w-14 h-14 text-green-300 mx-auto mb-4" />
-          <h2 className="text-lg font-semibold text-gray-700 mb-2">No pending verifications</h2>
-          <p className="text-sm text-gray-400">All documents have been reviewed</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center py-24 gap-3">
+      <Loader2 className="w-8 h-8 text-fire animate-spin" />
+      <p className="text-sm text-gray-500">Loading verifications queue...</p>
+    </div>
+  );
 
   return (
-    <div className="space-y-4">
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold text-gray-900">Verifications Queue</h1>
-        <p className="text-sm text-gray-500">Review user identity proofs, Aadhaar, and owner verification documents.</p>
-      </div>
-      {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
-          className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none">
-          <option value="all">All Types</option>
-          {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none">
-          <option value="all">All Status</option>
-          <option value="pending">Pending / Under Review</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </select>
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Verifications Queue</h1>
+          <p className="text-sm text-gray-500">
+            Review identity proofs, Aadhaar, and owner property documents to maintain trust and safety.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5 text-amber-600" />
+            {verifications.filter(v => v.status === 'pending').length} Pending Action
+          </span>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <p className="text-xs text-gray-500">{filtered.length} verifications found</p>
-        <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
-          {filtered.filter(v => v.status === 'pending').length} pending review
-        </span>
+      {/* Controls & Search */}
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Search bar */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search name, email, declared name..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-fire/20 focus:border-fire transition-all"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Type Filter */}
+          <select
+            value={typeFilter}
+            onChange={e => setTypeFilter(e.target.value)}
+            className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-fire/20 focus:border-fire"
+          >
+            <option value="all">All Document Types</option>
+            {Object.entries(TYPE_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+
+          {/* Status Filter */}
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-fire/20 focus:border-fire"
+          >
+            <option value="all">All Review Statuses</option>
+            <option value="pending">Pending / Under Review</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+
+          {/* Source Filter */}
+          <select
+            value={sourceFilter}
+            onChange={e => setSourceFilter(e.target.value)}
+            className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-fire/20 focus:border-fire"
+          >
+            <option value="all">All Verification Sources</option>
+            <option value="ownerVerification">🔒 Owner Identity Gate</option>
+            <option value="legacy">Legacy Submissions</option>
+          </select>
+        </div>
+
+        <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs text-gray-500">
+          <span>Showing {paginated.length} of {filtered.length} matching requests</span>
+          {(search || typeFilter !== 'all' || statusFilter !== 'all' || sourceFilter !== 'all') && (
+            <button
+              onClick={() => { setSearch(''); setTypeFilter('all'); setStatusFilter('all'); setSourceFilter('all'); }}
+              className="text-fire font-medium hover:underline"
+            >
+              Reset Filters
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
+            <thead className="bg-gray-50/80 border-b border-gray-100">
               <tr>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">User</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Type</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Submitted</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Source</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase">User / Owner</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase">Document Type</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Submitted</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase">Gate Source</th>
+                <th className="text-right px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.length === 0 ? (
+            <tbody className="divide-y divide-gray-100">
+              {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-sm text-gray-400">
-                    No verifications match the selected filters.
+                  <td colSpan={6} className="text-center py-12 text-sm text-gray-400">
+                    <CheckCircle className="w-10 h-10 text-emerald-300 mx-auto mb-2" />
+                    No verifications match your criteria.
                   </td>
                 </tr>
               ) : (
-                filtered.slice(0, 50).map(v => (
-                  <tr key={v.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => setSelected(v)}>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900 truncate max-w-[140px]">{getName(v.userId, v._declaredName)}</p>
-                      <p className="text-[10px] text-gray-400">{getEmail(v.userId)}</p>
-                      {v._declaredName && <p className="text-[10px] text-blue-500 font-medium">"{v._declaredName}"</p>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">{TYPE_LABELS[v.type] || v.type}</span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs hidden sm:table-cell">{formatDate(v.submittedAt)}</td>
-                    <td className="px-4 py-3"><StatusBadge status={v.status} ownerVerifStatus={v._ownerVerifStatus} /></td>
-                    <td className="px-4 py-3">
-                      {v._source === 'ownerVerification' ? (
-                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">🔒 ID Gate</span>
-                      ) : (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Legacy</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button onClick={e => { e.stopPropagation(); setSelected(v); }} className="text-xs text-fire font-medium hover:underline">Review</button>
-                    </td>
-                  </tr>
-                ))
+                paginated.map(v => {
+                  const profile = profiles[v.userId];
+                  const hasMismatch = v._declaredName && profile?.name &&
+                    profile.name.trim().toLowerCase() !== v._declaredName.trim().toLowerCase();
+
+                  return (
+                    <tr
+                      key={v.id}
+                      className="hover:bg-gray-50/70 transition-colors cursor-pointer"
+                      onClick={() => setSelected(v)}
+                    >
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-700 shrink-0 text-sm">
+                            {getName(v.userId, v._declaredName).charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-900 truncate max-w-[160px]">
+                              {getName(v.userId, v._declaredName)}
+                            </p>
+                            <p className="text-xs text-gray-400 truncate max-w-[160px]">{getEmail(v.userId)}</p>
+                            {hasMismatch && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded font-medium mt-0.5">
+                                <AlertTriangle className="w-3 h-3 text-amber-600" /> Name Mismatch
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                          {TYPE_LABELS[v.type] || v.type}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-gray-500 text-xs hidden sm:table-cell">
+                        {formatDate(v.submittedAt)}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <StatusBadge status={v.status} ownerVerifStatus={v._ownerVerifStatus} />
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {v._source === 'ownerVerification' ? (
+                          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 inline-flex items-center gap-1">
+                            🔒 ID Gate
+                          </span>
+                        ) : (
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                            Legacy
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <button
+                          onClick={e => { e.stopPropagation(); setSelected(v); }}
+                          className="px-3 py-1.5 text-xs font-medium text-fire bg-fire/5 hover:bg-fire/10 rounded-lg transition-colors inline-flex items-center gap-1"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> Review
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Bar */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/50">
+            <span className="text-xs text-gray-500">
+              Page {currentPage} of {totalPages} ({filtered.length} total)
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                className="p-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-white disabled:opacity-40 transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                className="p-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-white disabled:opacity-40 transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Detail Modal */}
+      {/* Detail Review Modal */}
       {selected && !lightbox && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => { setSelected(null); setActionMode(null); setActionNote(''); }}>
-          <div className="absolute inset-0 bg-black/30" />
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="font-semibold text-lg flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-teal-500" />
-                Verification Review
-                {selected._source === 'ownerVerification' && (
-                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold ml-1">🔒 Identity Gate</span>
-                )}
-              </h3>
-              <button onClick={() => { setSelected(null); setActionMode(null); }} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+          onClick={() => { setSelected(null); setActionMode(null); setActionNote(''); }}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-scale-up"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/80 shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-teal-50 border border-teal-200 flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5 text-teal-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 leading-none">Verification Review</h3>
+                  <p className="text-xs text-gray-500 mt-1">Doc ID: {selected.id}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setSelected(null); setActionMode(null); }}
+                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* User info */}
-            <div className="flex items-center gap-3 bg-gray-50 rounded-xl p-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-500 shrink-0">
-                {getName(selected.userId).charAt(0)}
+            {/* Modal Content Scrollable */}
+            <div className="p-6 overflow-y-auto space-y-4">
+              {/* User overview */}
+              <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-xl p-3.5">
+                <div className="w-11 h-11 rounded-full bg-slate-200 flex items-center justify-center text-base font-bold text-slate-700 shrink-0">
+                  {getName(selected.userId, selected._declaredName).charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-gray-900 truncate">
+                    {getName(selected.userId, selected._declaredName)}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">{getEmail(selected.userId)}</p>
+                  {selected._declaredName && (
+                    <p className="text-xs text-blue-600 font-medium mt-0.5">
+                      Declared On Doc: <span className="underline">{selected._declaredName}</span>
+                    </p>
+                  )}
+                </div>
+                <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 shrink-0">
+                  {TYPE_LABELS[selected.type] || selected.type}
+                </span>
               </div>
+
+              {/* Name Mismatch Warning Banner */}
+              {nameMismatch && (
+                <div className="bg-amber-50 border border-amber-300 rounded-xl p-3.5 flex items-start gap-2.5 text-amber-900">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-xs space-y-1">
+                    <p className="font-bold">⚠️ Warning: Name Mismatch Detected</p>
+                    <p>
+                      The profile name is <strong>"{profiles[selected.userId]?.name}"</strong>, but the user declared <strong>"{selected._declaredName}"</strong>. Ensure the legal document corresponds to the actual account holder before approving.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Resubmission count note */}
+              {(selected._resubmissionCount ?? 0) > 0 && (
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 flex items-center gap-2">
+                  <RefreshCcw className="w-4 h-4 text-orange-600" />
+                  <p className="text-xs font-medium text-orange-800">
+                    This document is resubmission #{selected._resubmissionCount}.
+                  </p>
+                </div>
+              )}
+
+              {/* Document Preview Box */}
               <div>
-                <p className="text-sm font-medium">{getName(selected.userId)}</p>
-                <p className="text-xs text-gray-400">{getEmail(selected.userId)}</p>
-                {selected._declaredName && <p className="text-xs text-blue-600 font-medium">Declared: {selected._declaredName}</p>}
-              </div>
-              <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">{TYPE_LABELS[selected.type] || selected.type}</span>
-            </div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Proof of Identity</span>
+                  <div className="flex items-center gap-2">
+                    {!isPdf(selected.documentUrl) && (
+                      <button
+                        type="button"
+                        onClick={() => setRotation(r => (r + 90) % 360)}
+                        className="text-xs font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md transition-colors flex items-center gap-1"
+                        title="Rotate 90 degrees"
+                      >
+                        <RotateCw className="w-3.5 h-3.5" /> Rotate
+                      </button>
+                    )}
+                    {selected.documentUrl && (
+                      <a
+                        href={selected.documentUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-medium text-fire hover:underline flex items-center gap-1"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" /> Open Original
+                      </a>
+                    )}
+                  </div>
+                </div>
 
-            {/* Resubmission count */}
-            {(selected._resubmissionCount ?? 0) > 0 && (
-              <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 mb-4 flex items-center gap-2">
-                <RefreshCcw className="w-4 h-4 text-orange-500" />
-                <p className="text-sm text-orange-800">This is resubmission #{selected._resubmissionCount}</p>
-              </div>
-            )}
-
-            {/* Document preview */}
-            {selected.documentUrl ? (
-              <div className="mb-4 cursor-pointer" onClick={() => setLightbox(true)}>
-                <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Document (click to enlarge)</p>
-                {selected.documentUrl.toLowerCase().includes('.pdf') ? (
-                  <a href={selected.documentUrl} target="_blank" rel="noreferrer"
-                    className="flex items-center gap-2 text-blue-600 text-sm font-medium hover:underline">
-                    <Eye className="w-4 h-4" /> View PDF Document
-                  </a>
+                {selected.documentUrl ? (
+                  isPdf(selected.documentUrl) ? (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 text-center space-y-3">
+                      <FileText className="w-12 h-12 text-blue-500 mx-auto" />
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">PDF Document Uploaded</p>
+                        <p className="text-xs text-slate-500">PDFs cannot be displayed as regular images.</p>
+                      </div>
+                      <div className="flex justify-center gap-3">
+                        <a
+                          href={selected.documentUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-sm"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" /> View PDF in New Tab
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="bg-slate-900/5 rounded-xl border border-gray-200 p-2 overflow-hidden flex items-center justify-center cursor-pointer group"
+                      onClick={() => setLightbox(true)}
+                    >
+                      <img
+                        src={selected.documentUrl}
+                        alt="Proof Document"
+                        style={{ transform: `rotate(${rotation}deg)` }}
+                        className="max-h-72 object-contain rounded-lg transition-transform duration-200 group-hover:scale-[1.02]"
+                      />
+                    </div>
+                  )
                 ) : (
-                  <img src={selected.documentUrl} alt="Verification document" className="w-full rounded-xl border border-gray-200 hover:opacity-90 transition-opacity" />
+                  <div className="bg-gray-50 rounded-xl p-8 text-center border border-gray-200">
+                    <p className="text-sm text-gray-400">No document file attached</p>
+                  </div>
                 )}
               </div>
-            ) : (
-              <div className="mb-4 bg-gray-50 rounded-xl p-6 text-center">
-                <p className="text-sm text-gray-400">No document uploaded</p>
-              </div>
-            )}
 
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="bg-gray-50 rounded-xl p-3">
-                <p className="text-[10px] text-gray-400 uppercase font-bold">Submitted</p>
-                <p className="text-sm font-medium text-gray-800 mt-1">{formatDate(selected.submittedAt)}</p>
+              {/* Status & Timing grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                  <p className="text-[10px] text-gray-400 uppercase font-bold">Submission Date</p>
+                  <p className="text-xs font-semibold text-gray-800 mt-1">{formatDate(selected.submittedAt)}</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                  <p className="text-[10px] text-gray-400 uppercase font-bold">Current Status</p>
+                  <div className="mt-1">
+                    <StatusBadge status={selected.status} ownerVerifStatus={selected._ownerVerifStatus} />
+                  </div>
+                </div>
               </div>
-              <div className="bg-gray-50 rounded-xl p-3">
-                <p className="text-[10px] text-gray-400 uppercase font-bold">Status</p>
-                <div className="mt-1"><StatusBadge status={selected.status} ownerVerifStatus={selected._ownerVerifStatus} /></div>
-              </div>
+
+              {/* Review note (if already reviewed) */}
+              {selected.reviewNote && (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Previous Review Note</p>
+                  <p className="text-xs text-slate-700 leading-relaxed">{selected.reviewNote}</p>
+                  {selected.reviewedAt && (
+                    <p className="text-[10px] text-slate-400 mt-2">Reviewed on {formatDate(selected.reviewedAt)}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Audit trail display */}
+              {selected._auditTrail && selected._auditTrail.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-gray-100">
+                  <p className="text-[10px] text-gray-400 uppercase font-bold">Audit History</p>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                    {selected._auditTrail.map((entry, idx) => (
+                      <div key={idx} className="text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100 flex items-start justify-between gap-2">
+                        <div>
+                          <span className="font-semibold text-gray-800 uppercase text-[11px]">{entry.status}</span>
+                          {entry.note && <p className="text-gray-600 text-[11px] mt-0.5">{entry.note}</p>}
+                        </div>
+                        <span className="text-[10px] text-gray-400 shrink-0">
+                          {entry.actorId ? entry.actorId.slice(0, 8) : 'System'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Security notice for ownerVerification */}
+              {selected._source === 'ownerVerification' && selected.status === 'pending' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                    <span>
+                      <strong>Identity Gate Impact:</strong> Approving will grant <code>ownerVerified=true</code> and activate all pending listings created by this owner.
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Review note (if already reviewed) */}
-            {selected.reviewNote && (
-              <div className="bg-gray-50 rounded-xl p-4 mb-4">
-                <p className="text-[10px] text-gray-400 uppercase font-bold mb-1">Review Note</p>
-                <p className="text-sm text-gray-600">{selected.reviewNote}</p>
-                {selected.reviewedAt && <p className="text-[10px] text-gray-400 mt-2">Reviewed: {formatDate(selected.reviewedAt)}</p>}
-              </div>
-            )}
-
-            {/* Security notice for ownerVerification */}
-            {selected._source === 'ownerVerification' && selected.status === 'pending' && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
-                <p className="text-xs text-amber-800 font-medium flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-                  <span>
-                    <strong>Security action:</strong> Approving will set <code>ownerVerified=true</code> and make ALL pending listings by this owner publicly visible. Reject if the document is unclear, expired, or mismatched.
-                  </span>
-                </p>
-              </div>
-            )}
-
-            {/* Actions for pending verifications */}
-            {selected.status === 'pending' && !actionMode && (
-              <div className="flex flex-col gap-2 pt-2">
-                {/* Begin review (owner verifications only) */}
-                {selected._source === 'ownerVerification' && selected._ownerVerifStatus === 'SUBMITTED' && (
-                  <button onClick={() => handleBeginReview(selected)} disabled={actionLoading}
-                    className="w-full py-2.5 bg-blue-500 text-white rounded-xl text-sm font-bold hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                    <Eye className="w-4 h-4" /> Mark as Under Review
-                  </button>
-                )}
-                <div className="flex gap-3">
-                  <button onClick={() => handleApprove(selected)} disabled={actionLoading}
-                    className="flex-1 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                    {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                    Approve {selected._source === 'ownerVerification' ? '& Make Listing Live' : ''}
-                  </button>
-                  <button onClick={() => setActionMode('reject')}
-                    className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600 transition-all flex items-center justify-center gap-2">
-                    <XCircle className="w-4 h-4" /> Reject
-                  </button>
+            {/* Modal Actions Footer */}
+            <div className="p-4 bg-gray-50 border-t border-gray-100 shrink-0">
+              {selected.status === 'pending' && !actionMode && (
+                <div className="space-y-2">
+                  {selected._source === 'ownerVerification' && selected._ownerVerifStatus === 'SUBMITTED' && (
+                    <button
+                      type="button"
+                      onClick={() => handleBeginReview(selected)}
+                      disabled={actionLoading}
+                      className="w-full py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    >
+                      <Eye className="w-3.5 h-3.5" /> Mark as Under Review
+                    </button>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleApprove(selected)}
+                      disabled={actionLoading}
+                      className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                      Approve Document
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActionMode('reject')}
+                      className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <XCircle className="w-4 h-4" /> Reject
+                    </button>
+                  </div>
+                  {selected._source === 'ownerVerification' && (
+                    <button
+                      type="button"
+                      onClick={() => setActionMode('resubmit')}
+                      className="w-full py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <RefreshCcw className="w-3.5 h-3.5" /> Request Resubmission
+                    </button>
+                  )}
                 </div>
-                {selected._source === 'ownerVerification' && (
-                  <button onClick={() => setActionMode('resubmit')}
-                    className="w-full py-2.5 bg-orange-100 text-orange-700 border border-orange-200 rounded-xl text-sm font-bold hover:bg-orange-200 transition-all flex items-center justify-center gap-2">
-                    <RefreshCcw className="w-4 h-4" /> Request Resubmission
-                  </button>
-                )}
-              </div>
-            )}
+              )}
 
-            {/* Rejection form */}
-            {actionMode === 'reject' && (
-              <div className="space-y-3 pt-2 border-t border-gray-100">
-                <p className="text-sm font-semibold text-red-600">Rejection Reason *</p>
-                <textarea value={actionNote} onChange={e => setActionNote(e.target.value)}
-                  placeholder="Explain clearly why this was rejected (owner will see this message)..."
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-red-400 h-24 resize-none" />
-                <div className="flex gap-3">
-                  <button onClick={() => { setActionMode(null); setActionNote(''); }}
-                    className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50">Cancel</button>
-                  <button onClick={() => handleReject(selected)} disabled={actionLoading || !actionNote.trim()}
-                    className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-2">
-                    {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Rejection'}
-                  </button>
+              {/* Rejection Form */}
+              {actionMode === 'reject' && (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-red-600">Rejection Reason *</p>
+                  <textarea
+                    value={actionNote}
+                    onChange={e => setActionNote(e.target.value)}
+                    placeholder="State reason clearly (e.g. Blurry photo, name mismatch, expired ID)..."
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs outline-none focus:border-red-400 h-20 resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setActionMode(null); setActionNote(''); }}
+                      className="flex-1 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleReject(selected)}
+                      disabled={actionLoading || !actionNote.trim()}
+                      className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    >
+                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Rejection'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Resubmission form */}
-            {actionMode === 'resubmit' && (
-              <div className="space-y-3 pt-2 border-t border-gray-100">
-                <p className="text-sm font-semibold text-orange-600">What needs to be resubmitted? *</p>
-                <textarea value={actionNote} onChange={e => setActionNote(e.target.value)}
-                  placeholder="e.g. 'Please upload a clearer photo of your Aadhaar card — the text is unreadable.'"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-orange-400 h-24 resize-none" />
-                <div className="flex gap-3">
-                  <button onClick={() => { setActionMode(null); setActionNote(''); }}
-                    className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50">Cancel</button>
-                  <button onClick={() => handleRequestResubmission(selected)} disabled={actionLoading || !actionNote.trim()}
-                    className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2">
-                    {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Request Resubmission'}
-                  </button>
+              {/* Resubmission Form */}
+              {actionMode === 'resubmit' && (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-amber-700">Resubmission Instructions *</p>
+                  <textarea
+                    value={actionNote}
+                    onChange={e => setActionNote(e.target.value)}
+                    placeholder="e.g. Please re-upload with all 4 corners of the Aadhaar card clearly visible..."
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs outline-none focus:border-amber-400 h-20 resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setActionMode(null); setActionNote(''); }}
+                      className="flex-1 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRequestResubmission(selected)}
+                      disabled={actionLoading || !actionNote.trim()}
+                      className="flex-1 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    >
+                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Send Request'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {selected.status !== 'pending' && !actionMode && (
+                <div className="text-center py-1">
+                  <p className="text-xs text-gray-500">
+                    This verification was already marked as <strong className="uppercase">{selected.status}</strong>.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Lightbox */}
+      {/* Lightbox / Zoom modal */}
       {lightbox && selected?.documentUrl && (
-        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4 cursor-pointer" onClick={() => setLightbox(false)}>
-          <button className="absolute top-4 right-4 text-white/70 hover:text-white z-10" onClick={() => setLightbox(false)}>
-            <X className="w-8 h-8" />
-          </button>
-          <img src={selected.documentUrl} alt="Document full view" className="max-w-full max-h-[90vh] object-contain rounded-lg" onClick={e => e.stopPropagation()} />
+        <div
+          className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 cursor-pointer"
+          onClick={() => setLightbox(false)}
+        >
+          <div className="absolute top-4 right-4 flex items-center gap-3 z-10" onClick={e => e.stopPropagation()}>
+            {!isPdf(selected.documentUrl) && (
+              <button
+                onClick={() => setRotation(r => (r + 90) % 360)}
+                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+              >
+                <RotateCw className="w-4 h-4" /> Rotate
+              </button>
+            )}
+            <a
+              href={selected.documentUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" /> Open Tab
+            </a>
+            <button
+              className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+              onClick={() => setLightbox(false)}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="max-w-4xl max-h-[85vh] w-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
+            {isPdf(selected.documentUrl) ? (
+              <iframe
+                src={selected.documentUrl}
+                title="PDF Document"
+                className="w-full h-[80vh] rounded-xl bg-white border border-white/20"
+              />
+            ) : (
+              <img
+                src={selected.documentUrl}
+                alt="Document full view"
+                style={{ transform: `rotate(${rotation}deg)` }}
+                className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl transition-transform duration-200"
+              />
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -3,7 +3,7 @@ name: NestMate Beta CI/CD Deployment
 on:
   push:
     branches:
-      - cursor/cloud-agent-1785774356340-tj3zr
+      - main
 
 permissions:
   checks: write
