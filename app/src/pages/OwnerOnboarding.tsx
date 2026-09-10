@@ -65,7 +65,7 @@ export default function OwnerOnboarding() {
       const resolvedAvatar = authProfile?.avatar || googlePhoto || '';
 
       await updateProfile(user.uid, {
-        name: finalName,
+        name: ownerName,
         role: 'owner',
         ownerType,
         city: 'Bengaluru',
