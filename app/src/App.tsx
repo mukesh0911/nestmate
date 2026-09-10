@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState, Suspense, lazy } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -139,12 +139,49 @@ function BlockedAccountScreen({ status }: { status: string }) {
   );
 }
 
+// Intercepts any URL where /admin has been appended to an arbitrary path
+// (e.g. /explore/admin, /dashboard/admin, /room/123/admin) and redirects directly to /admin
+function AdminRedirectWatcher() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const p = location.pathname.toLowerCase();
+    if (p !== '/admin' && !p.startsWith('/admin/')) {
+      const idx = p.indexOf('/admin');
+      if (idx !== -1) {
+        const targetAdminPath = location.pathname.slice(idx);
+        navigate(targetAdminPath + location.search + location.hash, { replace: true });
+      }
+    }
+  }, [location.pathname, location.search, location.hash, navigate]);
+
+  return null;
+}
+
 // Guard authenticated routes (auth + account status)
 function PrivateRoute({ children, isAuthenticated, status }: { children: React.ReactNode, isAuthenticated: boolean, status: string }) {
+  const location = useLocation();
   if (auth.currentUser && !isAuthenticated) return <PageLoader />;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) {
+    const redirectTarget = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login?redirect=${redirectTarget}`} replace />;
+  }
   if (!isAccountActive(status)) return <BlockedAccountScreen status={status} />;
   return <>{children}</>;
+}
+
+// Intelligent login route — honors ?redirect=/admin even if already authenticated
+function LoginRoute({ isAuthenticated, getDashboardRoute }: { isAuthenticated: boolean, getDashboardRoute: () => string }) {
+  const location = useLocation();
+  const redirect = new URLSearchParams(location.search).get('redirect');
+  if (isAuthenticated) {
+    if (redirect && (redirect === '/admin' || redirect.startsWith('/admin'))) {
+      return <Navigate to={redirect} replace />;
+    }
+    return <Navigate to={getDashboardRoute()} replace />;
+  }
+  return <AuthPage />;
 }
 
 // Guard interactive routes — enforces authentication, account status,
@@ -297,9 +334,10 @@ function AppRoutes() {
 
   return (
     <Suspense fallback={<PageLoader />}>
+      <AdminRedirectWatcher />
       <Routes>
         {/* Auth routes */}
-        <Route path="/login" element={isAuthenticated ? <Navigate to={getDashboardRoute()} replace /> : <AuthPage />} />
+        <Route path="/login" element={<LoginRoute isAuthenticated={isAuthenticated} getDashboardRoute={getDashboardRoute} />} />
         <Route path="/phone-login" element={isAuthenticated ? <Navigate to={getDashboardRoute()} replace /> : <PhoneLogin />} />
         <Route path="/verify-otp" element={isAuthenticated ? <Navigate to={getDashboardRoute()} replace /> : <OTPVerify />} />
 
@@ -353,6 +391,7 @@ function AppRoutes() {
           <Route path="/profile" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><ProfilePage /></OnboardingGuard>} />
           <Route path="/profile/preview" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><ProfilePreview /></OnboardingGuard>} />
           <Route path="/edit-profile" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><EditProfile /></OnboardingGuard>} />
+          <Route path="/verify" element={<Navigate to="/edit-profile#verification" replace />} />
           <Route path="/preferences" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState} expectedRole="seeker"><PreferencesPage /></OnboardingGuard>} />
           <Route path="/safety" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><SafetyCenter /></OnboardingGuard>} />
           <Route path="/applicants/compare" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState} expectedRole="owner"><ApplicantCompare /></OnboardingGuard>} />

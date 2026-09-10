@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { doc, getDoc, setDoc, collection, getDocs, query, where, orderBy, limit, updateDoc, deleteDoc, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, query, where, orderBy, limit, updateDoc, deleteDoc, addDoc, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailKey } from '@/lib/adminKeys';
@@ -35,7 +35,7 @@ export function useAdmin() {
 
     const checkAdmin = async () => {
       try {
-        const email = (user.email || '').toLowerCase().trim();
+        const email = (user.email || profile?.email || '').toLowerCase().trim();
         if (!email) {
           setIsAdmin(false);
           setChecking(false);
@@ -45,6 +45,16 @@ export function useAdmin() {
         if (email === 'admin@nestmate-test.com' || email === 'admin@nestmate.in' || email === 'mukvr46@gmail.com') {
           setIsAdmin(true);
           setChecking(false);
+          // Ensure admin document exists in Firestore for rules and listing queries
+          try {
+            const docKey = adminEmailKey(email);
+            setDoc(doc(db, 'admins', docKey), {
+              email,
+              name: profile?.name || 'Administrator',
+              role: 'admin',
+              updatedAt: serverTimestamp()
+            }, { merge: true }).catch(() => {});
+          } catch {}
           return;
         }
         // Dynamic check against admins/{email} and config/admin
@@ -82,7 +92,7 @@ export function useAdmin() {
     const usersSnap = await getDocs(collection(db, 'users'));
     const totalUsers = usersSnap.size;
 
-    // Signups today
+    // Signups today & yesterday
     let signupsToday = 0;
     let signupsYesterday = 0;
     usersSnap.docs.forEach(d => {
@@ -106,6 +116,13 @@ export function useAdmin() {
     const allListingsSnap = await getDocs(collection(db, 'listings'));
     const totalListings = allListingsSnap.size;
 
+    // Pending listings (waiting for verification)
+    let pendingListings = 0;
+    try {
+      const pendingListingsSnap = await getDocs(query(collection(db, 'listings'), where('status', '==', 'pending_verification'))).catch(() => ({ docs: [] }));
+      pendingListings = pendingListingsSnap.docs.length;
+    } catch {}
+
     // Chat rooms (proxy for messages activity)
     const chatsSnap = await getDocs(collection(db, 'chatRooms'));
     const totalChats = chatsSnap.size;
@@ -121,14 +138,18 @@ export function useAdmin() {
       .slice(0, 5)
       .map(([city, count]) => ({ city, count }));
 
-    // Daily signups (last 30 days)
+    // Daily signups (last 30 days) normalized by calendar day
     const dailySignups: { date: string; count: number }[] = [];
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+
     for (let i = 29; i >= 0; i--) {
-      const d = new Date();
+      const d = new Date(todayMidnight);
       d.setDate(d.getDate() - i);
       const label = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
       dailySignups.push({ date: label, count: 0 });
     }
+
     usersSnap.docs.forEach(d => {
       const created = d.data().createdAt;
       if (!created) return;
@@ -138,7 +159,9 @@ export function useAdmin() {
       else if (typeof created === 'string' || typeof created === 'number') dt = new Date(created);
       if (!dt || isNaN(dt.getTime())) return;
 
-      const diffDays = Math.floor((Date.now() - dt.getTime()) / (1000 * 60 * 60 * 24));
+      const dtMidnight = new Date(dt);
+      dtMidnight.setHours(0, 0, 0, 0);
+      const diffDays = Math.round((todayMidnight.getTime() - dtMidnight.getTime()) / (1000 * 60 * 60 * 24));
       if (diffDays >= 0 && diffDays < 30) {
         dailySignups[29 - diffDays].count++;
       }
@@ -152,18 +175,33 @@ export function useAdmin() {
       else if (role === 'owner') owners++;
     });
 
-    // Pending verifications count
+    // Pending verifications count (legacy + ownerVerifications)
     let pendingVerifications = 0;
     try {
-      const ownerVerifsSnap = await getDocs(collection(db, 'ownerVerifications')).catch(() => ({ docs: [] }));
-      pendingVerifications = ownerVerifsSnap.docs.filter(
+      const [legacySnap, ownerSnap] = await Promise.all([
+        getDocs(query(collection(db, 'verifications'), where('status', '==', 'pending'))).catch(() => ({ docs: [] })),
+        getDocs(collection(db, 'ownerVerifications')).catch(() => ({ docs: [] })),
+      ]);
+      const legacyPending = (legacySnap.docs || []).length;
+      const ownerPending = (ownerSnap.docs || []).filter(
         (d: any) => d.data().status === 'SUBMITTED' || d.data().status === 'UNDER_REVIEW'
+      ).length;
+      pendingVerifications = legacyPending + ownerPending;
+    } catch {}
+
+    // Pending / open reports count
+    let pendingReports = 0;
+    try {
+      const reportsSnap = await getDocs(collection(db, 'reports')).catch(() => ({ docs: [] }));
+      pendingReports = (reportsSnap.docs || []).filter(
+        (d: any) => d.data().status === 'open' || d.data().status === 'under_review'
       ).length;
     } catch {}
 
     return {
       totalUsers, signupsToday, signupsYesterday, activeListings, totalListings,
-      totalChats, topCities, dailySignups, seekers, owners, pendingVerifications,
+      pendingListings, totalChats, topCities, dailySignups, seekers, owners,
+      pendingVerifications, pendingReports,
     };
   }, []);
 
@@ -186,14 +224,30 @@ export function useAdmin() {
 
   const suspendUser = useCallback(async (uid: string) => {
     await updateDoc(doc(db, 'users', uid), { status: 'suspended', updatedAt: serverTimestamp() });
+    try {
+      const lSnap = await getDocs(query(collection(db, 'listings'), where('ownerId', '==', uid)));
+      await Promise.all(lSnap.docs.map(d => updateDoc(doc(db, 'listings', d.id), { status: 'paused', updatedAt: serverTimestamp() })));
+    } catch {}
   }, []);
 
   const banUser = useCallback(async (uid: string) => {
     await updateDoc(doc(db, 'users', uid), { status: 'banned', updatedAt: serverTimestamp() });
+    try {
+      const lSnap = await getDocs(query(collection(db, 'listings'), where('ownerId', '==', uid)));
+      await Promise.all(lSnap.docs.map(d => updateDoc(doc(db, 'listings', d.id), { status: 'paused', updatedAt: serverTimestamp() })));
+    } catch {}
   }, []);
 
   const reinstateUser = useCallback(async (uid: string) => {
     await updateDoc(doc(db, 'users', uid), { status: 'active', updatedAt: serverTimestamp() });
+  }, []);
+
+  const updateUserVerification = useCallback(async (uid: string, level: number, isVerified: boolean) => {
+    await updateDoc(doc(db, 'users', uid), {
+      verificationLevel: level,
+      isVerified,
+      updatedAt: serverTimestamp(),
+    });
   }, []);
 
   // --- Listing management ---
@@ -213,6 +267,10 @@ export function useAdmin() {
     }
   }, []);
 
+  const updateListingStatus = useCallback(async (id: string, status: string) => {
+    await updateDoc(doc(db, 'listings', id), { status, updatedAt: serverTimestamp() });
+  }, []);
+
   const deleteListing = useCallback(async (id: string) => {
     await deleteDoc(doc(db, 'listings', id));
   }, []);
@@ -228,14 +286,52 @@ export function useAdmin() {
     else q = query(collection(db, 'users'));
 
     const snap = await getDocs(q);
-    const batch = snap.docs.map(d =>
-      addDoc(collection(db, 'notifications'), {
-        userId: d.id, type: 'system', title, description,
-        read: false, createdAt: serverTimestamp(),
-      })
-    );
-    await Promise.all(batch);
-    return snap.size;
+    const userDocs = snap.docs;
+
+    // Save audit log to broadcasts collection
+    try {
+      await addDoc(collection(db, 'broadcasts'), {
+        title,
+        description,
+        target,
+        sentBy: user?.email || user?.uid || 'admin',
+        recipientCount: userDocs.length,
+        sentAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.warn('Failed to log broadcast to broadcasts collection:', e);
+    }
+
+    // Chunk notification creation in batches of 50
+    const CHUNK_SIZE = 50;
+    for (let i = 0; i < userDocs.length; i += CHUNK_SIZE) {
+      const chunk = userDocs.slice(i, i + CHUNK_SIZE);
+      await Promise.all(
+        chunk.map(d =>
+          addDoc(collection(db, 'notifications'), {
+            userId: d.id, type: 'system', title, description,
+            read: false, createdAt: serverTimestamp(),
+          })
+        )
+      );
+    }
+    return userDocs.length;
+  }, [user?.email, user?.uid]);
+
+  const getBroadcastHistory = useCallback(async () => {
+    try {
+      const snap = await getDocs(collection(db, 'broadcasts'));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a: any, b: any) => {
+        const ta = a.sentAt?.toMillis ? a.sentAt.toMillis() : (a.sentAt ? new Date(a.sentAt).getTime() : 0);
+        const tb = b.sentAt?.toMillis ? b.sentAt.toMillis() : (b.sentAt ? new Date(b.sentAt).getTime() : 0);
+        return tb - ta;
+      });
+      return list;
+    } catch (err) {
+      console.error('getBroadcastHistory error:', err);
+      return [];
+    }
   }, []);
 
   // --- Reports ---
@@ -412,9 +508,9 @@ export function useAdmin() {
   }, []);
 
   /** Register an admin. Keyed by lowercased email so it matches the rules. */
-  const addAdmin = useCallback(async (email: string, name: string) => {
+  const addAdmin = useCallback(async (email: string, name: string, role = 'moderator') => {
     const key = adminEmailKey(email);
-    await setDoc(doc(db, 'admins', key), { email: key, name, role: 'moderator', createdAt: serverTimestamp() });
+    await setDoc(doc(db, 'admins', key), { email: key, name, role, createdAt: serverTimestamp() });
   }, []);
 
   const removeAdmin = useCallback(async (id: string) => {
@@ -451,14 +547,141 @@ export function useAdmin() {
     );
   }, []);
 
+  /**
+   * Safely purge all demo and seed accounts and their dependent records
+   * while strictly protecting real user accounts (e.g. mukvr46@gmail.com).
+   */
+  const cleanDemoAndSeedData = useCallback(async (onProgress?: (msg: string) => void) => {
+    const log = (m: string) => onProgress?.(m);
+    log('Scanning database collections for demo & seed data...');
+
+    let totalDeleted = 0;
+    const SEED_TAG = 'seed_user_';
+
+    // 1. Scan users
+    log('Scanning user accounts...');
+    const usersSnap = await getDocs(collection(db, 'users'));
+    const seedUserIds = new Set<string>();
+
+    const batches: Array<() => Promise<void>> = [];
+    let currentBatch = writeBatch(db);
+    let batchOps = 0;
+
+    const queueDelete = (ref: any) => {
+      currentBatch.delete(ref);
+      batchOps++;
+      if (batchOps >= 400) {
+        const b = currentBatch;
+        batches.push(() => b.commit());
+        currentBatch = writeBatch(db);
+        batchOps = 0;
+      }
+    };
+
+    for (const uDoc of usersSnap.docs) {
+      const data = uDoc.data();
+      const email = (data.email || '').toLowerCase().trim();
+      const uid = uDoc.id;
+
+      // NEVER touch admin accounts or verified real non-demo users!
+      if (email === 'mukvr46@gmail.com' || email === 'admin@nestmate.in' || email === 'admin@nestmate-test.com') {
+        continue;
+      }
+
+      const isSeedOrDemo =
+        uid.startsWith(SEED_TAG) ||
+        email.startsWith('demo.') ||
+        email.endsWith('@nestmate-seed.com') ||
+        email.includes('seed') ||
+        data.isDemo === true ||
+        data.isSeed === true;
+
+      if (isSeedOrDemo) {
+        seedUserIds.add(uid);
+        queueDelete(uDoc.ref);
+        queueDelete(doc(db, 'privateUserData', uid));
+        totalDeleted++;
+      }
+    }
+    log(`Identified ${seedUserIds.size} demo/seed accounts.`);
+
+    // 2. Scan listings
+    log('Scanning property listings...');
+    const listingsSnap = await getDocs(collection(db, 'listings'));
+    let seedListingsCount = 0;
+    for (const lDoc of listingsSnap.docs) {
+      const data = lDoc.data();
+      const isSeedListing =
+        data.isSeed === true ||
+        data.isDemo === true ||
+        data.sample === true ||
+        seedUserIds.has(data.ownerId) ||
+        (data.ownerId && data.ownerId.startsWith(SEED_TAG)) ||
+        (data.title && (data.title.includes('[Demo]') || data.title.includes('Seed')));
+
+      if (isSeedListing) {
+        queueDelete(lDoc.ref);
+        seedListingsCount++;
+        totalDeleted++;
+      }
+    }
+    log(`Identified ${seedListingsCount} demo/seed listings.`);
+
+    // 3. Scan dependent collections
+    const subCollections = ['connections', 'chatRooms', 'notifications', 'listingViews', 'reports', 'verifications'];
+    for (const col of subCollections) {
+      log(`Checking ${col}...`);
+      try {
+        const snap = await getDocs(collection(db, col));
+        let count = 0;
+        for (const d of snap.docs) {
+          const data = d.data();
+          const shouldDelete =
+            (data.userId && seedUserIds.has(data.userId)) ||
+            (data.ownerId && seedUserIds.has(data.ownerId)) ||
+            (data.fromUserId && seedUserIds.has(data.fromUserId)) ||
+            (data.toUserId && seedUserIds.has(data.toUserId)) ||
+            (data.reporterId && seedUserIds.has(data.reporterId)) ||
+            (data.reportedUserId && seedUserIds.has(data.reportedUserId)) ||
+            (data.participants && data.participants.some((p: string) => seedUserIds.has(p))) ||
+            col === 'listingViews';
+
+          if (shouldDelete) {
+            queueDelete(d.ref);
+            count++;
+            totalDeleted++;
+          }
+        }
+        if (count > 0) log(`Queued ${count} ${col} for removal.`);
+      } catch (err) {
+        // Skip inaccessible collections
+      }
+    }
+
+    if (batchOps > 0) {
+      const b = currentBatch;
+      batches.push(() => b.commit());
+    }
+
+    log(`Committing database changes in ${batches.length} batch(es)...`);
+    for (const commitFn of batches) {
+      await commitFn();
+    }
+
+    log(`Cleanup complete! Removed ${totalDeleted} demo & seed documents.`);
+    return totalDeleted;
+  }, []);
+
   return {
     isAdmin, checking,
-    getMetrics, getAllUsers, suspendUser, banUser, reinstateUser,
-    getAllListings, deleteListing, broadcastNotification,
+    getMetrics, getAllUsers, suspendUser, banUser, reinstateUser, updateUserVerification,
+    getAllListings, updateListingStatus, deleteListing,
+    broadcastNotification, getBroadcastHistory,
     getAllReports, updateReportStatus,
     getAllVerifications, getAllOwnerVerifications, approveVerification, rejectVerification,
     requestResubmission, beginReview,
     getAdmins, addAdmin, removeAdmin, getAdminConfig, updateAdminEmails,
+    cleanDemoAndSeedData,
   };
 }
 

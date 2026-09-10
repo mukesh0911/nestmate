@@ -106,6 +106,14 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
             : 0,
         }));
 
+        // Verified seekers rank in the Top List
+        scored.sort((a, b) => {
+          const aVer = a.profile.isVerified ? 1 : 0;
+          const bVer = b.profile.isVerified ? 1 : 0;
+          if (bVer !== aVer) return bVer - aVer;
+          return b.score - a.score;
+        });
+
         setSeekers(scored);
       } catch (err) {
         console.error('Failed to fetch flatmates', err);

@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { MapItem } from '@/pages/MapView';
 import { useStore } from '@/store/useStore';
 import { useListings } from '@/hooks/useListings';
 import { useAuth } from '@/hooks/useAuth';

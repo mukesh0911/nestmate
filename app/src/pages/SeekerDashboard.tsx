@@ -15,11 +15,11 @@ import type { Connection } from '@/hooks/useConnections';
 import { toast } from 'sonner';
 import { Drawer } from 'vaul';
 import { Search, LayoutGrid, List, Crown, Shield, ShieldCheck, Star, MessageCircle, Heart, HeartOff, Bookmark, Home, Loader2, X, Filter, SlidersHorizontal, MoreVertical, Flag, Ban, Check, CheckCircle2, Bell, Sparkles, ChevronDown } from 'lucide-react';
-import { MapPreview } from '@/components/MapPreview';
 import TrustBadge from '@/components/TrustBadge';
 import ProfileCompleteness from '@/components/ProfileCompleteness';
-import StateEmpty from '@/components/StateEmpty';
 import { budgetOverlapPct } from '@/lib/displayTruth';
+import StateEmpty from '@/components/StateEmpty';
+import SeekerTrustBanner from '@/components/SeekerTrustBanner';
 import { StateSkeletonGrid } from '@/components/StateLoading';
 import {
   DropdownMenu,
@@ -89,6 +89,31 @@ export default function SeekerDashboard() {
   // (which sets filters.city = ""), immediately overwriting their selection back to
   // the profile city (e.g. Chennai). The flag ensures it only runs on first load.
   const cityInitializedRef = useRef(false);
+
+  // Check URL param ?verify=true (e.g. from in-app notification click) -> redirect to verify portal
+  useEffect(() => {
+    if (searchParams.get('verify') === 'true') {
+      navigate('/edit-profile#verification', { replace: true });
+    }
+  }, [searchParams, navigate]);
+
+  // Push in-app notification to user inbox (once per user account)
+  useEffect(() => {
+    if (!user?.uid || !profile || profile.role !== 'seeker' || profile.isVerified) return;
+
+    const notifKey = `nestmate_verify_notif_sent_${user.uid}`;
+    if (!localStorage.getItem(notifKey)) {
+      localStorage.setItem(notifKey, 'true');
+      createNotification({
+        userId: user.uid,
+        title: '🚀 Boost your profile to the top list',
+        description: 'Complete identity verification to rank higher in searches, unlock verified flatmates, and receive 3x more replies.',
+        type: 'verification',
+        actionUrl: '/edit-profile#verification',
+        read: false
+      }).catch(err => console.warn('Failed to push verification notification', err));
+    }
+  }, [user?.uid, profile?.role, profile?.isVerified, createNotification]);
 
   // Report & Block State
   const [reportingUser, setReportingUser] = useState<MatchedUser | null>(null);
@@ -620,11 +645,17 @@ export default function SeekerDashboard() {
               <div className="flex items-center gap-3 mb-4">
                 <div className="relative">
                   <div className="w-14 h-14 rounded-full border-2 border-fire p-0.5">
-                    {profile?.avatar && !profile.avatar.includes('dicebear') ? (
-                      <img src={profile.avatar} alt="" loading="lazy" className="w-full h-full rounded-full" />
+                    {(profile?.avatar || user?.photoURL) && !(profile?.avatar || user?.photoURL)?.includes('dicebear') ? (
+                      <img
+                        src={profile?.avatar || user?.photoURL || undefined}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                        loading="lazy"
+                        className="w-full h-full rounded-full object-cover"
+                      />
                     ) : (
                       <div aria-hidden="true" className="w-full h-full rounded-full bg-fire/10 text-fire flex items-center justify-center font-bold">
-                        {(profile?.name || '?').trim().charAt(0).toUpperCase()}
+                        {(profile?.name || user?.displayName || '?').trim().charAt(0).toUpperCase()}
                       </div>
                     )}
                   </div>
@@ -768,6 +799,12 @@ export default function SeekerDashboard() {
 
           {/* ─── Main Content ─── */}
           <div className="flex-1 min-w-0">
+            {/* Seeker Trust & Verification Banner */}
+            <SeekerTrustBanner
+              onVerifyClick={() => navigate('/edit-profile#verification')}
+              isVerified={!!profile?.isVerified}
+            />
+
             {/* Sprint 5E: calm page header — one purpose statement plus a
                 truthful result count so the seeker knows what they're looking at */}
             <div className="mb-4">
@@ -1130,9 +1167,7 @@ export default function SeekerDashboard() {
               </div>
             )}
 
-            {!isLoading && activeTab === 'all' && profile && (
-              <MapPreview currentUser={profile} topMatches={filteredMatches} />
-            )}
+            {/* Map preview removed as the map feature was decommissioned */}
           </div>
         </div>
       </div>
@@ -1277,6 +1312,8 @@ export default function SeekerDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+
     </div>
   );
 }

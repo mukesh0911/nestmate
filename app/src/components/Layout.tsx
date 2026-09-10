@@ -245,15 +245,16 @@ export default function Layout() {
                       className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-ink/5 transition-all border border-border/50 bg-white/60"
                     >
                       <div className="relative">
-                        {profile.avatar && !profile.avatar.includes('dicebear') ? (
+                        {(profile?.avatar || user?.photoURL) && !(profile?.avatar || user?.photoURL)?.includes('dicebear') ? (
                           <img
-                            src={profile.avatar}
-                            alt={profile.name}
+                            src={profile?.avatar || user?.photoURL || undefined}
+                            alt={profile?.name || user?.displayName || 'User'}
+                            referrerPolicy="no-referrer"
                             className="w-7 h-7 rounded-full border-2 border-fire/30 object-cover"
                           />
                         ) : (
                           <div aria-hidden="true" className="w-7 h-7 rounded-full border-2 border-fire/30 bg-fire/10 text-fire flex items-center justify-center text-[11px] font-bold">
-                            {profile.name?.trim().charAt(0).toUpperCase() || 'U'}
+                            {(profile?.name || user?.displayName || 'U').trim().charAt(0).toUpperCase()}
                           </div>
                         )}
                         {profile.isPremium && (
