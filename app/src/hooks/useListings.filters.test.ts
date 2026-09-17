@@ -73,4 +73,19 @@ describe('applyClientFilters — Sprint 4B locality truth fixes', () => {
         expect(applyClientFilters(listings, { budgetMin: 15000 })).toEqual([]);
         expect(applyClientFilters(listings, { budgetMax: 12000 }).length).toBe(3);
     });
-});
+
+    it('matches city using common aliases (Bengaluru <-> Bangalore, Mumbai <-> Bombay)', () => {
+        // Listings with city 'Bengaluru' match a filter for 'Bangalore'
+        const blrListings = [makeListing({ city: 'Bengaluru' })];
+        expect(applyClientFilters(blrListings, { city: 'Bangalore' })).toHaveLength(1);
+        expect(applyClientFilters(blrListings, { city: 'bengaluru' })).toHaveLength(1);
+
+        // Listings with city 'Bangalore' match a filter for 'Bengaluru'
+        const bangListings = [makeListing({ city: 'Bangalore' })];
+        expect(applyClientFilters(bangListings, { city: 'Bengaluru' })).toHaveLength(1);
+
+        // Bombay <-> Mumbai
+        const bombayListing = [makeListing({ city: 'Bombay' })];
+        expect(applyClientFilters(bombayListing, { city: 'Mumbai' })).toHaveLength(1);
+    });
+});

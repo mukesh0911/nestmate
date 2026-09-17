@@ -6,6 +6,8 @@
  * (useMatches) must honor the same locality filter semantics.
  */
 
+import { areSameCityAlias } from './cityNormalization';
+
 export interface ListingFilters {
     city?: string;
     /** Sprint 4B: locality search from the landing hero / dashboard filters.
@@ -38,7 +40,10 @@ export function applyClientFilters<T extends FilterableListing>(
     let out = results;
     if (filters.city) {
         const target = filters.city.toLowerCase().trim();
-        out = out.filter(l => (l.city || '').toLowerCase().trim() === target || (l.city || '').toLowerCase().includes(target));
+        out = out.filter(l => {
+            const lc = (l.city || '').toLowerCase().trim();
+            return lc === target || lc.includes(target) || areSameCityAlias(lc, target);
+        });
     }
     // Sprint 4B (truth): honor the locality query on the rooms tab too —
     // previously only the roommates tab (useMatches) applied filters.localities,

@@ -23,3 +23,22 @@ export function filterProfilesByRole<T extends UserProfileLike>(
     return r === targetRole;
   });
 }
+
+/**
+ * Filter candidates for the Flatmates / Roommates discovery tab (DISC-03):
+ * - SEEKER discovers OTHER SEEKERS (potential roommates, excluding self)
+ * - OWNER discovers SEEKERS (prospective tenants/flatmates, excluding self)
+ * Both roles browse 'seeker' profiles on this tab, excluding the logged-in user.
+ */
+export function filterFlatmateProfiles<T extends UserProfileLike>(
+  profiles: T[],
+  currentUserId: string | null | undefined,
+  _currentUserRole?: 'seeker' | 'owner' | string | null | undefined
+): T[] {
+  const targetRole = 'seeker';
+  return profiles.filter(p => {
+    if (!p.uid || p.uid === currentUserId) return false;
+    const r = (p.role || '').toLowerCase();
+    return r === targetRole;
+  });
+}

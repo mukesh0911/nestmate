@@ -15,6 +15,8 @@ import { useStore } from '@/store/useStore';
 import { toast } from 'sonner';
 import { isPubliclyVisibleProfile } from '@/lib/marketplaceVisibility';
 import { formatBudgetINR } from '@/lib/displayTruth';
+import { areSameCityAlias } from '@/lib/cityNormalization';
+import { filterFlatmateProfiles } from '@/lib/roleFiltering';
 
 interface SeekerWithScore {
   profile: UserProfile;
@@ -30,10 +32,15 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
 
   const [seekers, setSeekers] = useState<SeekerWithScore[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchCity, setSearchCity] = useState(currentUser?.city || '');
+  const [fetchError, setFetchError] = useState(false);
+  // Search field starts empty — city-scoping is applied as a separate filter,
+  // not via the text search box, so all eligible flatmates appear on first load.
+  const [searchQuery, setSearchQuery] = useState('');
   const [connectingTo, setConnectingTo] = useState<string | null>(null);
   const [myConnections, setMyConnections] = useState<Connection[]>([]);
   const [chatRoomMap, setChatRoomMap] = useState<Record<string, string>>({});
+  // Track the total count before text search to differentiate "no data" vs "search filtered".
+  const [totalBeforeSearch, setTotalBeforeSearch] = useState(0);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -52,6 +59,7 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
   useEffect(() => {
     async function fetchFlatmates() {
       setLoading(true);
+      setFetchError(false);
       try {
         const profileMap = new Map<string, UserProfile>();
 
@@ -69,6 +77,7 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
           });
         } catch (err) {
           console.warn('Firestore users query warning:', err);
+          setFetchError(true);
         }
 
         // Sprint 2E hardening — ORPHAN POLICY (decision): the previous
@@ -81,22 +90,38 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
         // NOTE: No fake/fallback profiles are injected when the database has
         // no real users. An empty result renders the StateEmpty component —
         // the production marketplace must never display fabricated profiles.
-        const targetRole = 'seeker';
-        let fetched = Array.from(profileMap.values()).filter(p => {
-          if (!p.uid || p.uid === user?.uid) return false;
-          const r = (p.role || '').toLowerCase();
-          return r === targetRole;
-        });
 
-        const q = searchCity.trim().toLowerCase();
+        // DISC-03 role logic: Flatmates tab always shows seeker profiles.
+        // Seekers discover other seekers (potential roommates).
+        // Owners also discover seekers (prospective tenants/flatmates).
+        const fetched = filterFlatmateProfiles(Array.from(profileMap.values()), user?.uid, currentUser?.role);
+
+        // City-scope: show seekers in the current user's city by default.
+        // This is a separate step from the text search — seekers in the same
+        // city appear without the user needing to type anything.
+        const userCity = (currentUser?.city || '').trim().toLowerCase();
+        const cityScoped = userCity
+          ? fetched.filter(r => {
+              const profileCity = (r.city || '').trim().toLowerCase();
+              // Exact match OR common Indian city alias (Bengaluru/Bangalore)
+              return profileCity === userCity || areSameCityAlias(profileCity, userCity);
+            })
+          : fetched;
+
+        setTotalBeforeSearch(cityScoped.length);
+
+        // Optional text search: filter by locality, name, or profession.
+        // This is independent of city-scoping — it refines within the
+        // already-city-scoped set.
+        const q = searchQuery.trim().toLowerCase();
         const filtered = q
-          ? fetched.filter(r =>
-              (r.city && r.city.toLowerCase().includes(q)) ||
+          ? cityScoped.filter(r =>
               (r.locality && r.locality.toLowerCase().includes(q)) ||
               (r.name && r.name.toLowerCase().includes(q)) ||
-              (r.profession && r.profession.toLowerCase().includes(q))
+              (r.profession && r.profession.toLowerCase().includes(q)) ||
+              (r.city && r.city.toLowerCase().includes(q))
             )
-          : fetched;
+          : cityScoped;
 
         const scored = filtered.map(u => ({
           profile: u,
@@ -117,12 +142,13 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
         setSeekers(scored);
       } catch (err) {
         console.error('Failed to fetch flatmates', err);
+        setFetchError(true);
       } finally {
         setLoading(false);
       }
     }
     fetchFlatmates();
-  }, [currentUser?.uid, searchCity, user?.uid]);
+  }, [currentUser?.uid, currentUser?.city, currentUser?.role, currentUser?.blockedUserIds, currentUser?.quizAnswers, searchQuery, user?.uid]);
 
   const handleConnect = async (seekerId: string) => {
     if (!user?.uid) {
@@ -160,6 +186,9 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
 
   const isOwner = currentUser?.role === 'owner';
 
+  // City display name for UI copy
+  const cityDisplayName = currentUser?.city || 'your area';
+
   const contentBlock = (
     <div>
       {/* ── Search Input Row ── */}
@@ -168,15 +197,15 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search Bangalore flatmates by locality, profession or name..."
-            value={searchCity}
-            onChange={(e) => setSearchCity(e.target.value)}
+            placeholder={`Search ${cityDisplayName} flatmates by locality, profession or name...`}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             aria-label="Search flatmates"
             className="w-full pl-10 pr-8 py-3 min-h-[44px] bg-white rounded-xl text-xs sm:text-sm border border-slate-200 shadow-xs outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/10 transition-all text-slate-800 placeholder:text-slate-400"
           />
-          {searchCity && (
+          {searchQuery && (
             <button
-              onClick={() => setSearchCity('')}
+              onClick={() => setSearchQuery('')}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
               aria-label="Clear search filter"
             >
@@ -189,16 +218,32 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
       {/* ── Found Count ── */}
       <div className="text-xs text-slate-500 font-semibold mb-4 block px-0.5">
         {seekers.length} {isOwner ? 'seekers' : 'roommates'}
+        {searchQuery && <span className="text-slate-400"> matching "{searchQuery}"</span>}
       </div>
 
       {/* ── Listing Section & Card Grid ── */}
       {loading ? (
         <StateLoading label={isOwner ? "Finding room seekers..." : "Finding flatmates..."} />
+      ) : fetchError ? (
+        <StateEmpty
+          icon={Users}
+          title="Something went wrong"
+          description="We couldn't load flatmate profiles right now. Please check your connection and try again."
+          className="bg-white rounded-2xl border border-dashed border-slate-200 py-12"
+        />
       ) : seekers.length === 0 ? (
         <StateEmpty
           icon={Users}
-          title={isOwner ? "No room seekers found" : "No flatmates found"}
-          description="We couldn't find results matching this exact search filter. Try searching another city."
+          title={searchQuery
+            ? `No results for "${searchQuery}"`
+            : isOwner ? 'No room seekers yet' : 'No flatmates yet'
+          }
+          description={searchQuery
+            ? `No ${isOwner ? 'seekers' : 'flatmates'} matched your search. Try a different locality, name, or profession.`
+            : totalBeforeSearch === 0
+              ? `No ${isOwner ? 'seekers' : 'flatmates'} are currently available in ${cityDisplayName}. Check back soon!`
+              : `No ${isOwner ? 'seekers' : 'flatmates'} match your current filters.`
+          }
           className="bg-white rounded-2xl border border-dashed border-slate-200 py-12"
         />
       ) : (
