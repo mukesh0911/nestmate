@@ -25,12 +25,13 @@ export default function ExplorePage() {
     }
   }, [rawTab, defaultTab, setSearchParams]);
 
+  const city = currentUser?.city || 'Bangalore';
   const subtitle =
     activeTab === 'rooms'
-      ? 'Verified rooms & shared apartments across Bangalore'
+      ? `Verified rooms & shared apartments across ${city}`
       : isOwner
-        ? 'Room seekers looking for accommodation in Bangalore'
-        : 'Compatible flatmates & room owners in Bangalore';
+        ? `Room seekers looking for accommodation in ${city}`
+        : `Compatible flatmates looking for rooms in ${city}`;
 
   return (
     <div className="min-h-screen bg-[#fbf9f9] pb-24 sm:pb-16 overflow-x-hidden">
