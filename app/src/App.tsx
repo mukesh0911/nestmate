@@ -377,8 +377,8 @@ function BrowseRoomsRedirect() {
       <Routes>
         {/* Auth routes */}
         <Route path="/login" element={<LoginRoute isAuthenticated={isAuthenticated} authState={authState} getDashboardRoute={getDashboardRoute} />} />
-        <Route path="/phone-login" element={isAuthenticated ? <Navigate to={getDashboardRoute()} replace /> : <PhoneLogin />} />
-        <Route path="/verify-otp" element={isAuthenticated ? <Navigate to={getDashboardRoute()} replace /> : <OTPVerify />} />
+        <Route path="/phone-login" element={<Navigate to="/login" replace />} />
+        <Route path="/verify-otp" element={<Navigate to="/verify-phone" replace />} />
         <Route path="/verify-phone" element={
           !isAuthenticated
             ? <Navigate to="/login" replace />

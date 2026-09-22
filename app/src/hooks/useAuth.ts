@@ -604,7 +604,7 @@ export function useAuth() {
         await savePrivateUserData(currentUser.uid, { phone });
         await setDoc(
           doc(db, 'users', currentUser.uid),
-          { phoneVerified: true, updatedAt: serverTimestamp() },
+          { phoneVerified: true, phone, updatedAt: serverTimestamp() },
           { merge: true }
         );
 

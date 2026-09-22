@@ -33,8 +33,8 @@ export default function AuthPage() {
   const redirectParam = new URLSearchParams(location.search).get('redirect') || '';
   const isAdminRedirect = redirectParam === '/admin' || redirectParam.startsWith('/admin');
 
-  const [authMethod, setAuthMethod] = useState<'phone' | 'email' | 'forgot'>(() => {
-    return isAdminRedirect ? 'email' : 'phone';
+  const [authMethod, setAuthMethod] = useState<'google' | 'email' | 'forgot'>(() => {
+    return isAdminRedirect ? 'email' : 'google';
   });
 
   // Phone state
@@ -97,14 +97,16 @@ export default function AuthPage() {
         navigate(redirectParam || '/admin');
         return;
       }
-      if (redirectParam && !redirectParam.startsWith('/admin')) {
-        navigate(redirectParam);
+
+      // MANDATORY PHONE VERIFICATION:
+      // All users must verify their Indian mobile number via OTP before accessing the platform
+      if (!hasPhone) {
+        navigate('/verify-phone');
         return;
       }
 
-      // Mandatory Phone Verification: If user does not have a verified mobile number yet
-      if (!hasPhone) {
-        navigate('/verify-phone');
+      if (redirectParam && !redirectParam.startsWith('/admin')) {
+        navigate(redirectParam);
         return;
       }
 
@@ -253,72 +255,58 @@ export default function AuthPage() {
                 />
               </div>
 
-              {/* PHONE AUTH MODE */}
-              {authMethod === 'phone' && (
+              {/* GOOGLE AUTH MODE */}
+              {authMethod === 'google' && (
                 <div>
-                  <div className="text-center mb-5">
+                  <div className="text-center mb-6">
                     <h2 className="text-[22px] xl:text-[24px] font-bold text-[#1A1A2E] tracking-tight">
                       Welcome to NestMate
                     </h2>
-                    <p className="text-xs text-stone-500 mt-0.5">
-                      Let's get you started — enter your mobile number
+                    <p className="text-xs text-stone-500 mt-1">
+                      Sign in with your Google account to get started
                     </p>
                   </div>
 
                   {/* Primary Google Signup CTA */}
-                  <div className="space-y-2 mb-5">
+                  <div className="space-y-4 mb-6">
                     <button
                       type="button"
                       onClick={handleGoogle}
                       disabled={loading}
                       className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white hover:bg-stone-50 border border-stone-200/90 hover:border-stone-300 rounded-2xl text-xs sm:text-sm font-bold text-[#1A1A2E] transition-all cursor-pointer shadow-xs active:scale-[0.99] disabled:opacity-50"
                     >
-                      <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                      </svg>
-                      <span>Continue with Google</span>
+                      {loading ? (
+                        <span className="w-5 h-5 border-2 border-stone-300 border-t-[#E5501A] rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                          </svg>
+                          <span>Continue with Google</span>
+                        </>
+                      )}
                     </button>
-                    <p className="text-[11px] text-stone-400 text-center flex items-center justify-center gap-1.5 font-medium">
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#E5501A]" />
-                      <span>Instant signup • Mobile OTP verification required</span>
-                    </p>
-                  </div>
 
-                  {/* Divider */}
-                  <div className="flex items-center gap-3 my-4">
-                    <div className="flex-1 h-px bg-stone-200/80" />
-                    <span className="text-xs text-stone-400 font-medium">or sign in with mobile number</span>
-                    <div className="flex-1 h-px bg-stone-200/80" />
-                  </div>
-
-                  {/* Input with +91 Country Code selector */}
-                  <div className="mb-3.5">
-                    <div className="flex items-center border border-stone-200 hover:border-stone-300 focus-within:border-[#E5501A] focus-within:ring-2 focus-within:ring-[#E5501A]/10 rounded-2xl bg-white transition-all overflow-hidden h-11">
-                      <div className="flex items-center gap-1 pl-3.5 pr-2.5 h-full text-sm font-bold text-[#1A1A2E] border-r border-stone-200 select-none bg-stone-50/50">
-                        <span>+91</span>
-                        <ChevronDown className="w-3.5 h-3.5 text-stone-400" />
+                    {/* Mandatory OTP Notice */}
+                    <div className="p-3.5 bg-amber-50/80 border border-amber-200/80 rounded-2xl flex items-start gap-2.5 text-left">
+                      <ShieldCheck className="w-4 h-4 text-[#E5501A] shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-bold text-[#1A1A2E]">
+                          Mandatory Mobile OTP Verification
+                        </p>
+                        <p className="text-[11px] text-stone-600 mt-0.5 leading-relaxed">
+                          After Google sign-in, you will verify your Indian mobile number via OTP in the next step to keep our community 100% genuine and safe.
+                        </p>
                       </div>
-                      <input
-                        type="tel"
-                        value={phone}
-                        onChange={(e) => {
-                          setPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
-                          setError('');
-                        }}
-                        placeholder="98765 43210"
-                        aria-label="Mobile Number"
-                        className="flex-1 px-3.5 h-full text-base font-semibold text-[#1A1A2E] placeholder:text-stone-300 placeholder:font-normal outline-hidden bg-transparent tracking-wide"
-                        onKeyDown={(e) => e.key === 'Enter' && handlePhoneSubmit()}
-                      />
                     </div>
                   </div>
 
                   {displayError && (
                     <p
-                      className="flex items-center gap-1.5 text-xs text-red-500 mb-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2"
+                      className="flex items-center gap-1.5 text-xs text-red-500 mb-4 bg-red-50 border border-red-200 rounded-xl px-3 py-2"
                       role="alert"
                     >
                       <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
@@ -326,68 +314,38 @@ export default function AuthPage() {
                     </p>
                   )}
 
-                  {/* Send Verification Code CTA */}
-                  <button
-                    onClick={handlePhoneSubmit}
-                    disabled={loading}
-                    className="w-full bg-[#E5501A] hover:bg-[#D0400B] text-white font-bold text-sm xl:text-base py-3 px-6 rounded-2xl shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-2 transition-all active:scale-[0.99] cursor-pointer disabled:opacity-50"
-                  >
-                    {loading ? (
-                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <span>Send Verification Code</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-                  {/* Alternative Email Login option */}
-                  <div className="text-center mb-5 mt-4">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAuthMethod('email');
-                        setError('');
-                      }}
-                      className="inline-flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-semibold text-stone-500 hover:text-[#1A1A2E] hover:bg-stone-100/60 transition-all cursor-pointer"
-                    >
-                      <Mail className="w-3.5 h-3.5 text-stone-400" />
-                      <span>Prefer password? Sign in with Email</span>
-                    </button>
-                  </div>
-
                   {/* 3 Trust Badges Row */}
-                  <div className="grid grid-cols-3 gap-2 py-2.5 px-2 bg-[#FAF7F2] rounded-2xl border border-stone-100 mb-4">
+                  <div className="grid grid-cols-3 gap-2 py-3 px-2 bg-[#FAF7F2] rounded-2xl border border-stone-100 mb-5">
                     <div className="flex flex-col items-center text-center gap-1">
-                      <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                        <Lock className="w-2.5 h-2.5" />
+                      <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                        <Lock className="w-3 h-3" />
                       </div>
                       <span className="text-[9px] font-semibold text-stone-600 leading-tight">
-                        Your number stays private
+                        Number stays private
                       </span>
                     </div>
 
                     <div className="flex flex-col items-center text-center gap-1">
-                      <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                      <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
                         <Leaf className="w-2.5 h-2.5" />
                       </div>
                       <span className="text-[9px] font-semibold text-stone-600 leading-tight">
-                        100% free to use
+                        100% free to connect
                       </span>
                     </div>
 
                     <div className="flex flex-col items-center text-center gap-1">
-                      <div className="w-5 h-5 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
+                      <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
                         <Users className="w-2.5 h-2.5" />
                       </div>
                       <span className="text-[9px] font-semibold text-stone-600 leading-tight">
-                        Real people, real homes
+                        Real verified roommates
                       </span>
                     </div>
                   </div>
 
                   {/* Legal Footer */}
-                  <p className="text-center text-[10px] text-stone-400">
+                  <p className="text-center text-[10px] text-stone-400 mb-4">
                     By continuing, you agree to our{' '}
                     <Link to="/terms" className="underline hover:text-stone-600">
                       Terms of Service
@@ -398,6 +356,20 @@ export default function AuthPage() {
                     </Link>
                     .
                   </p>
+
+                  {/* Admin Sign In link */}
+                  <div className="text-center pt-3 border-t border-stone-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMethod('email');
+                        setError('');
+                      }}
+                      className="text-[11px] font-medium text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
+                    >
+                      Administrator Access? Sign in with Email
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -406,12 +378,12 @@ export default function AuthPage() {
                 <div>
                   <button
                     onClick={() => {
-                      setAuthMethod('phone');
+                      setAuthMethod('google');
                       setError('');
                     }}
                     className="flex items-center gap-1 text-xs font-semibold text-stone-500 hover:text-[#1A1A2E] mb-4 transition-colors cursor-pointer"
                   >
-                    ← Back to Phone Login
+                    ← Back to Google Sign In
                   </button>
 
                   {isAdminRedirect && (
@@ -634,151 +606,103 @@ export default function AuthPage() {
               <Smartphone className="w-6 h-6 text-[#E5501A]" />
             </div>
 
-            {authMethod === 'phone' && (
+            {authMethod === 'google' && (
               <div>
                 <div className="text-center mb-5">
                   <h2 className="text-xl font-bold text-[#1A1A2E]">Welcome to NestMate</h2>
-                  <p className="text-xs text-stone-500 mt-1">Enter your Indian mobile number to continue</p>
+                  <p className="text-xs text-stone-500 mt-1">Sign in with your Google account to continue</p>
                 </div>
 
-                {/* Input with +91 selector */}
-                <div className="mb-3.5">
-                  <div className="flex items-center border border-stone-200 focus-within:border-[#E5501A] rounded-2xl bg-white transition-all overflow-hidden h-12">
-                    <div className="flex items-center gap-1 pl-3.5 pr-2.5 h-full text-sm font-bold text-[#1A1A2E] border-r border-stone-200 select-none bg-stone-50">
-                      <span>+91</span>
-                      <ChevronDown className="w-3.5 h-3.5 text-stone-400" />
+                {/* Google Sign-in CTA */}
+                <div className="space-y-4 mb-5">
+                  <button
+                    type="button"
+                    onClick={handleGoogle}
+                    disabled={loading}
+                    className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white hover:bg-stone-50 border border-stone-200/90 rounded-2xl text-xs sm:text-sm font-bold text-[#1A1A2E] shadow-sm active:scale-[0.99] cursor-pointer disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <span className="w-5 h-5 border-2 border-stone-300 border-t-[#E5501A] rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                          <path
+                            fill="#4285F4"
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+                          />
+                          <path
+                            fill="#34A853"
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                          />
+                          <path
+                            fill="#FBBC05"
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                          />
+                          <path
+                            fill="#EA4335"
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                          />
+                        </svg>
+                        <span>Continue with Google</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-2xl flex items-start gap-2.5 text-left">
+                    <ShieldCheck className="w-4 h-4 text-[#E5501A] shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-[#1A1A2E]">
+                        Mandatory Mobile OTP Verification
+                      </p>
+                      <p className="text-[11px] text-stone-600 mt-0.5 leading-relaxed">
+                        To maintain a 100% verified community, all members verify their Indian mobile number via OTP in the next step.
+                      </p>
                     </div>
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => {
-                        setPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
-                        setError('');
-                      }}
-                      placeholder="98765 43210"
-                      aria-label="Mobile Number"
-                      className="flex-1 px-3.5 h-full text-base font-semibold text-[#1A1A2E] placeholder:text-stone-300 outline-hidden bg-transparent tracking-wide"
-                      onKeyDown={(e) => e.key === 'Enter' && handlePhoneSubmit()}
-                    />
                   </div>
                 </div>
 
                 {displayError && (
-                  <p className="flex items-center gap-1.5 text-xs text-red-500 mb-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                  <p className="flex items-center gap-1.5 text-xs text-red-500 mb-4 bg-red-50 border border-red-200 rounded-xl px-3 py-2" role="alert">
                     <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                     {displayError}
                   </p>
                 )}
 
-                {/* Send Verification Code CTA */}
-                <button
-                  onClick={handlePhoneSubmit}
-                  disabled={loading}
-                  className="w-full bg-[#E5501A] hover:bg-[#D0400B] text-white font-bold text-sm py-3.5 px-5 rounded-2xl shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-2 active:scale-[0.99] cursor-pointer disabled:opacity-50"
-                >
-                  {loading ? (
-                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <span>Send Verification Code</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-
-                {/* Divider */}
-                <div className="flex items-center gap-3 my-4">
-                  <div className="flex-1 h-px bg-stone-200/80" />
-                  <span className="text-[11px] text-stone-400 font-medium">or continue with</span>
-                  <div className="flex-1 h-px bg-stone-200/80" />
-                </div>
-
-                {/* Google & Email Buttons */}
-                <div className="grid grid-cols-2 gap-2.5 mb-5">
-                  <button
-                    type="button"
-                    onClick={handleGoogle}
-                    disabled={loading}
-                    className="flex items-center justify-center gap-1.5 py-2.5 px-2 border border-stone-200 hover:bg-stone-50 rounded-2xl text-xs font-semibold text-[#1A1A2E] cursor-pointer disabled:opacity-50"
-                  >
-                    <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      />
-                    </svg>
-                    <span className="truncate">Continue with Google</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthMethod('email');
-                      setError('');
-                    }}
-                    className="flex items-center justify-center gap-1.5 py-2.5 px-2 border border-stone-200 hover:bg-stone-50 rounded-2xl text-xs font-semibold text-[#1A1A2E] cursor-pointer"
-                  >
-                    <Mail className="w-3.5 h-3.5 text-stone-500 shrink-0" />
-                    <span className="truncate">Continue with Email</span>
-                  </button>
-                </div>
-
-                {/* 4 Trust Badges in a Row */}
-                <div className="grid grid-cols-4 gap-1.5 py-3 px-1.5 bg-[#FAF7F2] rounded-2xl border border-stone-100 mb-4">
+                {/* Trust Badges */}
+                <div className="grid grid-cols-3 gap-2 py-2.5 px-2 bg-[#FAF7F2] rounded-2xl border border-stone-100 mb-4">
                   <div className="flex flex-col items-center text-center gap-1">
-                    <div className="w-6 h-6 rounded-full bg-orange-100 text-[#E5501A] flex items-center justify-center">
-                      <ShieldCheck className="w-3 h-3" />
+                    <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                      <Lock className="w-2.5 h-2.5" />
                     </div>
                     <span className="text-[9px] font-semibold text-stone-600 leading-tight">
-                      Your number stays private
+                      Number private
                     </span>
                   </div>
 
                   <div className="flex flex-col items-center text-center gap-1">
-                    <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
-                      <Users className="w-3 h-3" />
+                    <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                      <Leaf className="w-2.5 h-2.5" />
                     </div>
                     <span className="text-[9px] font-semibold text-stone-600 leading-tight">
-                      Genuine people
+                      100% Free
                     </span>
                   </div>
 
                   <div className="flex flex-col items-center text-center gap-1">
-                    <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
-                      <Home className="w-3 h-3" />
+                    <div className="w-5 h-5 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
+                      <Users className="w-2.5 h-2.5" />
                     </div>
                     <span className="text-[9px] font-semibold text-stone-600 leading-tight">
-                      Verified homes
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col items-center text-center gap-1">
-                    <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                      <Leaf className="w-3 h-3" />
-                    </div>
-                    <span className="text-[9px] font-semibold text-stone-600 leading-tight">
-                      100% free to use
+                      Verified members
                     </span>
                   </div>
                 </div>
 
                 {/* Legal Note */}
-                <p className="text-center text-[10px] text-stone-400">
+                <p className="text-center text-[10px] text-stone-400 mb-3">
                   By continuing, you agree to our{' '}
                   <Link to="/terms" className="underline hover:text-stone-600">
-                    Terms of Service
+                    Terms
                   </Link>{' '}
                   and{' '}
                   <Link to="/privacy" className="underline hover:text-stone-600">
@@ -786,6 +710,20 @@ export default function AuthPage() {
                   </Link>
                   .
                 </p>
+
+                {/* Admin Link */}
+                <div className="text-center pt-2.5 border-t border-stone-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMethod('email');
+                      setError('');
+                    }}
+                    className="text-[11px] font-medium text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
+                  >
+                    Administrator sign in with Email
+                  </button>
+                </div>
               </div>
             )}
 
@@ -794,12 +732,12 @@ export default function AuthPage() {
               <div>
                 <button
                   onClick={() => {
-                    setAuthMethod('phone');
+                    setAuthMethod('google');
                     setError('');
                   }}
                   className="flex items-center gap-1 text-xs font-semibold text-stone-500 hover:text-[#1A1A2E] mb-3 cursor-pointer"
                 >
-                  ← Back to Phone Login
+                  ← Back to Google Sign In
                 </button>
 
                 <div className="text-center mb-4">
