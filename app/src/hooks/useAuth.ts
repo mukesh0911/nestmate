@@ -161,35 +161,64 @@ export function useAuth() {
 
   /**
    * Initialize the invisible reCAPTCHA verifier.
-   * Call this once when the PhoneLogin page mounts.
    * containerId: the id of the div in the DOM to attach to.
    */
-  const initRecaptcha = useCallback((containerId: string) => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+  const initRecaptcha = useCallback((containerId: string = 'recaptcha-portal-container') => {
+    try {
+      const containerEl = document.getElementById(containerId) || document.getElementById('recaptcha-portal-container');
+      if (!containerEl) {
+        console.warn(`reCAPTCHA container #${containerId} not found in DOM`);
+        return;
+      }
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {
+          console.warn('Error clearing existing recaptchaVerifier:', e);
+        }
+        window.recaptchaVerifier = null;
+      }
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, containerEl, {
         size: 'invisible',
         callback: () => { },
         'expired-callback': () => {
+          try {
+            window.recaptchaVerifier?.clear();
+          } catch {}
           window.recaptchaVerifier = null;
         },
       });
+    } catch (err: any) {
+      console.error('Error initializing RecaptchaVerifier:', err);
     }
   }, []);
 
   /**
    * Initialize reCAPTCHA for development (bypasses some restrictions)
    */
-  const initRecaptchaDev = useCallback((containerId: string) => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+  const initRecaptchaDev = useCallback((containerId: string = 'recaptcha-portal-container') => {
+    try {
+      const containerEl = document.getElementById(containerId) || document.getElementById('recaptcha-portal-container');
+      if (!containerEl) return;
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch {}
+        window.recaptchaVerifier = null;
+      }
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, containerEl, {
         size: 'invisible',
         callback: () => { },
         'expired-callback': () => {
+          try {
+            window.recaptchaVerifier?.clear();
+          } catch {}
           window.recaptchaVerifier = null;
         },
-        // Add development settings
-        'hl': 'en', // language
+        'hl': 'en',
       });
+    } catch (err) {
+      console.error('Error initializing Dev RecaptchaVerifier:', err);
     }
   }, []);
 
@@ -220,36 +249,42 @@ export function useAuth() {
    * Send OTP to the given phone number (E.164 format, e.g. +919876543210)
    * Returns the verificationId which must be passed to verifyOTP.
    */
-  const sendOTP = useCallback(async (phone: string, containerId: string = 'recaptcha-container'): Promise<string> => {
+  const sendOTP = useCallback(async (phone: string, containerId: string = 'recaptcha-portal-container'): Promise<string> => {
     setError(null);
     try {
-      // For development, use test phone numbers that work without reCAPTCHA
+      const targetContainer = document.getElementById(containerId) || document.getElementById('recaptcha-portal-container');
+      if (!targetContainer) {
+        throw new Error('reCAPTCHA container not found in DOM.');
+      }
+
+      // Re-create verifier freshly if needed
       if (!window.recaptchaVerifier) {
         initRecaptcha(containerId);
-        // Wait a bit for reCAPTCHA to initialize
-        await new Promise(resolve => setTimeout(resolve, 800));
       }
 
       if (!window.recaptchaVerifier) {
-        throw new Error('reCAPTCHA verification failed. Please refresh the page and try again.');
+        throw new Error('reCAPTCHA initialization failed. Please refresh the page and try again.');
       }
 
       const confirmation = await signInWithPhoneNumber(auth, phone, window.recaptchaVerifier);
       window.confirmationResult = confirmation;
       return confirmation.verificationId;
     } catch (err: any) {
-      // Reset captcha on failure so user can retry
+      // Clean up captcha on failure so user can retry immediately without being stuck
+      try {
+        window.recaptchaVerifier?.clear();
+      } catch {}
       window.recaptchaVerifier = null;
 
-      // Provide more helpful error messages
       let msg = err.message || 'Failed to send OTP';
-
-      if (msg.includes('reCAPTCHA')) {
-        msg = 'reCAPTCHA verification failed. Please refresh the page and try again.';
-      } else if (msg.includes('quota')) {
-        msg = 'Too many requests. Please wait a few minutes before trying again.';
-      } else if (msg.includes('invalid')) {
+      if (err.code === 'auth/invalid-phone-number') {
         msg = 'Invalid phone number format. Please check and try again.';
+      } else if (err.code === 'auth/too-many-requests') {
+        msg = 'Too many requests. Please wait a few minutes before trying again.';
+      } else if (err.code === 'auth/quota-exceeded') {
+        msg = 'SMS quota exceeded. Please try again later.';
+      } else if (err.code === 'auth/captcha-check-failed' || msg.includes('reCAPTCHA') || msg.includes('element')) {
+        msg = 'Security check failed. Please try clicking Send again.';
       }
 
       setError(msg);

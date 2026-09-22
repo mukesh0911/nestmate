@@ -55,38 +55,6 @@ export default function AuthPage() {
   const displayError = error || authError;
   const isDevelopment = import.meta.env.DEV;
 
-  useEffect(() => {
-    initRecaptcha('recaptcha-container');
-  }, [initRecaptcha]);
-
-  const validatePhone = (num: string) => /^[6-9]\d{9}$/.test(num);
-
-  const handlePhoneSubmit = async () => {
-    setError('');
-    if (!phone) {
-      setError('Please enter your 10-digit mobile number');
-      return;
-    }
-    if (!validatePhone(phone)) {
-      setError('Please enter a valid 10-digit Indian mobile number');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const e164 = `+91${phone}`;
-      const verificationId = await sendOTP(e164);
-      try {
-        sessionStorage.setItem('nestmate_otp_pending', JSON.stringify({ phone: `+91 ${phone}`, verificationId }));
-      } catch {}
-      navigate('/verify-otp', { state: { phone: `+91 ${phone}`, verificationId } });
-    } catch (err: any) {
-      setError(err.message || 'Failed to send verification code. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleGoogle = async () => {
     setError('');
     setLoading(true);
@@ -195,8 +163,6 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1A2E] relative selection:bg-[#E5501A]/20">
-      {/* Invisible reCAPTCHA container */}
-      <div id="recaptcha-container" />
 
       {/* ========================================================================= */}
       {/* DESKTOP VIEW (>= 1024px) - CENTERED AUTH CARD                             */}

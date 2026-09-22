@@ -49,6 +49,12 @@ export default function VerifyPhone() {
 
   useEffect(() => {
     initRecaptcha('recaptcha-verify-phone-container');
+    return () => {
+      try {
+        window.recaptchaVerifier?.clear();
+      } catch {}
+      window.recaptchaVerifier = null;
+    };
   }, [initRecaptcha]);
 
   useEffect(() => {
