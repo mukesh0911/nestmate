@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { cities, localitiesByCity, allIndiaLocalities, flatTypes } from '@/lib/staticData';
+import { cities, localitiesByCity, flatTypes } from '@/lib/staticData';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useStore } from '@/store/useStore';
@@ -26,9 +26,7 @@ export default function OwnerOnboarding() {
 
   // 2. Property Basics & Space Details
   const [city, setCity] = useState(authProfile?.city || 'Bengaluru');
-  const [locality, setLocality] = useState(authProfile?.localities?.[0] || 'Koramangala');
-  const [showLocalityDropdown, setShowLocalityDropdown] = useState(false);
-  const localityDropdownRef = useRef<HTMLDivElement>(null);
+  const [locality, setLocality] = useState(authProfile?.localities?.[0] || '');
   const [flatType, setFlatType] = useState('2BHK');
   const [totalRooms, setTotalRooms] = useState('2');
   const [roomsToOffer, setRoomsToOffer] = useState('1');
@@ -76,48 +74,6 @@ export default function OwnerOnboarding() {
     'No smoking inside', 'Veg kitchen only', 'Quiet after 11 PM',
     'No pets', 'No guests overnight', 'Maintain cleanliness', 'No parties'
   ];
-
-  // Close suggestions when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (localityDropdownRef.current && !localityDropdownRef.current.contains(event.target as Node)) {
-        setShowLocalityDropdown(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Filter all India localities across all cities
-  const localitySuggestions = useMemo(() => {
-    const q = locality.trim().toLowerCase();
-    if (!q) {
-      const inCurrentCity = (localitiesByCity[city] || []).map(loc => ({ locality: loc, city }));
-      const otherCities = allIndiaLocalities.filter(item => item.city !== city);
-      return [...inCurrentCity, ...otherCities].slice(0, 25);
-    }
-
-    const matches = allIndiaLocalities.filter(item =>
-      item.locality.toLowerCase().includes(q) ||
-      item.city.toLowerCase().includes(q)
-    );
-
-    return matches.sort((a, b) => {
-      const aLoc = a.locality.toLowerCase();
-      const bLoc = b.locality.toLowerCase();
-      const aStarts = aLoc.startsWith(q);
-      const bStarts = bLoc.startsWith(q);
-      if (aStarts && !bStarts) return -1;
-      if (!aStarts && bStarts) return 1;
-
-      const aInCity = a.city.toLowerCase() === city.toLowerCase();
-      const bInCity = b.city.toLowerCase() === city.toLowerCase();
-      if (aInCity && !bInCity) return -1;
-      if (!aInCity && bInCity) return 1;
-
-      return a.locality.localeCompare(b.locality);
-    }).slice(0, 30);
-  }, [locality, city]);
 
   // Prefill from existing profile if available
   useEffect(() => {
@@ -412,8 +368,6 @@ export default function OwnerOnboarding() {
                       onChange={e => {
                         const newCity = e.target.value;
                         setCity(newCity);
-                        const cityLocs = localitiesByCity[newCity] || [];
-                        setLocality(cityLocs[0] || '');
                       }}
                       className="w-full bg-transparent text-xs sm:text-sm font-medium text-slate-900 outline-none cursor-pointer"
                     >
@@ -427,88 +381,42 @@ export default function OwnerOnboarding() {
 
               {/* Locality & Rent Row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2" ref={localityDropdownRef}>
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Locality / Area*
-                    </label>
-                    <span className="text-[11px] text-slate-400 font-medium">
-                      All India suggestions
-                    </span>
-                  </div>
-                  <div className="relative">
-                    <div className="relative flex items-center bg-white border border-slate-200/90 rounded-xl px-4 py-3 sm:py-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.02),inset_0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-[#E5501A] focus-within:ring-4 focus-within:ring-[#E5501A]/10 focus-within:shadow-[0_2px_8px_rgba(229,80,26,0.08)] transition-all">
-                      <MapPin className="w-4 h-4 text-[#E5501A] shrink-0 mr-2.5" />
-                      <input
-                        type="text"
-                        value={locality}
-                        onChange={e => {
-                          setLocality(e.target.value);
-                          setShowLocalityDropdown(true);
-                        }}
-                        onFocus={() => setShowLocalityDropdown(true)}
-                        placeholder="Type locality (e.g. Hitech City, Koramangala, Bandra)..."
-                        className="w-full bg-transparent text-xs sm:text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400"
-                      />
-                      {locality && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLocality('');
-                            setShowLocalityDropdown(true);
-                          }}
-                          className="text-slate-400 hover:text-slate-600 p-0.5 ml-1.5 transition-colors cursor-pointer"
-                          title="Clear input"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Suggestions Autocomplete Dropdown */}
-                    {showLocalityDropdown && (
-                      <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-64 overflow-y-auto z-50 py-1.5 divide-y divide-slate-100">
-                        {localitySuggestions.length > 0 ? (
-                          localitySuggestions.map((item, idx) => (
-                            <button
-                              key={`${item.locality}-${item.city}-${idx}`}
-                              type="button"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                setLocality(item.locality);
-                                setCity(item.city);
-                                setShowLocalityDropdown(false);
-                              }}
-                              className="w-full text-left px-3.5 py-2.5 hover:bg-orange-50/70 flex items-center justify-between gap-2 transition-colors cursor-pointer"
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span className="text-xs sm:text-sm font-semibold text-slate-800 truncate">
-                                  {item.locality}
-                                </span>
-                              </div>
-                              <span className="text-[11px] font-medium text-[#E5501A] bg-orange-50 border border-orange-200/60 px-2 py-0.5 rounded-full shrink-0">
-                                {item.city}
-                              </span>
-                            </button>
-                          ))
-                        ) : null}
-
-                        {/* Direct Custom Value confirmation option if user types something unique */}
-                        {locality.trim() && !localitySuggestions.some(s => s.locality.toLowerCase() === locality.trim().toLowerCase()) && (
-                          <button
-                            type="button"
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              setShowLocalityDropdown(false);
-                            }}
-                            className="w-full text-left px-3.5 py-2.5 bg-slate-50 hover:bg-orange-50/60 flex items-center gap-2 text-xs font-medium text-slate-700 transition-colors cursor-pointer"
-                          >
-                            <Sparkles className="w-3.5 h-3.5 text-[#E5501A] shrink-0" />
-                            <span>Use custom locality: <strong className="text-slate-900 font-semibold">"{locality.trim()}"</strong> in {city}</span>
-                          </button>
-                        )}
-                      </div>
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Locality / Area*
+                  </label>
+                  <div className="relative flex items-center bg-white border border-slate-200/90 rounded-xl px-4 py-3 sm:py-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.02),inset_0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-[#E5501A] focus-within:ring-4 focus-within:ring-[#E5501A]/10 focus-within:shadow-[0_2px_8px_rgba(229,80,26,0.08)] transition-all">
+                    <MapPin className="w-4 h-4 text-[#E5501A] shrink-0 mr-2.5" />
+                    <input
+                      type="text"
+                      value={locality}
+                      onChange={e => setLocality(e.target.value)}
+                      placeholder={
+                        city === 'Hyderabad'
+                          ? 'e.g. Hitech City, Gachibowli, Madhapur...'
+                          : city === 'Bengaluru'
+                          ? 'e.g. Koramangala, Indiranagar, HSR Layout...'
+                          : city === 'Mumbai'
+                          ? 'e.g. Andheri West, Bandra, Powai...'
+                          : city === 'Delhi NCR'
+                          ? 'e.g. Cyber City, DLF Phase 5, Noida 62...'
+                          : city === 'Pune'
+                          ? 'e.g. Hinjewadi, Baner, Koregaon Park...'
+                          : city === 'Chennai'
+                          ? 'e.g. Anna Nagar, OMR, Velachery...'
+                          : `e.g. Area or neighborhood in ${city || 'India'}...`
+                      }
+                      className="w-full bg-transparent text-xs sm:text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400"
+                    />
+                    {locality && (
+                      <button
+                        type="button"
+                        onClick={() => setLocality('')}
+                        className="text-slate-400 hover:text-slate-600 p-0.5 ml-1.5 transition-colors cursor-pointer"
+                        title="Clear"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </div>
                 </div>
