@@ -552,18 +552,18 @@ export default function EditListing() {
                     onChange={e => setForm({ ...form, locality: e.target.value })}
                     placeholder={
                       form.city === 'Hyderabad'
-                        ? 'e.g. Hitech City, Gachibowli, Madhapur...'
+                        ? 'e.g. Hitech City'
                         : form.city === 'Bengaluru'
-                        ? 'e.g. Koramangala, Indiranagar, HSR Layout...'
+                        ? 'e.g. Koramangala'
                         : form.city === 'Mumbai'
-                        ? 'e.g. Andheri West, Bandra, Powai...'
+                        ? 'e.g. Bandra West'
                         : form.city === 'Delhi NCR'
-                        ? 'e.g. Cyber City, DLF Phase 5, Noida 62...'
+                        ? 'e.g. Cyber City'
                         : form.city === 'Pune'
-                        ? 'e.g. Hinjewadi, Baner, Koregaon Park...'
+                        ? 'e.g. Hinjewadi'
                         : form.city === 'Chennai'
-                        ? 'e.g. Anna Nagar, OMR, Velachery...'
-                        : `e.g. Area or neighborhood in ${form.city || 'India'}...`
+                        ? 'e.g. Anna Nagar'
+                        : 'e.g. Locality name'
                     }
                     className="w-full bg-transparent outline-none placeholder:text-gray-400 text-sm font-medium"
                   />
