@@ -51,10 +51,57 @@ export default function FeaturedListingsSection() {
     return () => { mounted = false; };
   }, []);
 
-  const listings = realListings;
+  const DEFAULT_FEATURED = [
+    {
+      id: 'f1',
+      title: 'Cozy Private Room in 3BHK',
+      price: '₹ 14,000',
+      period: '/ month',
+      image: LANDING_ASSETS.photos.cozyPrivateRoom,
+      tags: ['Private Room', 'Furnished', 'Indiranagar'],
+      verified: true,
+      city: 'Bengaluru',
+      distance: 'Indiranagar, Bengaluru',
+    },
+    {
+      id: 'f2',
+      title: 'Modern Room in Luxury Coliving',
+      price: '₹ 18,500',
+      period: '/ month',
+      image: LANDING_ASSETS.photos.modernPg,
+      tags: ['Coliving', 'Fully Furnished', 'Bandra West'],
+      verified: true,
+      city: 'Mumbai',
+      distance: 'Bandra West, Mumbai',
+    },
+    {
+      id: 'f3',
+      title: 'Spacious Master Bedroom',
+      price: '₹ 16,000',
+      period: '/ month',
+      image: LANDING_ASSETS.photos.sharedApartment,
+      tags: ['Master Bed', 'Attached Bath', 'Hauz Khas'],
+      verified: true,
+      city: 'Delhi NCR',
+      distance: 'Hauz Khas, Delhi NCR',
+    },
+    {
+      id: 'f4',
+      title: 'Premium Coliving Suite',
+      price: '₹ 15,500',
+      period: '/ month',
+      image: LANDING_ASSETS.photos.colivingListing,
+      tags: ['Private Room', 'All Amenities', 'Koregaon Park'],
+      verified: true,
+      city: 'Pune',
+      distance: 'Koregaon Park, Pune',
+    },
+  ];
+
+  const listings = realListings.length > 0 ? realListings : DEFAULT_FEATURED;
 
 
-  const toggleFavorite = (e: React.MouseEvent, id: number) => {
+  const toggleFavorite = (e: React.MouseEvent, id: string | number) => {
     e.stopPropagation();
     setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
   };
@@ -90,7 +137,13 @@ export default function FeaturedListingsSection() {
             return (
               <div
                 key={item.id}
-                onClick={() => navigate(`/room/${item.id}`)}
+                onClick={() => {
+                  if (String(item.id).startsWith('f')) {
+                    navigate('/explore?tab=rooms');
+                  } else {
+                    navigate(`/room/${item.id}`);
+                  }
+                }}
                 className="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer flex flex-col"
               >
                 {/* Photo container */}
@@ -240,7 +293,13 @@ export default function FeaturedListingsSection() {
               return (
                 <div
                   key={item.id}
-                  onClick={() => navigate(`/room/${item.id}`)}
+                  onClick={() => {
+                    if (String(item.id).startsWith('f')) {
+                      navigate('/explore?tab=rooms');
+                    } else {
+                      navigate(`/room/${item.id}`);
+                    }
+                  }}
                   className="group/card min-w-[270px] sm:min-w-[290px] md:min-w-0 flex-1 bg-white rounded-2xl sm:rounded-3xl overflow-hidden border border-border/60 shadow-xs hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col snap-start"
                 >
                   {/* Image Container (4:3 aspect ratio) */}
