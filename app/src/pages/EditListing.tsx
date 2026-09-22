@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useListings } from '@/hooks/useListings';
 import { useStorage } from '@/hooks/useStorage';
 import { resolveEntityCoordinates } from '@/lib/locationResolver';
-import { cities, localitiesByCity, flatTypes, furnishingTypes, amenitiesList, houseRulesList } from '@/lib/staticData';
+import { cities, localitiesByCity, allIndiaLocalities, flatTypes, furnishingTypes, amenitiesList, houseRulesList } from '@/lib/staticData';
 import {
   ArrowLeft, Save, Trash2, ToggleLeft, ToggleRight, Loader2,
   AlertTriangle, Upload, X, Image as ImageIcon, ShieldAlert, Sparkles,
@@ -39,6 +39,8 @@ export default function EditListing() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showLocalityDropdown, setShowLocalityDropdown] = useState(false);
+  const localityDropdownRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState({
     title: '',
@@ -63,6 +65,46 @@ export default function EditListing() {
     const unsub = subscribeToOwnerVerification(user.uid, setOwnerVerification);
     return unsub;
   }, [user?.uid]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (localityDropdownRef.current && !localityDropdownRef.current.contains(event.target as Node)) {
+        setShowLocalityDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const localitySuggestions = useMemo(() => {
+    const q = (form.locality || '').trim().toLowerCase();
+    if (!q) {
+      const inCurrentCity = (localitiesByCity[form.city] || []).map(loc => ({ locality: loc, city: form.city }));
+      const otherCities = allIndiaLocalities.filter(item => item.city !== form.city);
+      return [...inCurrentCity, ...otherCities].slice(0, 25);
+    }
+
+    const matches = allIndiaLocalities.filter(item =>
+      item.locality.toLowerCase().includes(q) ||
+      item.city.toLowerCase().includes(q)
+    );
+
+    return matches.sort((a, b) => {
+      const aLoc = a.locality.toLowerCase();
+      const bLoc = b.locality.toLowerCase();
+      const aStarts = aLoc.startsWith(q);
+      const bStarts = bLoc.startsWith(q);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+
+      const aInCity = a.city.toLowerCase() === form.city.toLowerCase();
+      const bInCity = b.city.toLowerCase() === form.city.toLowerCase();
+      if (aInCity && !bInCity) return -1;
+      if (!aInCity && bInCity) return 1;
+
+      return a.locality.localeCompare(b.locality);
+    }).slice(0, 30);
+  }, [form.locality, form.city]);
 
   useEffect(() => {
     if (!id) return;
@@ -541,18 +583,87 @@ export default function EditListing() {
                   {cities.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">
-                  Locality / Neighborhood *
-                </label>
-                <select
-                  value={form.locality}
-                  onChange={e => setForm({ ...form, locality: e.target.value })}
-                  className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl px-4 py-3 text-sm text-[#1A1A2E] focus:outline-none focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 transition-all font-medium"
-                >
-                  <option value="">Select Locality</option>
-                  {(localitiesByCity[form.city] || []).map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
+              <div className="space-y-2 relative" ref={localityDropdownRef}>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block">
+                    Locality / Neighborhood *
+                  </label>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    All India suggestions
+                  </span>
+                </div>
+                <div className="relative">
+                  <div className="relative flex items-center bg-gray-50/80 border border-gray-200 rounded-2xl px-4 py-3 text-sm text-[#1A1A2E] focus-within:border-[#E5501A] focus-within:ring-2 focus-within:ring-[#E5501A]/10 transition-all font-medium">
+                    <MapPin className="w-4 h-4 text-[#E5501A] shrink-0 mr-2.5" />
+                    <input
+                      type="text"
+                      value={form.locality}
+                      onChange={e => {
+                        setForm({ ...form, locality: e.target.value });
+                        setShowLocalityDropdown(true);
+                      }}
+                      onFocus={() => setShowLocalityDropdown(true)}
+                      placeholder="Type locality (e.g. Hitech City, Koramangala)..."
+                      className="w-full bg-transparent outline-none placeholder:text-gray-400 text-sm font-medium"
+                    />
+                    {form.locality && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm({ ...form, locality: '' });
+                          setShowLocalityDropdown(true);
+                        }}
+                        className="text-gray-400 hover:text-gray-600 p-0.5 ml-1.5 transition-colors cursor-pointer"
+                        title="Clear input"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {showLocalityDropdown && (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-gray-200 rounded-2xl shadow-xl max-h-60 overflow-y-auto z-50 py-1.5 divide-y divide-gray-100">
+                      {localitySuggestions.length > 0 ? (
+                        localitySuggestions.map((item, idx) => (
+                          <button
+                            key={`${item.locality}-${item.city}-${idx}`}
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setForm({ ...form, locality: item.locality, city: item.city });
+                              setShowLocalityDropdown(false);
+                            }}
+                            className="w-full text-left px-3.5 py-2.5 hover:bg-orange-50/70 flex items-center justify-between gap-2 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              <span className="text-sm font-semibold text-gray-800 truncate">
+                                {item.locality}
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-medium text-[#E5501A] bg-orange-50 border border-orange-200/60 px-2 py-0.5 rounded-full shrink-0">
+                              {item.city}
+                            </span>
+                          </button>
+                        ))
+                      ) : null}
+
+                      {form.locality.trim() && !localitySuggestions.some(s => s.locality.toLowerCase() === form.locality.trim().toLowerCase()) && (
+                        <button
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setShowLocalityDropdown(false);
+                          }}
+                          className="w-full text-left px-3.5 py-2.5 bg-gray-50 hover:bg-orange-50/60 flex items-center gap-2 text-xs font-medium text-gray-700 transition-colors cursor-pointer"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-[#E5501A] shrink-0" />
+                          <span>Use custom locality: <strong className="text-gray-900 font-semibold">"{form.locality.trim()}"</strong> in {form.city || 'India'}</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

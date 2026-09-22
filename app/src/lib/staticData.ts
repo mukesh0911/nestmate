@@ -8,22 +8,86 @@ export const cities = [
 ];
 
 export const localitiesByCity: Record<string, string[]> = {
-  Bengaluru: ['Koramangala', 'HSR Layout', 'Indiranagar', 'Whitefield', 'Electronic City', 'BTM Layout', 'Bellandur', 'Marathahalli', 'Jayanagar', 'JP Nagar'],
-  Mumbai: ['Andheri', 'Bandra', 'Powai', 'Juhu', 'Malad', 'Goregaon', 'Worli', 'Dadar', 'Thane', 'Navi Mumbai'],
-  'Delhi NCR': ['Gurgaon', 'Noida', 'Dwarka', 'Saket', 'Vasant Kunj', 'Greater Kailash', 'Hauz Khas', 'Cyber City', 'Indirapuram'],
-  Hyderabad: ['Hitech City', 'Gachibowli', 'Banjara Hills', 'Jubilee Hills', 'Madhapur', 'Kondapur', 'Kukatpally', 'Begumpet'],
-  Pune: ['Koregaon Park', 'Kalyani Nagar', 'Hinjewadi', 'Magarpatta', 'Viman Nagar', 'Kothrud', 'Baner', 'Wakad', 'Aundh'],
-  Chennai: ['Anna Nagar', 'Adyar', 'T. Nagar', 'Velachery', 'OMR', 'Nungambakkam', 'Mylapore', 'Kilpauk', 'Besant Nagar', 'Thiruvanmiyur'],
-  Kolkata: ['Salt Lake', 'New Town', 'Park Street', 'Ballygunge', 'Dum Dum', 'Howrah', 'Gariahat', 'Alipore'],
-  Ahmedabad: ['Satellite', 'Bodakdev', 'SG Highway', 'Navrangpura', 'Prahlad Nagar', 'Vastrapur', 'Thaltej'],
-  Jaipur: ['Malviya Nagar', 'Vaishali Nagar', 'Mansarovar', 'C-Scheme', 'Raja Park', 'Tonk Road'],
-  Chandigarh: ['Sector 17', 'Sector 35', 'Sector 22', 'Sector 43', 'Mohali Phase 7', 'Panchkula Sector 5'],
-  Kochi: ['Kakkanad', 'Edappally', 'Marine Drive', 'Kaloor', 'Fort Kochi', 'Palarivattom'],
-  Goa: ['Panaji', 'Porvorim', 'Candolim', 'Calangute', 'Margao', 'Vasco da Gama'],
-  Lucknow: ['Gomti Nagar', 'Hazratganj', 'Aliganj', 'Indira Nagar', 'Mahanagar'],
-  Indore: ['Vijay Nagar', 'Palasia', 'Bhawarkua', 'AB Road', 'Rau'],
-  Coimbatore: ['RS Puram', 'Gandhipuram', 'Peelamedu', 'Saibaba Colony', 'Saravanampatti'],
+  Bengaluru: [
+    'Koramangala', 'HSR Layout', 'Indiranagar', 'Whitefield', 'Electronic City',
+    'BTM Layout', 'Bellandur', 'Marathahalli', 'Jayanagar', 'JP Nagar',
+    'Sarjapur Road', 'Hebbal', 'Yelahanka', 'Banashankari', 'Malleshwaram',
+    'Rajajinagar', 'Frazer Town', 'Domlur', 'Kadubeesanahalli', 'Mahadevapura'
+  ],
+  Hyderabad: [
+    'Hitech City', 'Gachibowli', 'Madhapur', 'Kondapur', 'Banjara Hills',
+    'Jubilee Hills', 'Kukatpally', 'Begumpet', 'Miyapur', 'Manikonda',
+    'Financial District', 'Nanakramguda', 'Ameerpet', 'Somajiguda',
+    'Dilsukhnagar', 'Uppal', 'Secunderabad', 'Tolichowki', 'Mehdipatnam',
+    'Nizampet', 'Hafeezpet', 'Chandanagar', 'Attapur'
+  ],
+  Mumbai: [
+    'Andheri West', 'Andheri East', 'Bandra West', 'Bandra East', 'Powai',
+    'Juhu', 'Malad West', 'Goregaon West', 'Worli', 'Dadar',
+    'Thane West', 'Navi Mumbai', 'Vashi', 'Khar West', 'Santacruz',
+    'Lower Parel', 'Chembur', 'Ghatkopar', 'Kandivali', 'Borivali'
+  ],
+  'Delhi NCR': [
+    'Gurgaon Sector 56', 'Cyber City', 'DLF Phase 1-5', 'Golf Course Road',
+    'Sohna Road', 'Noida Sector 62', 'Noida Sector 18', 'Greater Noida',
+    'Saket', 'Hauz Khas', 'Vasant Kunj', 'Greater Kailash', 'Dwarka',
+    'Indirapuram', 'Lajpat Nagar', 'Connaught Place'
+  ],
+  Pune: [
+    'Koregaon Park', 'Kalyani Nagar', 'Hinjewadi', 'Magarpatta', 'Viman Nagar',
+    'Kothrud', 'Baner', 'Wakad', 'Aundh', 'Bavdhan',
+    'Pimple Saudagar', 'Kharadi', 'Hadapsar', 'Shivaji Nagar'
+  ],
+  Chennai: [
+    'Anna Nagar', 'Adyar', 'T. Nagar', 'Velachery', 'OMR',
+    'Nungambakkam', 'Mylapore', 'Kilpauk', 'Besant Nagar', 'Thiruvanmiyur',
+    'Perungudi', 'Thoraipakkam', 'Sholinganallur', 'Guindy', 'Porur'
+  ],
+  Kolkata: [
+    'Salt Lake', 'New Town', 'Park Street', 'Ballygunge', 'Dum Dum',
+    'Howrah', 'Gariahat', 'Alipore', 'Rajarhat', 'Jadavpur', 'Behala'
+  ],
+  Ahmedabad: [
+    'Satellite', 'Bodakdev', 'SG Highway', 'Navrangpura', 'Prahlad Nagar',
+    'Vastrapur', 'Thaltej', 'Bopal', 'Maninagar', 'Gota'
+  ],
+  Jaipur: [
+    'Malviya Nagar', 'Vaishali Nagar', 'Mansarovar', 'C-Scheme', 'Raja Park',
+    'Tonk Road', 'Jagatpura', 'Bani Park'
+  ],
+  Chandigarh: [
+    'Sector 17', 'Sector 35', 'Sector 22', 'Sector 43', 'Sector 8',
+    'Mohali Phase 7', 'Panchkula Sector 5', 'Zirakpur'
+  ],
+  Kochi: [
+    'Kakkanad', 'Edappally', 'Marine Drive', 'Kaloor', 'Fort Kochi',
+    'Palarivattom', 'Aluva', 'Vyttila', 'Infopark'
+  ],
+  Goa: [
+    'Panaji', 'Porvorim', 'Candolim', 'Calangute', 'Margao',
+    'Vasco da Gama', 'Anjuna', 'Baga', 'Assagao'
+  ],
+  Lucknow: [
+    'Gomti Nagar', 'Hazratganj', 'Aliganj', 'Indira Nagar', 'Mahanagar',
+    'Vibhuti Khand', 'Ashiyana'
+  ],
+  Indore: [
+    'Vijay Nagar', 'Palasia', 'Bhawarkua', 'AB Road', 'Rau', 'Geeta Bhawan'
+  ],
+  Coimbatore: [
+    'RS Puram', 'Gandhipuram', 'Peelamedu', 'Saibaba Colony', 'Saravanampatti',
+    'Race Course'
+  ],
 };
+
+export interface LocalityOption {
+  locality: string;
+  city: string;
+}
+
+export const allIndiaLocalities: LocalityOption[] = Object.entries(localitiesByCity).flatMap(
+  ([cityName, locs]) => locs.map(locality => ({ locality, city: cityName }))
+);
 
 export const professions = [
   'Software Engineer', 'Product Manager', 'Designer', 'Data Analyst',
