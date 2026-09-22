@@ -18,13 +18,13 @@ import { db } from '@/lib/firebase';
 import type { UserProfile } from './useAuth';
 import { useState, useRef } from 'react';
 import { sanitizePublicProfile } from '@/lib/sanitizeProfile';
-import { calculateCompatibility, calculateRoomCompatibility, getRoomMatchReasons } from '@/lib/matching';
+import { calculateCompatibility, calculateProfileCompatibility, calculateRoomCompatibility, getRoomMatchReasons } from '@/lib/matching';
 import { isDiscoverable } from '@/lib/listingFreshness';
 import { isAccountActive } from '@/lib/accountStatus';
 import { isDemoProfile } from '@/lib/demoUsers';
 import { isPubliclyVisibleProfile, isPubliclyVisibleListing } from '@/lib/marketplaceVisibility';
 
-export { calculateCompatibility, calculateRoomCompatibility, getRoomMatchReasons, getActiveStatus } from '@/lib/matching';
+export { calculateCompatibility, calculateProfileCompatibility, calculateRoomCompatibility, getRoomMatchReasons, getActiveStatus } from '@/lib/matching';
 
 export interface Match {
   id: string;
@@ -40,6 +40,8 @@ export interface MatchedUser {
   compatibilityScore: number;
   matchId?: string;
   listingId?: string;
+  matchReasons?: string[];
+  matchCaveats?: string[];
 }
 
 export function useMatches() {
@@ -68,10 +70,13 @@ export function useMatches() {
         constraints.push(where('city', '==', targetCity));
       }
 
-      // Role-based filtering: seekers see owners, owners see seekers
-      const oppositeRole = currentUser.role === 'seeker' ? 'owner' : currentUser.role === 'owner' ? 'seeker' : null;
-      if (oppositeRole) {
-        constraints.push(where('role', '==', oppositeRole));
+      // Role-based filtering:
+      // If an explicit role filter is passed, respect it.
+      // If current user is an owner, they search for seekers.
+      // If current user is a seeker, they can discover both seekers (roommates) and owners (with rooms).
+      const targetRole = filters?.role || (currentUser.role === 'owner' ? 'seeker' : null);
+      if (targetRole) {
+        constraints.push(where('role', '==', targetRole));
       }
 
       const skippedIds = new Set(currentUser.skippedUserIds || []);
@@ -110,9 +115,9 @@ export function useMatches() {
           candidateDocs = rawSnap.docs
             .map((d) => ({ uid: d.id, ...d.data() } as UserProfile))
             .filter((u) => {
-              if (oppositeRole) {
+              if (targetRole) {
                 const r = (u.role || '').toLowerCase();
-                return r === oppositeRole.toLowerCase();
+                return r === targetRole.toLowerCase();
               }
               return true;
             });
@@ -133,7 +138,8 @@ export function useMatches() {
 
       // If the seeker is looking for owners, fetch active listings and combine with owner profiles
       const listingMap = new Map<string, any>();
-      if (oppositeRole === 'owner' || !oppositeRole) {
+      if (targetRole === 'owner' || !targetRole || currentUser.role === 'seeker') {
+
         const lqConstraints: any[] = [where('status', '==', 'active')];
         if (targetCity) lqConstraints.push(where('city', '==', targetCity));
         try {
@@ -203,14 +209,7 @@ export function useMatches() {
           (profileToUse as any)._listing = listingData;
         }
 
-        const compatibilityScore = listingData
-          ? calculateRoomCompatibility(currentUser, listingData, u)
-          : calculateCompatibility(
-            currentUser.quizAnswers || {},
-            u.quizAnswers || {},
-            currentUser.city,
-            u.city
-          );
+        const compatibilityScore = calculateProfileCompatibility(currentUser, u, listingData).score;
 
         return {
           profile: sanitizePublicProfile(profileToUse as unknown as Record<string, unknown>) as unknown as UserProfile,
@@ -361,36 +360,67 @@ export function useMatches() {
 
       const profiles = await Promise.all(
         uids.map(async (id) => {
-          const snap = await getDoc(doc(db, 'users', id));
-          if (!snap.exists()) return null;
-
-          const user = { uid: snap.id, ...snap.data() } as UserProfile;
-
-          let listingId: string | undefined;
-          let listingData: any;
-          if (user.role === 'owner') {
-            const lq = query(collection(db, 'listings'), where('ownerId', '==', user.uid), where('status', '==', 'active'));
-            const lsnap = await getDocs(lq);
-            if (!lsnap.empty) {
-              listingId = lsnap.docs[0].id;
-              listingData = { id: listingId, ...lsnap.docs[0].data() };
+          try {
+            let user: UserProfile | null = null;
+            const snap = await getDoc(doc(db, 'users', id));
+            if (snap.exists()) {
+              user = { uid: snap.id, ...snap.data() } as UserProfile;
+            } else {
+              // Fallback: Check if this ID is an owner of an active listing
+              try {
+                const lq = query(collection(db, 'listings'), where('ownerId', '==', id));
+                const lsnap = await getDocs(lq);
+                if (!lsnap.empty) {
+                  const ldata = lsnap.docs[0].data();
+                  user = {
+                    uid: id,
+                    name: ldata.ownerName || 'Property Host',
+                    role: 'owner',
+                    city: ldata.city || '',
+                    localities: [ldata.locality].filter(Boolean),
+                    bio: ldata.ownerBio || '',
+                    isVerified: !!ldata.isVerified,
+                    quizAnswers: ldata.ownerQuizAnswers || {},
+                  } as any;
+                }
+              } catch (e) {
+                console.warn('Fallback listing query failed for', id, e);
+              }
             }
+
+            if (!user) return null;
+
+            let listingId: string | undefined;
+            let listingData: any;
+            if (user.role === 'owner') {
+              try {
+                const lq = query(collection(db, 'listings'), where('ownerId', '==', user.uid));
+                const lsnap = await getDocs(lq);
+                if (!lsnap.empty) {
+                  const activeDoc = lsnap.docs.find(d => d.data().status === 'active') || lsnap.docs[0];
+                  listingId = activeDoc.id;
+                  listingData = { id: listingId, ...activeDoc.data() };
+                }
+              } catch (e) {
+                console.warn('Could not query listings for owner', user.uid, e);
+              }
+            }
+
+            if (listingData) {
+              (user as any)._listing = listingData;
+            }
+
+            const compatibilityScore = calculateProfileCompatibility(currentUser, user, listingData).score;
+
+            return {
+              profile: user,
+              listingId,
+              compatibilityScore,
+            } as MatchedUser;
+          } catch (err) {
+            console.error('Error fetching profile for id', id, err);
+            return null;
           }
-
-          const compatibilityScore = listingData
-            ? calculateRoomCompatibility(currentUser, listingData, user)
-            : calculateCompatibility(
-              currentUser.quizAnswers || {},
-              user.quizAnswers || {},
-              currentUser.city,
-              user.city
-            );
-
-          return {
-            profile: user,
-            listingId,
-            compatibilityScore,
-          } as MatchedUser;
         })
       );
       return profiles.filter(Boolean) as MatchedUser[];

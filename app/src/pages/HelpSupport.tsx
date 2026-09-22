@@ -4,8 +4,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import {
   HelpCircle, ArrowLeft, Search, ChevronDown, ChevronUp,
-  Mail, Send, AlertTriangle, CheckCircle2, ShieldAlert, Phone
+  Mail, Send, AlertTriangle, CheckCircle2
 } from 'lucide-react';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface FAQItem {
   category: string;
@@ -17,43 +19,43 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: 'Verification',
     question: 'How long does document verification take?',
-    answer: 'Identity (Tier 2) and Ownership (Tier 3) submissions are reviewed by our Bangalore moderation team within 24 hours. You will receive an in-app notification as soon as your status updates.',
+    answer: 'Identity and document submissions are reviewed by our safety verification team within 12–24 business hours. You will receive an in-app alert as soon as your trust status updates.',
   },
   {
     category: 'Verification',
     question: 'Are my uploaded government IDs visible to other users?',
-    answer: 'Never. Your identity documents (Aadhaar, Passport, Rental Agreements) are stored in encrypted, private Firebase Storage accessible only by audited administrators. Other users only see the Verified Trust Badge.',
+    answer: 'Never. Your identity documents (Aadhaar, Passport, Driving License) are stored in secure, private encrypted storage accessible only by audited safety reviewers. Other users only see the official Verified Host badge.',
   },
   {
     category: 'Freshness',
     question: 'Why do listings expire after 30 days?',
-    answer: 'To eliminate "ghost listings" and stale rentals, every listing in Bangalore expires after 30 days unless confirmed active by the owner. Owners receive a renewal prompt at day 27 to extend availability with a single tap.',
+    answer: 'To eliminate ghost listings and inactive rentals, every room listing expires after 30 days unless reconfirmed active by the host. Hosts receive a 1-tap renewal prompt to keep their room discoverable.',
   },
   {
     category: 'Deposits & Payments',
     question: 'Does NestMate collect rental deposits or booking fees?',
-    answer: 'No. NestMate is 100% free at launch with zero platform payments or broker fees. Any landlord or flatmate demanding "visiting pass charges" or deposit transfers before a physical walkthrough is violating our safety rules and should be reported immediately.',
+    answer: 'No. NestMate is 100% free with zero platform brokerage fees. Any landlord or flatmate demanding visiting pass fees or advance deposit transfers before a physical walkthrough is violating our safety rules and should be reported immediately.',
   },
   {
     category: 'Contact Reveal',
-    question: 'How do I get a flatmate or landlord’s phone number?',
-    answer: 'Phone numbers remain masked until you connect and chat inside NestMate. Inside the active chat thread, either party can tap "Request Phone Reveal". Once both parties consent, numbers appear once in the conversation.',
+    question: 'How do I get a flatmate or host’s phone number?',
+    answer: 'Phone numbers remain masked until you connect inside NestMate. Inside your active chat thread, either party can tap "Share Phone". Once both sides consent, verified phone numbers appear securely in the thread.',
   },
   {
     category: 'Safety & Reporting',
     question: 'What happens when I block another user?',
-    answer: 'Blocking is immediate and bidirectional. The blocked party is sanitized from your discovery, search feeds, and active chat threads. They will not be notified of the block.',
+    answer: 'Blocking is immediate and bidirectional. The blocked party is sanitized from your discovery feeds, map view, and active messages. They will never be notified of the block.',
   },
   {
     category: 'Account',
     question: 'Can I both search for a room and list my current spare room?',
-    answer: 'Yes! NestMate supports dual roles ("Both"). You can switch between Seeker mode (finding flatmates) and Owner mode (managing listings) anytime using the Mode Chip in your profile header.',
+    answer: 'Yes! NestMate supports dual roles. You can switch between Seeker mode (finding flatmates) and Host mode (managing listings) anytime using Account Settings.',
   },
 ];
 
 export default function HelpSupport() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [openIndex, setOpenIndex] = useState<number | null>(0);
@@ -72,35 +74,51 @@ export default function HelpSupport() {
     );
   }, [searchQuery]);
 
-  const handleSubmitTicket = (e: React.FormEvent) => {
+  const handleSubmitTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) {
       toast.error('Please describe your question or issue');
       return;
     }
     setSending(true);
-    setTimeout(() => {
-      setSending(false);
+    try {
+      await addDoc(collection(db, 'supportTickets'), {
+        userId: profile?.id || 'anonymous',
+        userEmail: profile?.email || null,
+        userPhone: profile?.phone || null,
+        userName: profile?.name || 'Anonymous User',
+        topic,
+        message: message.trim(),
+        status: 'open',
+        createdAt: serverTimestamp(),
+      });
       setTicketSent(true);
       toast.success('Support ticket submitted! Our team will respond shortly.');
-    }, 600);
+    } catch (err) {
+      console.error('Failed to submit support ticket:', err);
+      toast.error('Could not submit ticket right now. Please try again.');
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-parchment pb-24">
+    <div className="min-h-screen bg-[#FBF9F6] pb-24 font-sans">
       {/* Top Header */}
-      <div className="bg-white border-b border-slate-100 py-4 px-4 sticky top-0 z-30 shadow-xs">
+      <div className="bg-white/80 backdrop-blur-md border-b border-gray-100 py-4 px-4 sticky top-0 z-30 shadow-2xs">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900"
+            className="flex items-center gap-2 text-xs font-semibold text-gray-600 hover:text-[#1A1A2E] bg-white px-3.5 py-1.5 rounded-full border border-gray-200 shadow-2xs transition-all"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back</span>
           </button>
           <div className="flex items-center gap-2">
-            <HelpCircle className="w-4 h-4 text-brand-orange" />
-            <h1 className="text-sm font-bold text-slate-900">Help & Support (ACCT-03)</h1>
+            <div className="w-6 h-6 rounded-full bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center">
+              <HelpCircle className="w-3.5 h-3.5" />
+            </div>
+            <h1 className="font-serif font-medium text-sm text-[#1A1A2E]">Help &amp; Support</h1>
           </div>
           <Link to="/safety" className="text-xs font-semibold text-red-600 hover:underline">
             Safety Center
@@ -108,55 +126,63 @@ export default function HelpSupport() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
+      <div className="max-w-2xl mx-auto px-4 pt-8 space-y-6">
+
+        <div>
+          <h2 className="font-serif font-medium text-3xl text-[#1A1A2E]">Frequently Asked Questions</h2>
+          <p className="text-xs text-gray-500 mt-1">Instant answers regarding verification, deposits, safety, and mutual contact reveal.</p>
+        </div>
+
         {/* Search Bar */}
         <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search FAQs (verification, deposits, freshness...)"
-            className="w-full input-nestmate pl-11 py-3 text-sm"
+            placeholder="Search FAQs (verification, deposits, freshness, safety...)"
+            className="w-full bg-white border border-gray-200 rounded-full pl-11 pr-5 py-3 text-xs sm:text-sm text-[#1A1A2E] placeholder:text-gray-400 focus:outline-none focus:border-[#E5501A] shadow-2xs font-medium"
           />
         </div>
 
-        {/* Emergency Band */}
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-          <div className="text-xs text-red-900">
-            <strong className="block font-bold mb-0.5">Emergency Assistance:</strong>
-            NestMate cannot handle live crisis response. If you are in immediate danger, please call <strong>112</strong> or visit our <Link to="/safety" className="underline font-bold text-red-700">Safety Center</Link>.
+        {/* Emergency Assistance Banner */}
+        <div className="bg-red-50 border border-red-200/80 rounded-3xl p-5 flex items-start gap-4 shadow-2xs">
+          <div className="w-10 h-10 rounded-2xl bg-red-100 flex items-center justify-center shrink-0 text-red-600">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+          <div className="text-xs text-red-900 leading-relaxed">
+            <strong className="block font-serif font-medium text-sm text-red-950 mb-0.5">Emergency Assistance Notice</strong>
+            NestMate cannot handle live physical emergency response. If you are in immediate danger, please dial <strong>112</strong> immediately or visit our <Link to="/safety" className="underline font-bold text-red-800">Safety Center</Link>.
           </div>
         </div>
 
-        {/* FAQ Accordion */}
-        <div className="card-nestmate p-6">
-          <h2 className="text-base font-bold text-slate-900 mb-4">Frequently Asked Questions</h2>
-
+        {/* FAQ Accordion Card */}
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-xs space-y-4">
           {filteredFAQs.length === 0 ? (
-            <p className="text-xs text-slate-400 py-6 text-center">No questions found matching "{searchQuery}".</p>
+            <p className="text-xs text-gray-400 py-6 text-center">No questions found matching "{searchQuery}".</p>
           ) : (
-            <div className="space-y-3 divide-y divide-slate-100">
+            <div className="divide-y divide-gray-100">
               {filteredFAQs.map((item, idx) => {
                 const isOpen = openIndex === idx;
                 return (
-                  <div key={idx} className="pt-3 first:pt-0">
+                  <div key={idx} className="py-3.5 first:pt-0 last:pb-0">
                     <button
                       onClick={() => setOpenIndex(isOpen ? null : idx)}
-                      className="w-full flex items-center justify-between text-left py-1 group"
+                      className="w-full flex items-center justify-between text-left group cursor-pointer"
                     >
-                      <span className="text-xs font-bold text-slate-800 group-hover:text-brand-orange transition-colors">
+                      <span className="text-sm font-semibold text-[#1A1A2E] group-hover:text-[#E5501A] transition-colors pr-2">
                         {item.question}
                       </span>
-                      {isOpen ? (
-                        <ChevronUp className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
-                      )}
+                      <div className="w-7 h-7 rounded-full bg-gray-50 flex items-center justify-center shrink-0 text-gray-500 group-hover:text-[#E5501A]">
+                        {isOpen ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
+                      </div>
                     </button>
                     {isOpen && (
-                      <p className="text-xs text-slate-600 leading-relaxed pt-2 pb-1">
+                      <p className="text-xs text-gray-600 leading-relaxed pt-2.5 pb-1 font-sans">
                         {item.answer}
                       </p>
                     )}
@@ -168,61 +194,69 @@ export default function HelpSupport() {
         </div>
 
         {/* Contact Support Form */}
-        <div className="card-nestmate p-6">
-          <h2 className="text-base font-bold text-slate-900 mb-1 flex items-center gap-2">
-            <Mail className="w-4 h-4 text-brand-orange" />
-            Contact Bangalore Operations
-          </h2>
-          <p className="text-xs text-slate-500 mb-4">
-            Cannot find what you need? Send a message directly to our human support team.
-          </p>
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-xs space-y-4">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-9 h-9 rounded-2xl bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center">
+              <Mail className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="font-serif font-medium text-xl text-[#1A1A2E]">
+                Contact NestMate Operations
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Have a question not listed above? Send a message directly to our human support team.
+              </p>
+            </div>
+          </div>
 
           {ticketSent ? (
-            <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-2xl text-center">
-              <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-2" />
-              <h3 className="text-sm font-bold text-slate-900 mb-1">Message Received</h3>
-              <p className="text-xs text-slate-600 mb-4">
-                We will reply to your account ({profile?.phone || profile?.email || 'your registered number'}) within 24 hours.
+            <div className="p-8 bg-emerald-50 border border-emerald-200 rounded-3xl text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <h3 className="font-serif font-medium text-lg text-emerald-950">Inquiry Received</h3>
+              <p className="text-xs text-emerald-800 leading-relaxed max-w-sm mx-auto">
+                Our support desk will respond to your registered profile ({profile?.phone || profile?.email || 'account inbox'}) within 24 hours.
               </p>
               <button
                 onClick={() => { setTicketSent(false); setMessage(''); }}
-                className="text-xs font-semibold text-emerald-700 hover:underline"
+                className="text-xs font-semibold text-[#E5501A] hover:underline pt-2 block mx-auto cursor-pointer"
               >
                 Send another message
               </button>
             </div>
           ) : (
-            <form onSubmit={handleSubmitTicket} className="space-y-4">
+            <form onSubmit={handleSubmitTicket} className="space-y-4 pt-2">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">Topic</label>
+                <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">Category Topic</label>
                 <select
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
-                  className="w-full input-nestmate text-xs font-medium"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs sm:text-sm font-medium text-[#1A1A2E] focus:outline-none focus:border-[#E5501A]"
                 >
                   <option value="verification">Verification & Documents</option>
                   <option value="listing">Listing & Freshness Issue</option>
                   <option value="safety">Safety / Suspected Scam</option>
                   <option value="account">Account & Privacy Settings</option>
-                  <option value="other">Other Feedback</option>
+                  <option value="other">General Support & Feedback</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">Message</label>
+                <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">Detailed Message</label>
                 <textarea
                   rows={4}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Describe your issue with as much detail as possible..."
-                  className="w-full input-nestmate text-xs p-3"
+                  placeholder="Describe your inquiry or issue with as much context as possible..."
+                  className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 text-xs sm:text-sm text-[#1A1A2E] placeholder:text-gray-400 focus:outline-none focus:border-[#E5501A] leading-relaxed resize-none"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={sending}
-                className="w-full btn-fire py-3 rounded-xl font-bold text-xs shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-3.5 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full font-semibold text-xs shadow-sm shadow-[#E5501A]/20 flex items-center justify-center gap-2 disabled:opacity-50 transition-all cursor-pointer active:scale-[0.98]"
               >
                 {sending ? (
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

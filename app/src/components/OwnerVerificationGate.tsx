@@ -28,7 +28,7 @@ import {
 } from '@/lib/ownerVerification';
 import {
   ShieldCheck, Shield, AlertTriangle, CheckCircle2, Clock,
-  Upload, FileText, X, Loader2, ArrowRight, RefreshCcw
+  Upload, FileText, X, Loader2, ArrowRight, RefreshCcw, Info
 } from 'lucide-react';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -48,53 +48,53 @@ function StatusConfig(status: OwnerVerificationStatus | null | undefined) {
   switch (status) {
     case 'APPROVED':
       return {
-        icon: <CheckCircle2 className="w-8 h-8 text-teal-600" />,
-        bg: 'bg-teal-50',
-        border: 'border-teal-200',
-        badge: 'bg-teal-100 text-teal-800',
+        icon: <CheckCircle2 className="w-7 h-7 text-emerald-600" />,
+        bg: 'bg-emerald-50/70',
+        border: 'border-emerald-200/80',
+        badge: 'bg-emerald-100/80 text-emerald-800 border-emerald-300',
         title: 'Identity Verified',
       };
     case 'SUBMITTED':
     case 'UNDER_REVIEW':
       return {
-        icon: <Clock className="w-8 h-8 text-amber-600" />,
-        bg: 'bg-amber-50',
-        border: 'border-amber-200',
-        badge: 'bg-amber-100 text-amber-800',
+        icon: <Clock className="w-7 h-7 text-amber-600" />,
+        bg: 'bg-amber-50/70',
+        border: 'border-amber-200/80',
+        badge: 'bg-amber-100/80 text-amber-800 border-amber-300',
         title: 'Under Review',
       };
     case 'REJECTED':
       return {
-        icon: <AlertTriangle className="w-8 h-8 text-red-600" />,
-        bg: 'bg-red-50',
-        border: 'border-red-200',
-        badge: 'bg-red-100 text-red-800',
+        icon: <AlertTriangle className="w-7 h-7 text-red-600" />,
+        bg: 'bg-red-50/70',
+        border: 'border-red-200/80',
+        badge: 'bg-red-100/80 text-red-800 border-red-300',
         title: 'Verification Rejected',
       };
     case 'RESUBMISSION_REQUIRED':
       return {
-        icon: <RefreshCcw className="w-8 h-8 text-orange-600" />,
-        bg: 'bg-orange-50',
-        border: 'border-orange-200',
-        badge: 'bg-orange-100 text-orange-800',
+        icon: <RefreshCcw className="w-7 h-7 text-[#E5501A]" />,
+        bg: 'bg-[#FFF2EB]',
+        border: 'border-[#E5501A]/20',
+        badge: 'bg-[#FFF2EB] text-[#E5501A] border-[#E5501A]/30',
         title: 'Resubmission Required',
       };
     default:
       return {
-        icon: <Shield className="w-8 h-8 text-slate-500" />,
-        bg: 'bg-slate-50',
-        border: 'border-slate-200',
-        badge: 'bg-slate-100 text-slate-700',
+        icon: <Shield className="w-7 h-7 text-[#1A1A2E]/70" />,
+        bg: 'bg-white',
+        border: 'border-gray-200/80',
+        badge: 'bg-gray-100 text-[#1A1A2E] border-gray-200',
         title: 'Verification Required',
       };
   }
 }
 
-const DOC_TYPES: { value: VerificationDocType; label: string }[] = [
-  { value: 'aadhaar', label: 'Aadhaar Card' },
-  { value: 'passport', label: 'Passport' },
-  { value: 'driving_license', label: 'Driving License' },
-  { value: 'voter_id', label: 'Voter ID' },
+const DOC_TYPES: { value: VerificationDocType; label: string; desc: string }[] = [
+  { value: 'aadhaar', label: 'Aadhaar Card', desc: 'Front and back photo or masked e-Aadhaar PDF' },
+  { value: 'passport', label: 'Passport', desc: 'Front and address pages clearly visible' },
+  { value: 'driving_license', label: 'Driving License', desc: 'Valid Indian state transport card' },
+  { value: 'voter_id', label: 'Voter ID', desc: 'Official election commission card' },
 ];
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -147,8 +147,11 @@ export default function OwnerVerificationGate({
 
   if (verificationLoading) {
     return (
-      <div className={`flex items-center justify-center py-12 ${variant === 'fullscreen' ? 'min-h-screen bg-parchment' : ''}`}>
-        <Loader2 className="w-8 h-8 animate-spin text-fire" />
+      <div className={`flex items-center justify-center py-16 ${variant === 'fullscreen' ? 'min-h-screen bg-[#FBF9F6]' : ''}`}>
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-9 h-9 animate-spin text-[#E5501A]" />
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Checking verification status...</p>
+        </div>
       </div>
     );
   }
@@ -205,47 +208,52 @@ export default function OwnerVerificationGate({
   // ─── Main render ──────────────────────────────────────────────────────────
 
   const containerClass = variant === 'fullscreen'
-    ? 'min-h-screen bg-parchment flex items-start justify-center p-6 pt-12'
+    ? 'min-h-screen bg-[#FBF9F6] flex items-start justify-center p-6 pt-12 md:pt-16'
     : '';
 
   return (
     <div className={containerClass}>
-      <div className={`w-full max-w-2xl mx-auto ${variant === 'fullscreen' ? '' : ''}`}>
+      <div className="w-full max-w-2xl mx-auto space-y-4">
 
-        {/* Gate Banner */}
-        <div className={`rounded-2xl border-2 p-6 ${cfg.bg} ${cfg.border} mb-4`}>
-          <div className="flex items-start gap-4">
-            <div className="shrink-0 mt-0.5">{cfg.icon}</div>
+        {/* Gate Banner Card */}
+        <div className={`rounded-3xl border ${cfg.bg} ${cfg.border} p-6 md:p-8 shadow-xs transition-all`}>
+          <div className="flex items-start gap-4 md:gap-5">
+            <div className="w-12 h-12 rounded-2xl bg-white/80 shadow-xs flex items-center justify-center shrink-0 border border-gray-100">
+              {cfg.icon}
+            </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <h2 className="font-bold text-lg text-slate-900">{cfg.title}</h2>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}>
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <h2 className="font-serif font-medium text-xl text-[#1A1A2E]">{cfg.title}</h2>
+                <span className={`text-xs font-bold px-3 py-1 rounded-full border ${cfg.badge}`}>
                   {verificationStatusLabel(currentStatus)}
                 </span>
               </div>
 
               {listingTitle && (
-                <p className="text-xs text-slate-500 mb-2">
-                  Listing: <span className="font-semibold">{listingTitle}</span>
+                <p className="text-xs text-gray-500 mb-2">
+                  Target Listing: <span className="font-semibold text-[#1A1A2E]">{listingTitle}</span>
                 </p>
               )}
 
-              <p className="text-sm text-slate-700 leading-relaxed">
+              <p className="text-sm text-gray-600 leading-relaxed font-sans">
                 {verificationStatusDescription(currentStatus)}
               </p>
 
               {/* Admin rejection note */}
               {(currentStatus === 'REJECTED' || currentStatus === 'RESUBMISSION_REQUIRED') && verification?.reviewNote && (
-                <div className="mt-3 p-3 bg-white/70 rounded-xl border border-current/10">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Admin Note</p>
-                  <p className="text-sm text-slate-800">{verification.reviewNote}</p>
+                <div className="mt-3.5 p-3.5 bg-white/90 rounded-2xl border border-red-200/80 shadow-2xs">
+                  <p className="text-xs font-bold text-red-600 uppercase tracking-wide mb-1 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    Reviewer Note
+                  </p>
+                  <p className="text-sm text-[#1A1A2E] leading-relaxed">{verification.reviewNote}</p>
                 </div>
               )}
 
               {/* Resubmission count */}
               {(verification?.resubmissionCount ?? 0) > 0 && (
-                <p className="text-xs text-slate-400 mt-2">
-                  Resubmission #{verification!.resubmissionCount}
+                <p className="text-xs text-gray-400 mt-2 font-medium">
+                  Attempt #{(verification?.resubmissionCount ?? 0) + 1}
                 </p>
               )}
             </div>
@@ -254,111 +262,135 @@ export default function OwnerVerificationGate({
             {onDismiss && (
               <button
                 onClick={onDismiss}
-                className="shrink-0 p-1.5 hover:bg-black/5 rounded-full text-slate-400 hover:text-slate-600"
+                className="shrink-0 p-2 hover:bg-black/5 rounded-full text-gray-400 hover:text-[#1A1A2E] transition-colors"
+                title="Dismiss"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             )}
           </div>
 
           {/* Action buttons */}
-          <div className="mt-4 flex gap-3 flex-wrap">
+          <div className="mt-6 pt-5 border-t border-gray-200/60 flex gap-3 flex-wrap items-center">
             {canSubmit && !showForm && (
               <button
                 onClick={() => { setShowForm(true); setSubmitError(''); }}
-                className="flex items-center gap-2 px-5 py-2.5 bg-fire text-white rounded-xl font-semibold text-sm hover:bg-fire-dark transition-all shadow-sm shadow-fire/20"
+                className="flex items-center gap-2 px-6 py-3 bg-[#E5501A] text-white rounded-full font-semibold text-sm hover:bg-[#D0400B] active:scale-[0.98] transition-all shadow-sm shadow-[#E5501A]/20"
               >
                 <ShieldCheck className="w-4 h-4" />
-                {currentStatus === 'NOT_STARTED' ? 'Start Verification' : 'Resubmit Documents'}
+                {currentStatus === 'NOT_STARTED' ? 'Begin Verification' : 'Resubmit Documents'}
                 <ArrowRight className="w-4 h-4" />
               </button>
             )}
             {isPending && (
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Awaiting admin review — typically 1–2 business days
+              <div className="flex items-center gap-2 text-sm text-gray-600 font-medium bg-white/60 px-4 py-2 rounded-full border border-gray-200/60">
+                <Loader2 className="w-4 h-4 animate-spin text-[#E5501A]" />
+                Under manual review — typically verified within 12–24 hours
               </div>
             )}
           </div>
         </div>
 
-        {/* Submit success */}
+        {/* Submit success alert */}
         {submitSuccess && (
-          <div className="bg-teal-50 border-2 border-teal-200 rounded-2xl p-5 flex items-center gap-3">
-            <CheckCircle2 className="w-6 h-6 text-teal-600 shrink-0" />
+          <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 flex items-start gap-4 shadow-xs">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0 text-emerald-600">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
             <div>
-              <p className="font-semibold text-teal-900">Documents submitted successfully!</p>
-              <p className="text-sm text-teal-700">Our team will review your documents within 1–2 business days. You'll receive a notification once reviewed.</p>
+              <p className="font-serif font-medium text-emerald-950 text-base">Documents submitted successfully!</p>
+              <p className="text-sm text-emerald-800 mt-1 leading-relaxed">
+                Our verification team will review your ID document within 12–24 hours. Your listing will automatically switch to public once approved.
+              </p>
             </div>
           </div>
         )}
 
-        {/* Submission Form */}
+        {/* Submission Form Modal/Card */}
         {showForm && canSubmit && (
-          <div className="bg-white rounded-2xl border border-border shadow-sm p-6 space-y-5">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-fire" />
-                Submit Identity Document
-              </h3>
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 md:p-8 space-y-6 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+              <div>
+                <h3 className="font-serif font-medium text-xl text-[#1A1A2E] flex items-center gap-2.5">
+                  <span className="w-8 h-8 rounded-full bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center text-sm">
+                    <FileText className="w-4 h-4" />
+                  </span>
+                  Submit Identity Verification
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5 ml-10.5">Quick 1-minute secure document submission</p>
+              </div>
               <button
                 onClick={() => { setShowForm(false); setSubmitError(''); }}
-                className="p-1.5 hover:bg-slate-100 rounded-full"
+                className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
               >
-                <X className="w-4 h-4 text-slate-500" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Honest disclaimer */}
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-              <p className="text-xs text-blue-800 leading-relaxed">
-                <strong>What we verify:</strong> Your identity only — not property ownership.
-                Your trust badge will show "Identity Verified by NestMate," not property ownership.
-                Documents are reviewed by NestMate staff and are not shared with third parties.
+            {/* Honest disclaimer notice */}
+            <div className="bg-[#FFF2EB]/60 border border-[#E5501A]/15 rounded-2xl p-4 flex items-start gap-3">
+              <Info className="w-5 h-5 text-[#E5501A] shrink-0 mt-0.5" />
+              <p className="text-xs text-[#1A1A2E]/80 leading-relaxed font-sans">
+                <strong className="text-[#1A1A2E] font-semibold">Privacy Guarantee:</strong> We verify your legal identity to protect prospective flatmates from scammers. We do not claim or verify real estate deed ownership. Documents are encrypted and handled exclusively by authorized NestMate safety reviewers.
               </p>
             </div>
 
-            {/* Full name */}
+            {/* Full legal name */}
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
-                Full Name (as on document) *
+              <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">
+                Full Name (as printed on your ID) *
               </label>
               <input
                 type="text"
                 value={declaredName}
                 onChange={e => setDeclaredName(e.target.value)}
-                placeholder="e.g. Rajesh Kumar"
-                className="input-nestmate w-full"
+                placeholder="e.g. Rajesh Kumar Sharma"
+                className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl px-4 py-3 text-sm text-[#1A1A2E] placeholder:text-gray-400 focus:outline-none focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 transition-all"
               />
             </div>
 
-            {/* Document type */}
+            {/* Document type selection cards */}
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
-                Document Type *
+              <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2.5">
+                Select Document Type *
               </label>
-              <div className="grid grid-cols-2 gap-2">
-                {DOC_TYPES.map(dt => (
-                  <button
-                    key={dt.value}
-                    type="button"
-                    onClick={() => setDocType(dt.value)}
-                    className={`px-4 py-2.5 rounded-xl text-sm font-medium border transition-all text-left ${
-                      docType === dt.value
-                        ? 'border-fire bg-fire/5 text-fire font-bold'
-                        : 'border-border text-ink/60 hover:border-fire/40'
-                    }`}
-                  >
-                    {dt.label}
-                  </button>
-                ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {DOC_TYPES.map(dt => {
+                  const isSelected = docType === dt.value;
+                  return (
+                    <button
+                      key={dt.value}
+                      type="button"
+                      onClick={() => setDocType(dt.value)}
+                      className={`p-3.5 rounded-2xl text-left border transition-all flex flex-col justify-between ${
+                        isSelected
+                          ? 'border-[#E5501A] bg-[#FFF2EB] text-[#1A1A2E] shadow-2xs'
+                          : 'border-gray-200 bg-white hover:border-[#E5501A]/40 text-gray-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-sm font-semibold ${isSelected ? 'text-[#E5501A]' : 'text-[#1A1A2E]'}`}>
+                          {dt.label}
+                        </span>
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                          isSelected ? 'border-[#E5501A] bg-[#E5501A]' : 'border-gray-300'
+                        }`}>
+                          {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </div>
+                      </div>
+                      <span className="text-[11px] text-gray-500 leading-tight">
+                        {dt.desc}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Document upload */}
+            {/* Document upload dropzone */}
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">
-                Document Image or PDF *
+              <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">
+                Upload Document File *
               </label>
               <input
                 ref={fileInputRef}
@@ -371,118 +403,157 @@ export default function OwnerVerificationGate({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-32 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 hover:border-fire/40 hover:bg-fire/5 transition-all"
+                  className="w-full py-8 px-4 border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center gap-2.5 hover:border-[#E5501A]/60 hover:bg-[#FFF2EB]/30 transition-all group cursor-pointer"
                 >
-                  <Upload className="w-6 h-6 text-slate-400" />
-                  <p className="text-sm text-slate-500">Click to upload</p>
-                  <p className="text-xs text-slate-400">JPG, PNG, WEBP or PDF · Max 10MB</p>
+                  <div className="w-12 h-12 rounded-2xl bg-gray-100 group-hover:bg-[#FFF2EB] flex items-center justify-center text-gray-500 group-hover:text-[#E5501A] transition-colors">
+                    <Upload className="w-6 h-6" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-semibold text-[#1A1A2E]">
+                      Click to browse or drop document here
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Supports JPG, PNG, WEBP, or PDF · Max 10MB
+                    </p>
+                  </div>
                 </button>
               ) : (
-                <div className="border-2 border-fire/30 rounded-xl p-3 relative">
+                <div className="border border-gray-200 bg-gray-50/60 rounded-3xl p-4 relative">
                   {docPreview ? (
-                    <img src={docPreview} alt="Document preview" className="w-full max-h-48 object-contain rounded-lg" />
+                    <div className="bg-white rounded-2xl p-2 border border-gray-100 shadow-2xs overflow-hidden">
+                      <img src={docPreview} alt="Document preview" className="w-full max-h-52 object-contain rounded-xl" />
+                    </div>
                   ) : (
-                    <div className="flex items-center gap-3 p-3">
-                      <FileText className="w-8 h-8 text-fire" />
-                      <div>
-                        <p className="text-sm font-medium text-slate-800">{docFile.name}</p>
-                        <p className="text-xs text-slate-500">{(docFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                    <div className="flex items-center gap-3.5 p-3 bg-white rounded-2xl border border-gray-100">
+                      <div className="w-10 h-10 rounded-xl bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center shrink-0">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-[#1A1A2E] truncate">{docFile.name}</p>
+                        <p className="text-xs text-gray-500">{(docFile.size / 1024 / 1024).toFixed(2)} MB</p>
                       </div>
                     </div>
                   )}
                   <button
                     type="button"
                     onClick={() => { setDocFile(null); setDocPreview(null); }}
-                    className="absolute top-2 right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center"
+                    className="absolute top-6 right-6 w-8 h-8 bg-black/60 hover:bg-red-600 rounded-full flex items-center justify-center transition-colors text-white shadow-sm"
+                    title="Remove file"
                   >
-                    <X className="w-3.5 h-3.5 text-white" />
+                    <X className="w-4 h-4" />
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="mt-2 text-xs text-fire font-medium hover:underline"
-                  >
-                    Change document
-                  </button>
+                  <div className="mt-3 flex items-center justify-between px-1">
+                    <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Ready for upload
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-xs text-[#E5501A] font-semibold hover:underline"
+                    >
+                      Change document
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Upload progress */}
             {submitting && uploadProgress > 0 && (
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs text-slate-500">
-                  <span>Uploading document...</span>
-                  <span>{uploadProgress}%</span>
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs text-gray-500 font-medium">
+                  <span>Uploading encrypted file...</span>
+                  <span className="text-[#E5501A] font-bold">{uploadProgress}%</span>
                 </div>
-                <div className="h-2 bg-cream rounded-full overflow-hidden">
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-fire rounded-full transition-all duration-300"
+                    className="h-full bg-[#E5501A] rounded-full transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
               </div>
             )}
 
-            {/* Error */}
+            {/* Error banner */}
             {submitError && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
-                <p className="text-sm text-red-700">{submitError}</p>
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+                <p className="text-sm text-red-700 font-medium">{submitError}</p>
               </div>
             )}
 
             {/* Submit button */}
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={submitting || !docFile || !declaredName.trim()}
-              className="w-full py-3 bg-fire text-white rounded-xl font-bold text-sm hover:bg-fire-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <ShieldCheck className="w-4 h-4" />
-                  Submit for Verification
-                </>
-              )}
-            </button>
-
-            <p className="text-xs text-center text-slate-400">
-              Your listing will go live automatically once our team approves your identity.
-            </p>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitting || !docFile || !declaredName.trim()}
+                className="w-full py-3.5 bg-[#E5501A] text-white rounded-full font-semibold text-sm hover:bg-[#D0400B] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm shadow-[#E5501A]/20"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Submitting Document...
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-4 h-4" />
+                    Submit for Official Review
+                  </>
+                )}
+              </button>
+              <p className="text-[11px] text-center text-gray-400 mt-2.5">
+                Your listing will automatically switch to Live and Verified once our team approves your identity.
+              </p>
+            </div>
           </div>
         )}
 
-        {/* What happens next timeline */}
+        {/* What happens next step timeline */}
         {(currentStatus === 'NOT_STARTED' || currentStatus === 'SUBMITTED' || currentStatus === 'UNDER_REVIEW') && !showForm && !submitSuccess && (
-          <div className="bg-white rounded-2xl border border-border p-5 mt-4">
-            <h4 className="font-semibold text-slate-800 mb-4 text-sm">What happens next?</h4>
-            <div className="space-y-3">
+          <div className="bg-white rounded-3xl border border-gray-100 p-6 md:p-8 shadow-xs">
+            <h4 className="font-serif font-medium text-lg text-[#1A1A2E] mb-5">How NestMate Verification Works</h4>
+            <div className="space-y-4">
               {[
-                { step: 1, label: 'Submit ID', desc: 'Upload a government-issued photo ID', done: currentStatus !== 'NOT_STARTED' },
-                { step: 2, label: 'Admin Review', desc: 'NestMate team reviews within 1–2 business days', done: false },
-                { step: 3, label: 'Listing Goes Live', desc: 'Your listing automatically becomes visible to seekers', done: false },
+                {
+                  step: 1,
+                  label: 'Submit Government ID',
+                  desc: 'Aadhaar, Passport, Driving License, or Voter ID',
+                  done: currentStatus !== 'NOT_STARTED',
+                },
+                {
+                  step: 2,
+                  label: 'Safety Team Review',
+                  desc: 'Documents verified within 12–24 business hours',
+                  done: false,
+                },
+                {
+                  step: 3,
+                  label: 'Listing Goes Live & Verified',
+                  desc: 'Your property receives the Verified Host trust badge',
+                  done: false,
+                },
               ].map(item => (
-                <div key={item.step} className="flex items-start gap-3">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                    item.done ? 'bg-teal-500 text-white' : 'bg-slate-100 text-slate-500'
+                <div key={item.step} className="flex items-start gap-4">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                    item.done
+                      ? 'bg-emerald-500 text-white shadow-xs'
+                      : 'bg-[#FFF2EB] text-[#E5501A] border border-[#E5501A]/20'
                   }`}>
                     {item.done ? <CheckCircle2 className="w-4 h-4" /> : item.step}
                   </div>
                   <div>
-                    <p className={`text-sm font-semibold ${item.done ? 'text-teal-700' : 'text-slate-800'}`}>{item.label}</p>
-                    <p className="text-xs text-slate-500">{item.desc}</p>
+                    <p className={`text-sm font-semibold ${item.done ? 'text-emerald-800' : 'text-[#1A1A2E]'}`}>
+                      {item.label}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">{item.desc}</p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

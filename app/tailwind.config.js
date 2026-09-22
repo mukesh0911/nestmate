@@ -90,12 +90,18 @@ module.exports = {
           DEFAULT: "#D4A843",
           light: "#FDF6E3",
         },
+        forest: {
+          DEFAULT: "#152B24",
+          dark: "#0D1D18",
+          light: "#1D3B31",
+        },
       },
       fontFamily: {
         display: ['"Playfair Display"', 'Merriweather', 'Lora', 'serif'],
         serif: ['"Playfair Display"', 'Merriweather', 'Georgia', 'serif'],
         body: ['Inter', 'Sora', 'system-ui', 'sans-serif'],
         sans: ['Inter', 'Sora', 'system-ui', 'sans-serif'],
+        script: ['"Caveat"', 'cursive'],
       },
       /*
        * Sprint 5A radius ladder (architectural, not bubbly):
@@ -147,7 +153,7 @@ module.exports = {
         },
         "fade-up": {
           "0%": { opacity: "0", transform: "translateY(10px)" },
-          "100%": { opacity: "1", transform: "translateY(0)" },
+          "100%": { opacity: "1", transform: "none" },
         },
       },
       animation: {

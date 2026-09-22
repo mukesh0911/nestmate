@@ -58,6 +58,8 @@ export function isPubliclyVisibleProfile(profile: unknown): boolean {
     if (!isAccountActive(p.status as any)) return false;
     // Demo accounts (fabricated evaluation profiles) never enter discovery.
     if (isDemoProfile(p as any)) return false;
+    // Ghost or un-named profiles never enter discovery.
+    if (!p.name || typeof p.name !== 'string' || p.name.trim().length === 0) return false;
     return true;
 }
 

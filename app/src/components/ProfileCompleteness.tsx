@@ -174,34 +174,34 @@ export default function ProfileCompleteness({
   const firstNudge = incomplete[0];
 
   const barColor =
-    pct >= 85 ? 'bg-teal' :
-      pct >= 60 ? 'bg-fire' :
+    pct >= 85 ? 'bg-emerald-500' :
+      pct >= 60 ? 'bg-[#E5501A]' :
         'bg-amber-400';
 
   if (compact) {
     return (
       <div className={`${className}`}>
         <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] font-semibold text-ink/50 uppercase tracking-wide">
+          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
             Profile {pct}% complete
           </span>
           {firstNudge && (
             <button
               onClick={() => navigate(firstNudge.actionPath)}
-              className="text-[10px] text-fire font-medium hover:underline"
+              className="text-[10px] text-[#E5501A] font-semibold hover:underline cursor-pointer"
             >
               {firstNudge.actionLabel} →
             </button>
           )}
         </div>
-        <div className="h-1.5 bg-cream rounded-full overflow-hidden">
+        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
           <div
             className={`h-full ${barColor} rounded-full transition-all duration-700`}
             style={{ width: `${pct}%` }}
           />
         </div>
         {firstNudge && pct < 100 && (
-          <p className="text-[10px] text-ink/40 mt-1 truncate">
+          <p className="text-[10px] text-gray-400 mt-1 truncate font-medium">
             {firstNudge.description}
           </p>
         )}
@@ -210,25 +210,25 @@ export default function ProfileCompleteness({
   }
 
   return (
-    <div className={`card-nestmate p-5 ${className}`}>
+    <div className={`bg-white rounded-3xl border border-gray-100 shadow-xs p-5 ${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="font-semibold text-sm">Profile Completeness</h3>
-          <p className="text-xs text-ink/50">
+          <h3 className="font-serif font-medium text-base text-[#1A1A2E]">Profile Completeness</h3>
+          <p className="text-xs text-gray-400 font-medium">
             {pct < 100
               ? `${100 - pct} points left to reach 100%`
               : 'Your profile is complete!'}
           </p>
         </div>
-        <div className={`text-2xl font-bold ${pct >= 85 ? 'text-teal' : pct >= 60 ? 'text-fire' : 'text-amber-500'
+        <div className={`text-2xl font-bold ${pct >= 85 ? 'text-emerald-600' : pct >= 60 ? 'text-[#E5501A]' : 'text-amber-500'
           }`}>
           {pct}%
         </div>
       </div>
 
       {/* Bar */}
-      <div className="h-2.5 bg-cream rounded-full overflow-hidden mb-5">
+      <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-4">
         <div
           className={`h-full ${barColor} rounded-full transition-all duration-700`}
           style={{ width: `${pct}%` }}
@@ -240,14 +240,14 @@ export default function ProfileCompleteness({
         {fields.map(field => (
           <div
             key={field.id}
-            className={`flex items-center gap-3 p-3 rounded-xl transition-all ${field.done
-              ? 'opacity-60'
-              : 'bg-fire/3 border border-fire/10 cursor-pointer hover:bg-fire/5'
+            className={`flex items-center gap-3 p-3 rounded-2xl transition-all ${field.done
+              ? 'opacity-60 bg-gray-50/60 border border-transparent'
+              : 'bg-[#FFF2EB]/40 border border-[#E5501A]/15 cursor-pointer hover:bg-[#FFF2EB]/80'
               }`}
             onClick={field.done ? undefined : () => navigate(field.actionPath)}
           >
             {/* Icon */}
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${field.done ? 'bg-teal/10 text-teal' : 'bg-fire/10 text-fire'
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${field.done ? 'bg-emerald-50 text-emerald-600' : 'bg-[#FFF2EB] text-[#E5501A]'
               }`}>
               {field.done ? (
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -258,11 +258,11 @@ export default function ProfileCompleteness({
 
             {/* Label + desc */}
             <div className="flex-1 min-w-0">
-              <p className={`text-xs font-semibold ${field.done ? 'text-ink/40 line-through' : 'text-ink'}`}>
+              <p className={`text-xs font-semibold ${field.done ? 'text-gray-400 line-through' : 'text-[#1A1A2E]'}`}>
                 {field.label}
               </p>
               {!field.done && (
-                <p className="text-[10px] text-ink/40 leading-relaxed truncate">
+                <p className="text-[10px] text-gray-400 leading-relaxed truncate font-medium">
                   {field.description}
                 </p>
               )}
@@ -270,11 +270,11 @@ export default function ProfileCompleteness({
 
             {/* Weight badge or chevron */}
             {field.done ? (
-              <span className="text-[9px] font-bold text-teal bg-teal/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
+              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full flex-shrink-0">
                 +{field.weight}
               </span>
             ) : (
-              <ChevronRight className="w-4 h-4 text-fire/50 flex-shrink-0" />
+              <ChevronRight className="w-4 h-4 text-[#E5501A]/60 flex-shrink-0" />
             )}
           </div>
         ))}

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { calculateCompatibility, calculateRoomCompatibility, getRoomMatchReasons, getActiveStatus } from './matching';
+import {
+  calculateCompatibility,
+  calculateRoomCompatibility,
+  getRoomMatchReasons,
+  getActiveStatus,
+  synthesizeQuizFromProfile,
+  calculateProfileCompatibility,
+} from './matching';
 
 describe('calculateCompatibility', () => {
   it('returns 100 for identical numeric answers', () => {
@@ -175,6 +182,113 @@ describe('calculateRoomCompatibility & getRoomMatchReasons (5-Factor Engine)', (
     expect(highScore).toBeGreaterThan(lowScore);
     expect(highScore).toBe(100);
     expect(lowScore).toBeLessThanOrEqual(40);
+  });
+});
+
+describe('calculateProfileCompatibility & synthesizeQuizFromProfile', () => {
+  it('synthesizes quiz tokens from householdExpectations and houseRules', () => {
+    const owner = {
+      householdExpectations: {
+        dietPref: 'veg',
+        smokingPolicy: 'no_smoking',
+        petPolicy: 'no_pets',
+        genderPref: 'female',
+      },
+    };
+    const listing = {
+      genderPreference: 'female only',
+      houseRules: ['Keep common areas clean', 'No parties or loud guests after 10pm'],
+    };
+
+    const synthesized = synthesizeQuizFromProfile(owner, listing);
+    expect(synthesized.food_pref).toBe('veg');
+    expect(synthesized.smoking).toBe('never');
+    expect(synthesized.pets).toBe('no');
+    expect(synthesized.roommate_gender).toBe('female');
+    expect(synthesized.cleanliness).toBe('very');
+    expect(synthesized.guests).toBe('rarely');
+  });
+
+  it('calculates dynamic score for Seeker viewing Owner with Listing', () => {
+    const seeker = {
+      role: 'seeker',
+      city: 'Bengaluru',
+      localities: ['Indiranagar'],
+      budget: 15000,
+      isVerified: true,
+      quizAnswers: {
+        food_pref: 'veg',
+        smoking: 'never',
+        pets: 'no',
+      },
+    };
+    const owner = {
+      role: 'owner',
+      city: 'Bengaluru',
+      householdExpectations: {
+        dietPref: 'veg',
+        smokingPolicy: 'no_smoking',
+        petPolicy: 'no_pets',
+      },
+    };
+    const listing = {
+      city: 'Bengaluru',
+      locality: 'Indiranagar',
+      partnerShare: 15000,
+      houseRules: ['Veg only kitchen', 'Smoke-free home', 'No pets'],
+    };
+
+    const match = calculateProfileCompatibility(seeker, owner, listing);
+    expect(match.score).toBeGreaterThanOrEqual(80);
+    expect(match.reasons).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Same locality'),
+        expect.stringContaining('Budget fits'),
+        expect.stringContaining('Vegetarian matches veg kitchen rule'),
+        expect.stringContaining('Non-smoker matches smoke-free home'),
+      ])
+    );
+  });
+
+  it('calculates dynamic score for Seeker ↔ Seeker pair', () => {
+    const seekerA = {
+      role: 'seeker',
+      city: 'Bengaluru',
+      budget: 12000,
+      quizAnswers: {
+        food_pref: 'veg',
+        smoking: 'never',
+        sleep_time: 'before_10',
+      },
+    };
+    const seekerB = {
+      role: 'seeker',
+      city: 'Bengaluru',
+      budget: 13000,
+      quizAnswers: {
+        food_pref: 'veg',
+        smoking: 'never',
+        sleep_time: 'after_12',
+      },
+    };
+
+    const match = calculateProfileCompatibility(seekerA, seekerB);
+    expect(match.score).toBe(67); // 2 of 3 shared answers
+    expect(match.reasons).toEqual(
+      expect.arrayContaining([
+        'Same city (Bengaluru)',
+        'Budgets are close',
+        '2 lifestyle preferences in common',
+      ])
+    );
+  });
+
+  it('returns 0 and honest caveats when neither user has provided preferences', () => {
+    const seekerA = { role: 'seeker' };
+    const seekerB = { role: 'seeker' };
+    const match = calculateProfileCompatibility(seekerA, seekerB);
+    expect(match.score).toBe(0);
+    expect(match.caveats).toContain('No overlapping quiz answers yet');
   });
 });
 

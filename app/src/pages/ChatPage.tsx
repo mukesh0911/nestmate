@@ -367,7 +367,7 @@ export default function ChatPage() {
 
   if (!user?.uid) {
     return (
-      <div className="h-app-mobile md:h-app-desktop -mb-[calc(68px+env(safe-area-inset-bottom,0px))] md:mb-0 flex items-center justify-center bg-parchment px-4">
+      <div className="h-app-mobile md:h-app-desktop -mb-[calc(68px+env(safe-area-inset-bottom,0px))] md:mb-0 flex items-center justify-center bg-[#FBF9F6] px-4">
         <StateEmpty
           icon={MessageCircle}
           title="Sign in to view messages"
@@ -380,18 +380,18 @@ export default function ChatPage() {
   return (
     <div className="h-app-mobile md:h-app-desktop -mb-[calc(68px+env(safe-area-inset-bottom,0px))] md:mb-0 flex relative overflow-hidden">
       {/* Conversation List */}
-      <div className={`w-full sm:w-[320px] border-r border-border bg-white/50 flex-col ${isMobileChatOpen ? 'hidden sm:flex' : 'flex'}`}>
-        <div className="p-4 border-b border-border">
+      <div className={`w-full sm:w-[320px] border-r border-gray-200/80 bg-white flex-col ${isMobileChatOpen ? 'hidden sm:flex' : 'flex'}`}>
+        <div className="p-4 border-b border-gray-100">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="type-h3">Messages</h2>
+            <h2 className="font-serif font-medium text-xl text-[#1A1A2E]">Messages</h2>
             {chatRooms.length > 0 && (
-              <span className="bg-fire text-white text-xs font-bold px-2 py-0.5 rounded-full">{chatRooms.length}</span>
+              <span className="bg-[#E5501A] text-white text-xs font-bold px-2.5 py-0.5 rounded-full">{chatRooms.length}</span>
             )}
           </div>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input type="text" value={searchChat} onChange={e => setSearchChat(e.target.value)}
-              placeholder="Search conversations..." className="w-full pl-9 pr-4 py-2 bg-cream/50 rounded-xl text-sm outline-none focus:border-fire border border-transparent" />
+              placeholder="Search conversations..." className="w-full pl-10 pr-4 py-2 bg-gray-50/80 border border-gray-200 rounded-full text-xs outline-none focus:border-[#E5501A] transition-all text-[#1A1A2E]" />
           </div>
         </div>
 
@@ -408,10 +408,10 @@ export default function ChatPage() {
             const typing = getOtherTyping(room);
             return (
               <button key={room.id} onClick={() => { setActiveRoom(room.id); setIsMobileChatOpen(true); }}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeRoom === room.id ? 'bg-fire/5 border border-fire/20' : 'hover:bg-cream/50'
+                className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all text-left ${activeRoom === room.id ? 'bg-[#FFF2EB] border border-[#E5501A]/30' : 'hover:bg-gray-50 border border-transparent'
                   }`}>
                 <div className="relative w-11 h-11 flex-shrink-0">
-                  <div className="w-11 h-11 rounded-full bg-cream overflow-hidden border border-border flex items-center justify-center">
+                  <div className="w-11 h-11 rounded-2xl bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
                     {otherUser?.avatar ? (
                       <img src={otherUser.avatar} alt={otherUser.name} className="w-full h-full object-cover" />
                     ) : (
@@ -431,14 +431,14 @@ export default function ChatPage() {
                         <span className="text-[10px] text-ink/40">{formatTime(room.lastMessageAt)}</span>
                       )}
                       {getUnreadCount(room) > 0 && (
-                        <span className="w-5 h-5 bg-fire text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                        <span className="w-5 h-5 bg-[#E5501A] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                           {getUnreadCount(room) > 9 ? '9+' : getUnreadCount(room)}
                         </span>
                       )}
                     </div>
                   </div>
                   {typing ? (
-                    <p className="text-xs text-fire italic flex items-center gap-1">
+                    <p className="text-xs text-[#E5501A] italic flex items-center gap-1">
                       Typing<span className="typing-dots">...</span>
                     </p>
                   ) : (
@@ -452,11 +452,11 @@ export default function ChatPage() {
       </div>
 
       {/* Chat Window */}
-      <div className={`flex-1 flex-col bg-parchment/50 ${isMobileChatOpen ? 'flex' : 'hidden sm:flex'}`}>
+      <div className={`flex-1 flex-col bg-[#FBF9F6] ${isMobileChatOpen ? 'flex' : 'hidden sm:flex'}`}>
         {activeChatRoom ? (
           <>
             {/* Header */}
-            <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-4 border-b border-border bg-white/50">
+            <div className="flex items-center gap-2 sm:gap-4 p-3.5 sm:p-4 border-b border-gray-200/80 bg-white/90 backdrop-blur-md">
               <button onClick={() => setIsMobileChatOpen(false)} className="sm:hidden p-2 -ml-2 rounded-full hover:bg-ink/5">
                 <ChevronLeft className="w-5 h-5 text-ink/70" />
               </button>
@@ -538,9 +538,9 @@ export default function ChatPage() {
 
             {/* Privacy / Phone Numbers Bar */}
             {phonesShared ? (
-              <div className="bg-teal/5 border-b border-teal/10 px-3 sm:px-4 py-2 flex items-center justify-center gap-2 sm:gap-4">
-                <PhoneCall className="w-3.5 h-3.5 text-teal shrink-0" />
-                <span className="text-[10px] sm:text-xs text-teal/80 font-medium truncate">
+              <div className="bg-emerald-50 border-b border-emerald-100 px-3 sm:px-4 py-2 flex items-center justify-center gap-2 sm:gap-4">
+                <PhoneCall className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span className="text-[10px] sm:text-xs text-emerald-800 font-medium truncate">
                   {(() => {
                     const isBothSeekers = myProfile?.role === 'seeker' && activeOtherProfile?.role === 'seeker';
                     const isBothOwners = myProfile?.role === 'owner' && activeOtherProfile?.role === 'owner';
@@ -584,7 +584,7 @@ export default function ChatPage() {
 
                 return (
                   <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl ${isMe ? 'bg-fire text-white rounded-br-md' : 'bg-white shadow-sm rounded-bl-md'
+                    <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl ${isMe ? 'bg-[#E5501A] text-white rounded-br-xs shadow-xs' : 'bg-white border border-gray-100 text-[#1A1A2E] shadow-xs rounded-bl-xs'
                       }`}>
                       {msg.imageUrl && (
                         <div className="mb-2 rounded-lg overflow-hidden">
@@ -627,26 +627,26 @@ export default function ChatPage() {
             </div>
 
             {/* Input */}
-            <div className="p-2 sm:p-4 bg-white border-t border-border">
-              <div className="flex items-center gap-1 sm:gap-2 max-w-full">
-                <button type="button" className="p-2 text-ink/40 hover:text-ink/60 transition-colors shrink-0" aria-label="Emoji (coming soon)" title="Emoji (coming soon)">
+            <div className="p-3 sm:p-4 bg-white border-t border-gray-100">
+              <div className="flex items-center gap-1.5 sm:gap-2 max-w-full">
+                <button type="button" className="p-2 text-gray-400 hover:text-gray-600 transition-colors shrink-0" aria-label="Emoji (coming soon)" title="Emoji (coming soon)">
                   <Smile className="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
-                <label className="p-2 text-ink/40 hover:text-ink/60 cursor-pointer transition-colors shrink-0" aria-label="Attach image">
-                  {imageUploading ? <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" /> : <Paperclip className="w-5 h-5 sm:w-6 sm:h-6" />}
+                <label className="p-2 text-gray-400 hover:text-gray-600 cursor-pointer transition-colors shrink-0" aria-label="Attach image">
+                  {imageUploading ? <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin text-[#E5501A]" /> : <Paperclip className="w-5 h-5 sm:w-6 sm:h-6" />}
                   <input type="file" accept="image/*" className="hidden" onChange={handleImageSelect} disabled={imageUploading} />
                 </label>
-                <div className="flex-1 min-w-0 bg-cream border border-border/60 rounded-full focus-within:border-fire/50 focus-within:bg-white transition-all flex items-center shadow-sm">
+                <div className="flex-1 min-w-0 bg-gray-50/80 border border-gray-200 rounded-full focus-within:border-[#E5501A] focus-within:ring-2 focus-within:ring-[#E5501A]/10 focus-within:bg-white transition-all flex items-center shadow-2xs">
                   <input type="text" value={input}
                     onChange={e => handleInputChange(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleSend()}
-                    placeholder="Message..."
+                    placeholder="Type a message..."
                     aria-label="Message"
-                    className="w-full bg-transparent px-4 py-2.5 sm:py-3 text-[15px] sm:text-base outline-none truncate" />
+                    className="w-full bg-transparent px-4 py-2.5 sm:py-3 text-sm outline-none truncate text-[#1A1A2E] placeholder:text-gray-400" />
                 </div>
                 <button onClick={handleSend} disabled={!input.trim()}
                   aria-label="Send message"
-                  className="p-2.5 sm:p-3 bg-fire text-white rounded-full disabled:opacity-30 disabled:scale-95 hover:bg-fire-dark transition-all flex items-center justify-center shadow-md shrink-0">
+                  className="p-2.5 sm:p-3 bg-[#E5501A] text-white rounded-full disabled:opacity-30 disabled:scale-95 hover:bg-[#D0400B] transition-all flex items-center justify-center shadow-sm shadow-[#E5501A]/20 shrink-0">
                   <Send className="w-4 h-4 sm:w-5 sm:h-5 ml-0.5" />
                 </button>
               </div>

@@ -2,13 +2,17 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useListings } from '@/hooks/useListings';
-import type { Listing } from '@/hooks/useListings';
 import { useStorage } from '@/hooks/useStorage';
 import { resolveEntityCoordinates } from '@/lib/locationResolver';
 import { cities, localitiesByCity, flatTypes, furnishingTypes, amenitiesList, houseRulesList } from '@/lib/staticData';
-import { ArrowLeft, Save, Trash2, ToggleLeft, ToggleRight, Loader2, AlertTriangle, Upload, X, Image as ImageIcon, GripVertical, ShieldAlert, Sparkles } from 'lucide-react';
+import {
+  ArrowLeft, Save, Trash2, ToggleLeft, ToggleRight, Loader2,
+  AlertTriangle, Upload, X, Image as ImageIcon, ShieldAlert, Sparkles,
+  MapPin, IndianRupee, Home, CheckCircle2, Check
+} from 'lucide-react';
 import OwnerVerificationGate from '@/components/OwnerVerificationGate';
 import { subscribeToOwnerVerification, type OwnerVerification } from '@/lib/ownerVerification';
+import { CURATED_SCREENING_QUESTIONS, type ScreeningQuestion } from '@/lib/screeningQuestions';
 
 export default function EditListing() {
   const { id } = useParams<{ id: string }>();
@@ -50,6 +54,7 @@ export default function EditListing() {
     genderPreference: 'any',
     amenities: [] as string[],
     houseRules: [] as string[],
+    screeningQuestions: [] as ScreeningQuestion[],
     status: 'active' as 'active' | 'paused' | 'filled' | 'closed' | 'pending_verification',
   });
 
@@ -90,6 +95,7 @@ export default function EditListing() {
         genderPreference: (listing as any).genderPreference || 'any',
         amenities: listing.amenities || [],
         houseRules: listing.houseRules || [],
+        screeningQuestions: (listing as any).screeningQuestions || [],
         status: listing.status || 'active',
       });
       setOwnerVerified(listing.ownerVerified);
@@ -157,7 +163,7 @@ export default function EditListing() {
         ...(coords && { lat: coords.lat, lng: coords.lng }),
       } as any);
       setSuccess(isNew ? 'Listing created! Identity verification required before it goes live.' : 'Listing updated successfully!');
-      setTimeout(() => navigate('/owner-dashboard'), 1800);
+      setTimeout(() => navigate('/owner-dashboard'), 1600);
     } catch (err: any) {
       setError(err.message || 'Failed to save listing');
     } finally {
@@ -208,6 +214,15 @@ export default function EditListing() {
     }));
   };
 
+  const toggleScreeningQuestion = (q: ScreeningQuestion) => {
+    setForm(prev => ({
+      ...prev,
+      screeningQuestions: prev.screeningQuestions.some(existing => existing.id === q.id)
+        ? prev.screeningQuestions.filter(existing => existing.id !== q.id)
+        : [...prev.screeningQuestions, q],
+    }));
+  };
+
   // Photo management handlers
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -237,80 +252,110 @@ export default function EditListing() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-parchment flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-fire animate-spin" />
+      <div className="min-h-screen bg-[#FBF9F6] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-9 h-9 animate-spin text-[#E5501A]" />
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Loading listing details...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-parchment">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <button onClick={() => navigate('/owner-dashboard')} className="flex items-center gap-2 text-sm text-ink/60 hover:text-ink">
-            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+    <div className="min-h-screen bg-[#FBF9F6] pb-28 md:pb-16">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-6">
+
+        {/* Top bar with back and status toggle */}
+        <div className="flex items-center justify-between gap-2.5 mb-6 flex-wrap sm:flex-nowrap">
+          <button
+            onClick={() => navigate('/owner-dashboard')}
+            className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold text-gray-600 hover:text-[#1A1A2E] bg-white px-3.5 sm:px-4 py-2 rounded-full border border-gray-200/80 shadow-2xs hover:shadow-xs transition-all shrink-0 cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" /> <span>Dashboard<span className="hidden sm:inline"> / Portfolio</span></span>
           </button>
-          <div className="flex items-center gap-3">
-            {!isNew && (
-              <button
-                onClick={toggleStatus}
-                disabled={isPendingVerification}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                  isPendingVerification
-                    ? 'bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed opacity-80'
-                    : form.status === 'active'
-                      ? 'bg-teal/10 text-teal border border-teal/20'
-                      : 'bg-ink/5 text-ink/50 border border-ink/10'
-                }`}
-                title={isPendingVerification ? 'Listing is held pending identity verification' : undefined}
-              >
-                {isPendingVerification ? (
-                  <><ShieldAlert className="w-5 h-5 text-amber-500" /> Pending Verification</>
-                ) : form.status === 'active' ? (
-                  <><ToggleRight className="w-5 h-5" /> Active</>
-                ) : (
-                  <><ToggleLeft className="w-5 h-5" /> Paused</>
-                )}
-              </button>
-            )}
-          </div>
+
+          {!isNew && (
+            <button
+              onClick={toggleStatus}
+              disabled={isPendingVerification}
+              className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-full text-xs font-semibold transition-all shadow-2xs ${
+                isPendingVerification
+                  ? 'bg-amber-50 text-amber-800 border border-amber-200/80 cursor-not-allowed'
+                  : form.status === 'active'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : 'bg-gray-100 text-gray-600 border border-gray-200'
+              }`}
+              title={isPendingVerification ? 'Listing is held pending identity verification' : undefined}
+            >
+              {isPendingVerification ? (
+                <><ShieldAlert className="w-4 h-4 text-amber-600" /> Pending Verification</>
+              ) : form.status === 'active' ? (
+                <><ToggleRight className="w-4 h-4 text-emerald-600" /> Listing Active</>
+              ) : (
+                <><ToggleLeft className="w-4 h-4 text-gray-400" /> Listing Paused</>
+              )}
+            </button>
+          )}
         </div>
 
-        <h1 className="type-h2 mb-6">{isNew ? 'Add Property' : 'Edit Listing'}</h1>
+        {/* Page Title */}
+        <div className="mb-6">
+          <h1 className="font-serif font-medium text-3xl sm:text-4xl text-[#1A1A2E]">
+            {isNew ? 'Create New Property' : 'Edit Property Details'}
+          </h1>
+          <p className="text-sm text-gray-600 mt-1">
+            {isNew ? 'List a room or flat to start receiving verified tenant applications.' : 'Keep your room photos, pricing, and house rules up to date.'}
+          </p>
+        </div>
 
+        {/* Gate if unverified */}
         {isPendingVerification && ownerVerification?.status !== 'APPROVED' && (
           <div className="mb-6">
             <OwnerVerificationGate listingTitle={form.title || 'Your Listing'} />
           </div>
         )}
 
+        {/* Feedback alerts */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-4 mb-4 text-sm">{error}</div>
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4 mb-6 text-sm flex items-center gap-2.5">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
+            <span>{error}</span>
+          </div>
         )}
         {success && (
-          <div className="bg-teal/10 border border-teal/20 text-teal rounded-xl p-4 mb-4 text-sm">{success}</div>
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl p-4 mb-6 text-sm flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+            <span>{success}</span>
+          </div>
         )}
 
-        {/* Form */}
+        {/* Form Content */}
         <div className="space-y-6">
+
           {/* Photos Section */}
-          <div className="card-nestmate p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold flex items-center gap-2">
-                <ImageIcon className="w-5 h-5 text-fire" />
-                Room Photos
-                <span className="text-xs text-ink/40 font-normal">({totalPhotos}/10)</span>
-              </h3>
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-4 sm:p-6 md:p-8 space-y-5">
+            <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+              <div>
+                <h3 className="font-serif font-medium text-lg sm:text-xl text-[#1A1A2E] flex items-center gap-2.5">
+                  <span className="w-8 h-8 rounded-full bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center text-sm shrink-0">
+                    <ImageIcon className="w-4 h-4" />
+                  </span>
+                  Room & Property Photos
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5 sm:ml-10.5">High-quality photos receive 3x more match inquiries ({totalPhotos}/10)</p>
+              </div>
+
               {totalPhotos < 10 && (
                 <button
+                  type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-sm text-fire font-medium hover:text-fire-dark transition-colors flex items-center gap-1"
+                  className="text-xs text-[#E5501A] font-semibold hover:text-[#D0400B] transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FFF2EB] border border-[#E5501A]/20 cursor-pointer shrink-0"
                 >
-                  <Upload className="w-4 h-4" /> Add Photos
+                  <Upload className="w-3.5 h-3.5" /> Add Photos
                 </button>
               )}
             </div>
+
             <input
               ref={fileInputRef}
               type="file"
@@ -321,252 +366,489 @@ export default function EditListing() {
             />
 
             {totalPhotos === 0 ? (
-              <label
+              <div
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full h-[140px] border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-fire/40 hover:bg-fire/5 transition-all"
+                className="w-full py-12 border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#E5501A]/60 hover:bg-[#FFF2EB]/20 transition-all group"
               >
-                <div className="w-12 h-12 rounded-full bg-fire/10 flex items-center justify-center">
-                  <Upload className="w-6 h-6 text-fire" />
+                <div className="w-12 h-12 rounded-2xl bg-gray-100 group-hover:bg-[#FFF2EB] flex items-center justify-center text-gray-400 group-hover:text-[#E5501A] transition-colors">
+                  <Upload className="w-6 h-6" />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-medium text-ink/70">Add room photos</p>
-                  <p className="text-xs text-ink/40">JPG, PNG up to 5MB each • Max 10 photos</p>
+                  <p className="text-sm font-semibold text-[#1A1A2E]">Upload room and living area photos</p>
+                  <p className="text-xs text-gray-400 mt-0.5">JPG or PNG up to 5MB each • Up to 10 photos</p>
                 </div>
-              </label>
+              </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {/* Existing uploaded images */}
                 {existingImages.map((url, i) => (
-                  <div key={`existing-${i}`} className="relative group aspect-square rounded-xl overflow-hidden border-2 border-border">
-                    <img src={url} alt={`Room ${i + 1}`} className="w-full h-full object-cover" />
+                  <div key={`existing-${i}`} className="relative group aspect-square rounded-2xl overflow-hidden border border-gray-200 shadow-2xs">
+                    <img src={url} alt={`Room photo ${i + 1}`} className="w-full h-full object-cover" />
                     {i === 0 && (
-                      <span className="absolute top-1.5 left-1.5 px-2 py-0.5 bg-fire text-white text-[10px] font-bold uppercase rounded-md">Cover</span>
+                      <span className="absolute top-2 left-2 px-2.5 py-0.5 bg-[#E5501A] text-white text-[10px] font-bold uppercase tracking-wider rounded-full shadow-xs">
+                        Cover
+                      </span>
                     )}
                     <button
+                      type="button"
                       onClick={() => removeExistingImage(i)}
-                      className="absolute top-1.5 right-1.5 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                      className="absolute top-2 right-2 w-7 h-7 bg-black/60 hover:bg-red-600 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                      title="Remove image"
                     >
-                      <X className="w-3.5 h-3.5 text-white" />
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
 
                 {/* New photo previews */}
                 {newPreviews.map((url, i) => (
-                  <div key={`new-${i}`} className="relative group aspect-square rounded-xl overflow-hidden border-2 border-fire/30 ring-2 ring-fire/10">
-                    <img src={url} alt={`New ${i + 1}`} className="w-full h-full object-cover" />
-                    <span className="absolute bottom-1.5 left-1.5 px-2 py-0.5 bg-fire/80 text-white text-[10px] font-bold rounded-md">New</span>
+                  <div key={`new-${i}`} className="relative group aspect-square rounded-2xl overflow-hidden border-2 border-[#E5501A]/40 shadow-2xs">
+                    <img src={url} alt={`New upload ${i + 1}`} className="w-full h-full object-cover" />
+                    <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-[#E5501A] text-white text-[10px] font-bold rounded-full">
+                      New
+                    </span>
                     <button
+                      type="button"
                       onClick={() => removeNewPhoto(i)}
-                      className="absolute top-1.5 right-1.5 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                      className="absolute top-2 right-2 w-7 h-7 bg-black/60 hover:bg-red-600 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                      title="Remove image"
                     >
-                      <X className="w-3.5 h-3.5 text-white" />
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
 
-                {/* Add more button */}
+                {/* Add more tile */}
                 {totalPhotos < 10 && (
                   <button
+                    type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="aspect-square rounded-xl border-2 border-dashed border-border hover:border-fire/40 flex flex-col items-center justify-center gap-1 transition-all hover:bg-fire/5"
+                    className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 hover:border-[#E5501A]/50 flex flex-col items-center justify-center gap-1.5 transition-all hover:bg-[#FFF2EB]/30 group"
                   >
-                    <Upload className="w-5 h-5 text-ink/30" />
-                    <span className="text-[10px] text-ink/40">Add More</span>
+                    <Upload className="w-5 h-5 text-gray-400 group-hover:text-[#E5501A] transition-colors" />
+                    <span className="text-xs font-semibold text-gray-500 group-hover:text-[#E5501A]">Add More</span>
                   </button>
                 )}
               </div>
             )}
 
             {isUploading && (
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs text-ink/50">
+              <div className="space-y-1.5 pt-2">
+                <div className="flex justify-between text-xs text-gray-500 font-medium">
                   <span>Uploading photos...</span>
-                  <span>{uploadProgress}%</span>
+                  <span className="text-[#E5501A] font-bold">{uploadProgress}%</span>
                 </div>
-                <div className="h-2 bg-border rounded-full overflow-hidden">
-                  <div className="h-full bg-fire rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#E5501A] rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
                 </div>
               </div>
             )}
           </div>
 
-          <div className="card-nestmate p-5 space-y-4">
-            <h3 className="font-semibold">Basic Details</h3>
+          {/* Basic Details */}
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-6 md:p-8 space-y-5">
+            <h3 className="font-serif font-medium text-xl text-[#1A1A2E] flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-full bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center text-sm">
+                <Home className="w-4 h-4" />
+              </span>
+              Basic Details
+            </h3>
+
             <div>
-              <label htmlFor="listing-title" className="text-xs text-ink/50 mb-1 block">Title</label>
-              <input id="listing-title" type="text" placeholder="e.g. Sunny 2BHK in T. Nagar" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="input-nestmate w-full" />
+              <label htmlFor="listing-title" className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">
+                Listing Title *
+              </label>
+              <input
+                id="listing-title"
+                type="text"
+                placeholder="e.g. Sunny Private Room in 2BHK with Balcony"
+                value={form.title}
+                onChange={e => setForm({ ...form, title: e.target.value })}
+                className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl px-4 py-3 text-sm text-[#1A1A2E] placeholder:text-gray-400 focus:outline-none focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 transition-all font-medium"
+              />
             </div>
+
             <div>
-              <label className="text-xs text-ink/50 mb-1 block">Description</label>
-              <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="input-nestmate w-full h-24 resize-none" />
+              <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">
+                Description & Highlights
+              </label>
+              <textarea
+                value={form.description}
+                onChange={e => setForm({ ...form, description: e.target.value })}
+                placeholder="Describe your flat, vibe, proximity to tech parks or metro stations, and living preferences..."
+                rows={4}
+                className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl p-4 text-sm text-[#1A1A2E] placeholder:text-gray-400 focus:outline-none focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 transition-all font-medium resize-none leading-relaxed"
+              />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-ink/50 mb-1 block">Flat Type</label>
-                <select value={form.flatType} onChange={e => setForm({ ...form, flatType: e.target.value })} className="input-nestmate w-full">
-                  <option value="">Select</option>
+                <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">
+                  Flat Configuration *
+                </label>
+                <select
+                  value={form.flatType}
+                  onChange={e => setForm({ ...form, flatType: e.target.value })}
+                  className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl px-4 py-3 text-sm text-[#1A1A2E] focus:outline-none focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 transition-all font-medium"
+                >
+                  <option value="">Select Configuration</option>
                   {flatTypes.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-ink/50 mb-1 block">Furnishing</label>
-                <select value={form.furnishing} onChange={e => setForm({ ...form, furnishing: e.target.value })} className="input-nestmate w-full">
-                  <option value="">Select</option>
+                <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">
+                  Furnishing Status *
+                </label>
+                <select
+                  value={form.furnishing}
+                  onChange={e => setForm({ ...form, furnishing: e.target.value })}
+                  className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl px-4 py-3 text-sm text-[#1A1A2E] focus:outline-none focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 transition-all font-medium"
+                >
+                  <option value="">Select Furnishing</option>
                   {furnishingTypes.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
             </div>
           </div>
 
-          <div className="card-nestmate p-5 space-y-4">
-            <h3 className="font-semibold">Location & Pricing</h3>
-            <div className="grid grid-cols-2 gap-4">
+          {/* Location & Pricing */}
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-6 md:p-8 space-y-5">
+            <h3 className="font-serif font-medium text-xl text-[#1A1A2E] flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-full bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center text-sm">
+                <MapPin className="w-4 h-4" />
+              </span>
+              Location & Pricing
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-ink/50 mb-1 block">City</label>
-                <select value={form.city} onChange={e => {
-                  const newCity = e.target.value;
-                  const defaultLocality = (localitiesByCity[newCity] || [])[0] || '';
-                  setForm({ ...form, city: newCity, locality: defaultLocality });
-                }} className="input-nestmate w-full">
-                  <option value="">Select</option>
+                <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">
+                  City *
+                </label>
+                <select
+                  value={form.city}
+                  onChange={e => {
+                    const newCity = e.target.value;
+                    const defaultLocality = (localitiesByCity[newCity] || [])[0] || '';
+                    setForm({ ...form, city: newCity, locality: defaultLocality });
+                  }}
+                  className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl px-4 py-3 text-sm text-[#1A1A2E] focus:outline-none focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 transition-all font-medium"
+                >
+                  <option value="">Select City</option>
                   {cities.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-ink/50 mb-1 block">Locality</label>
-                <select value={form.locality} onChange={e => setForm({ ...form, locality: e.target.value })} className="input-nestmate w-full">
-                  <option value="">Select</option>
+                <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">
+                  Locality / Neighborhood *
+                </label>
+                <select
+                  value={form.locality}
+                  onChange={e => setForm({ ...form, locality: e.target.value })}
+                  className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl px-4 py-3 text-sm text-[#1A1A2E] focus:outline-none focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 transition-all font-medium"
+                >
+                  <option value="">Select Locality</option>
                   {(localitiesByCity[form.city] || []).map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-ink/50 mb-1 block">Monthly Rent (₹)</label>
-                <input type="number" value={form.monthlyRent} onChange={e => setForm({ ...form, monthlyRent: parseInt(e.target.value) || 0 })} className="input-nestmate w-full" />
+                <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">
+                  Monthly Rent (₹) *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-sm">₹</span>
+                  <input
+                    type="number"
+                    value={form.monthlyRent || ''}
+                    placeholder="18000"
+                    onChange={e => setForm({ ...form, monthlyRent: parseInt(e.target.value) || 0 })}
+                    className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl pl-8 pr-4 py-3 text-sm text-[#1A1A2E] placeholder:text-gray-400 focus:outline-none focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 transition-all font-semibold"
+                  />
+                </div>
               </div>
               <div>
-                <label className="text-xs text-ink/50 mb-1 block">Deposit (₹)</label>
-                <input type="number" value={form.deposit} onChange={e => setForm({ ...form, deposit: parseInt(e.target.value) || 0 })} className="input-nestmate w-full" />
+                <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">
+                  Security Deposit (₹)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-sm">₹</span>
+                  <input
+                    type="number"
+                    value={form.deposit || ''}
+                    placeholder="36000"
+                    onChange={e => setForm({ ...form, deposit: parseInt(e.target.value) || 0 })}
+                    className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl pl-8 pr-4 py-3 text-sm text-[#1A1A2E] placeholder:text-gray-400 focus:outline-none focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 transition-all font-semibold"
+                  />
+                </div>
               </div>
             </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="text-xs text-ink/50 mb-1 block">Partners Needed</label>
-                <input type="number" min="1" max="10" value={form.partnersNeeded} onChange={e => setForm({ ...form, partnersNeeded: parseInt(e.target.value) || 1 })} className="input-nestmate w-full" />
+                <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">
+                  Flatmates Needed
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={form.partnersNeeded}
+                  onChange={e => setForm({ ...form, partnersNeeded: parseInt(e.target.value) || 1 })}
+                  className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl px-4 py-3 text-sm text-[#1A1A2E] focus:outline-none focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 transition-all font-medium"
+                />
               </div>
               <div>
-                <label className="text-xs text-ink/50 mb-1 block">Available From</label>
-                <input type="date" value={form.availableFrom} onChange={e => setForm({ ...form, availableFrom: e.target.value })} className="input-nestmate w-full" />
+                <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">
+                  Available From
+                </label>
+                <input
+                  type="date"
+                  value={form.availableFrom}
+                  onChange={e => setForm({ ...form, availableFrom: e.target.value })}
+                  className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl px-4 py-3 text-sm text-[#1A1A2E] focus:outline-none focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 transition-all font-medium"
+                />
               </div>
               <div>
-                <label className="text-xs text-ink/50 mb-1 block">Gender Preference</label>
-                <select value={form.genderPreference} onChange={e => setForm({ ...form, genderPreference: e.target.value })} className="input-nestmate w-full">
-                  <option value="any">Any</option>
-                  <option value="male">Male Only</option>
+                <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">
+                  Gender Preference
+                </label>
+                <select
+                  value={form.genderPreference}
+                  onChange={e => setForm({ ...form, genderPreference: e.target.value })}
+                  className="w-full bg-gray-50/80 border border-gray-200 rounded-2xl px-4 py-3 text-sm text-[#1A1A2E] focus:outline-none focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 transition-all font-medium"
+                >
+                  <option value="any">Any Gender</option>
                   <option value="female">Female Only</option>
+                  <option value="male">Male Only</option>
                 </select>
               </div>
             </div>
           </div>
 
-          <div className="card-nestmate p-5 space-y-4">
-            <h3 className="font-semibold">Amenities</h3>
-            <div className="flex flex-wrap gap-2">
-              {amenitiesList.map(a => (
-                <button
-                  key={a}
-                  type="button"
-                  onClick={() => toggleAmenity(a)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${form.amenities.includes(a) ? 'bg-fire text-white' : 'bg-cream/50 text-ink/60 hover:bg-fire/10'
+          {/* Amenities Section */}
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-6 md:p-8 space-y-4">
+            <h3 className="font-serif font-medium text-xl text-[#1A1A2E]">Amenities & Inclusions</h3>
+            <p className="text-xs text-gray-500">Tap to select all facilities available to prospective flatmates.</p>
+            <div className="flex flex-wrap gap-2.5 pt-1">
+              {amenitiesList.map(a => {
+                const isSelected = form.amenities.includes(a);
+                return (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() => toggleAmenity(a)}
+                    className={`px-4 py-2 rounded-full text-xs font-semibold transition-all border ${
+                      isSelected
+                        ? 'bg-[#FFF2EB] text-[#E5501A] border-[#E5501A]/40 shadow-2xs'
+                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-[#E5501A]/30'
                     }`}
-                >
-                  {a}
-                </button>
-              ))}
+                  >
+                    {isSelected && <span className="mr-1.5">✓</span>}
+                    {a}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* House Rules & Tenant Compatibility Section */}
-          <div className="card-nestmate p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-                  <span>House Rules & Living Norms</span>
-                  <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
-                    Powers Compatibility Matching
-                  </span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Select rules for your flat. Seekers who match these rules receive higher compatibility scores.
-                </p>
+          {/* House Rules & Compatibility */}
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-6 md:p-8 space-y-5">
+            <div>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <h3 className="font-serif font-medium text-xl text-[#1A1A2E]">House Rules & Living Norms</h3>
+                <span className="text-[11px] bg-emerald-50 text-emerald-800 px-3 py-0.5 rounded-full font-bold border border-emerald-200">
+                  Powers AI Compatibility
+                </span>
               </div>
+              <p className="text-xs text-gray-500">
+                Seekers with matching lifestyle norms will receive high compatibility scores on your listing.
+              </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {houseRulesList.map(rule => (
-                <button
-                  key={rule}
-                  type="button"
-                  onClick={() => toggleHouseRule(rule)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
-                    form.houseRules.includes(rule)
-                      ? 'bg-brand-orange text-white border-brand-orange shadow-xs'
-                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  {rule}
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-2.5">
+              {houseRulesList.map(rule => {
+                const isSelected = form.houseRules.includes(rule);
+                return (
+                  <button
+                    key={rule}
+                    type="button"
+                    onClick={() => toggleHouseRule(rule)}
+                    className={`px-4 py-2 rounded-full text-xs font-semibold transition-all border ${
+                      isSelected
+                        ? 'bg-[#E5501A] text-white border-[#E5501A] shadow-2xs'
+                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    {rule}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Explanatory Live Compatibility Note */}
-            <div className="bg-orange-50/60 border border-orange-200/60 rounded-xl p-3.5 flex items-start gap-3">
-              <Sparkles className="w-4 h-4 text-brand-orange shrink-0 mt-0.5" />
-              <div className="text-xs text-slate-700 leading-relaxed">
-                <span className="font-bold text-slate-900 block mb-0.5">How Compatibility Matching Works</span>
-                Seekers in {form.city || 'Bangalore'} whose budget fits ₹{form.monthlyRent ? form.monthlyRent.toLocaleString() : '0'}, matching your gender rule ({form.genderPreference === 'any' ? 'Any Gender' : form.genderPreference === 'female' ? 'Female Only' : 'Male Only'}) and habits will see your room as a <strong className="text-emerald-700 font-bold">90%+ Best Match</strong>.
+            <div className="bg-[#FFF2EB]/70 border border-[#E5501A]/15 rounded-2xl p-4 flex items-start gap-3">
+              <Sparkles className="w-4 h-4 text-[#E5501A] shrink-0 mt-0.5" />
+              <div className="text-xs text-[#1A1A2E]/80 leading-relaxed">
+                <span className="font-semibold text-[#1A1A2E] block mb-0.5">Smart Match Intelligence</span>
+                Seekers looking in <span className="font-medium text-[#1A1A2E]">{form.city || 'your city'}</span> with a budget fitting ₹{form.monthlyRent ? form.monthlyRent.toLocaleString() : '0'}/mo and matching your norms will be highlighted as top tier applicants.
               </div>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3">
-            <button onClick={handleSave} disabled={saving || isUploading} className="flex-1 btn-fire flex items-center justify-center gap-2 disabled:opacity-50">
-              {saving || isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {isUploading ? `Uploading (${uploadProgress}%)...` : 'Save Changes'}
+          {/* Screening Questions Section */}
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-6 md:p-8 space-y-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <h3 className="font-serif font-medium text-xl text-[#1A1A2E]">Screening Questions for Inquiries</h3>
+                <span className="text-[11px] bg-orange-50 text-[#E5501A] px-3 py-0.5 rounded-full font-bold border border-orange-200">
+                  {form.screeningQuestions.length} Selected
+                </span>
+              </div>
+              <p className="text-xs text-gray-500">
+                Choose the questions seekers must answer when expressing interest in this property.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              {CURATED_SCREENING_QUESTIONS.map(q => {
+                const isSelected = form.screeningQuestions.some(sq => sq.id === q.id);
+                return (
+                  <button
+                    key={q.id}
+                    type="button"
+                    onClick={() => toggleScreeningQuestion(q)}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all flex flex-col justify-between gap-2.5 cursor-pointer ${
+                      isSelected
+                        ? 'border-[#E5501A] bg-orange-50/40 shadow-xs'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
+                        {q.type.replace('_', ' ')}
+                      </span>
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          isSelected ? 'border-[#E5501A] bg-[#E5501A] text-white' : 'border-slate-300'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3" />}
+                      </div>
+                    </div>
+                    <p className="text-xs font-bold text-[#1A1A2E] leading-snug">
+                      {q.title}
+                    </p>
+                    {q.description && (
+                      <p className="text-[11px] text-gray-500 line-clamp-2">
+                        {q.description}
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Bottom Action Buttons (Desktop / Tablet) */}
+          <div className="hidden md:flex gap-4 pt-2">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || isUploading}
+              className="flex-1 py-4 bg-[#E5501A] text-white rounded-full font-semibold text-sm hover:bg-[#D0400B] active:scale-[0.98] transition-all shadow-sm shadow-[#E5501A]/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {saving || isUploading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Save className="w-5 h-5" />
+              )}
+              {isUploading ? `Uploading Photos (${uploadProgress}%)...` : isNew ? 'Publish Property' : 'Save Changes'}
             </button>
+
             {!isNew && (
-              <button onClick={() => setShowDeleteConfirm(true)} className="px-6 py-3 border-2 border-red-200 text-red-500 rounded-xl font-medium hover:bg-red-50 transition-all flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="px-6 py-4 border border-red-200 text-red-600 rounded-full font-semibold text-sm hover:bg-red-50 active:scale-[0.98] transition-all flex items-center gap-2 cursor-pointer"
+              >
                 <Trash2 className="w-4 h-4" /> Delete
               </button>
             )}
           </div>
+
+        </div>
+
+        {/* Sticky Mobile Bottom Bar (< 768px) */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 p-3.5 bg-white/95 backdrop-blur-md border-t border-gray-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] z-40 flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || isUploading}
+            className="flex-1 py-3 bg-[#E5501A] text-white rounded-full font-bold text-xs hover:bg-[#D0400B] active:scale-[0.98] transition-all shadow-sm shadow-[#E5501A]/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            {saving || isUploading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            <span>{isUploading ? `Uploading (${uploadProgress}%)...` : isNew ? 'Publish Property' : 'Save Changes'}</span>
+          </button>
+
+          {!isNew && (
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="p-3 border border-red-200 text-red-600 rounded-full font-semibold text-xs hover:bg-red-50 active:scale-[0.98] transition-all flex items-center justify-center cursor-pointer shrink-0"
+              aria-label="Delete property"
+              title="Delete property"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl p-6 max-w-md w-full">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                  <AlertTriangle className="w-6 h-6 text-red-500" />
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full border border-gray-100 shadow-xl space-y-5">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-6 h-6 text-red-600" />
                 </div>
                 <div>
-                  <h3 className="font-semibold">Delete Listing?</h3>
-                  <p className="text-sm text-ink/50">This action cannot be undone.</p>
+                  <h3 className="font-serif font-medium text-xl text-[#1A1A2E]">Delete Property Listing?</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">This action permanently unlists your room.</p>
                 </div>
               </div>
-              <div className="flex gap-3">
-                <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-2.5 border border-border rounded-xl text-sm font-medium">Cancel</button>
-                <button onClick={handleDelete} disabled={saving} className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm font-medium disabled:opacity-50">
+              <p className="text-sm text-gray-600 leading-relaxed font-sans">
+                Are you sure you want to delete <strong className="text-[#1A1A2E]">{form.title || 'this listing'}</strong>? All active applicant threads and bookmarks for this property will be archived.
+              </p>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 py-3 border border-gray-200 rounded-full text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-all"
+                >
+                  Keep Listing
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={saving}
+                  className="flex-1 py-3 bg-red-600 text-white rounded-full text-sm font-semibold hover:bg-red-700 transition-all disabled:opacity-50"
+                >
                   {saving ? 'Deleting...' : 'Yes, Delete'}
                 </button>
               </div>
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

@@ -1,15 +1,28 @@
 // Static reference data — does NOT include mock users/listings/matches.
 // This data is structural (dropdowns, quiz questions, filter options).
 
-export const cities = ['Chennai', 'Bengaluru', 'Hyderabad', 'Pune', 'Mumbai', 'Delhi NCR'];
+export const cities = [
+  'Bengaluru', 'Mumbai', 'Delhi NCR', 'Hyderabad', 'Pune', 'Chennai',
+  'Kolkata', 'Ahmedabad', 'Jaipur', 'Chandigarh', 'Kochi', 'Goa',
+  'Lucknow', 'Indore', 'Coimbatore'
+];
 
 export const localitiesByCity: Record<string, string[]> = {
-  Chennai: ['Anna Nagar', 'Adyar', 'T. Nagar', 'Velachery', 'OMR', 'Nungambakkam', 'Mylapore', 'Kilpauk'],
-  Bengaluru: ['Koramangala', 'HSR Layout', 'Indiranagar', 'Whitefield', 'Electronic City', 'BTM Layout'],
-  Hyderabad: ['Hitech City', 'Gachibowli', 'Banjara Hills', 'Jubilee Hills', 'Madhapur', 'Kondapur'],
-  Pune: ['Koregaon Park', 'Kalyani Nagar', 'Hinjewadi', 'Magarpatta', 'Viman Nagar'],
-  Mumbai: ['Andheri', 'Bandra', 'Powai', 'Juhu', 'Malad', 'Goregaon'],
-  'Delhi NCR': ['Gurgaon', 'Noida', 'Dwarka', 'Saket', 'Vasant Kunj', 'Greater Kailash'],
+  Bengaluru: ['Koramangala', 'HSR Layout', 'Indiranagar', 'Whitefield', 'Electronic City', 'BTM Layout', 'Bellandur', 'Marathahalli', 'Jayanagar', 'JP Nagar'],
+  Mumbai: ['Andheri', 'Bandra', 'Powai', 'Juhu', 'Malad', 'Goregaon', 'Worli', 'Dadar', 'Thane', 'Navi Mumbai'],
+  'Delhi NCR': ['Gurgaon', 'Noida', 'Dwarka', 'Saket', 'Vasant Kunj', 'Greater Kailash', 'Hauz Khas', 'Cyber City', 'Indirapuram'],
+  Hyderabad: ['Hitech City', 'Gachibowli', 'Banjara Hills', 'Jubilee Hills', 'Madhapur', 'Kondapur', 'Kukatpally', 'Begumpet'],
+  Pune: ['Koregaon Park', 'Kalyani Nagar', 'Hinjewadi', 'Magarpatta', 'Viman Nagar', 'Kothrud', 'Baner', 'Wakad', 'Aundh'],
+  Chennai: ['Anna Nagar', 'Adyar', 'T. Nagar', 'Velachery', 'OMR', 'Nungambakkam', 'Mylapore', 'Kilpauk', 'Besant Nagar', 'Thiruvanmiyur'],
+  Kolkata: ['Salt Lake', 'New Town', 'Park Street', 'Ballygunge', 'Dum Dum', 'Howrah', 'Gariahat', 'Alipore'],
+  Ahmedabad: ['Satellite', 'Bodakdev', 'SG Highway', 'Navrangpura', 'Prahlad Nagar', 'Vastrapur', 'Thaltej'],
+  Jaipur: ['Malviya Nagar', 'Vaishali Nagar', 'Mansarovar', 'C-Scheme', 'Raja Park', 'Tonk Road'],
+  Chandigarh: ['Sector 17', 'Sector 35', 'Sector 22', 'Sector 43', 'Mohali Phase 7', 'Panchkula Sector 5'],
+  Kochi: ['Kakkanad', 'Edappally', 'Marine Drive', 'Kaloor', 'Fort Kochi', 'Palarivattom'],
+  Goa: ['Panaji', 'Porvorim', 'Candolim', 'Calangute', 'Margao', 'Vasco da Gama'],
+  Lucknow: ['Gomti Nagar', 'Hazratganj', 'Aliganj', 'Indira Nagar', 'Mahanagar'],
+  Indore: ['Vijay Nagar', 'Palasia', 'Bhawarkua', 'AB Road', 'Rau'],
+  Coimbatore: ['RS Puram', 'Gandhipuram', 'Peelamedu', 'Saibaba Colony', 'Saravanampatti'],
 };
 
 export const professions = [
@@ -18,7 +31,37 @@ export const professions = [
   'Student', 'Business Professional', 'Teacher', 'Other',
 ];
 
-export const flatTypes = ['1BHK', '2BHK', '3BHK', 'Studio'];
+/**
+ * All valid `flatType` values that can be stored on a Listing.
+ * BHK variants are classic flat-sharing options; the remaining types
+ * are standalone accommodation categories surfaced by the landing page.
+ */
+export const flatTypes = [
+  '1BHK',
+  '2BHK',
+  '3BHK',
+  'Studio',
+  'Private Room',
+  'Shared Room',
+  'PG',
+  'Hostel',
+  'Coliving',
+];
+
+/**
+ * Accommodation category groups used by the pill bar in BrowseRooms
+ * and the "Explore living options" section on the landing page.
+ */
+export const accommodationCategories: {
+  id: string;
+  label: string;
+  flatTypes: string[];
+}[] = [
+  { id: 'all',   label: 'All Spaces',    flatTypes: [] },
+  { id: 'rooms', label: 'Rooms & Flats', flatTypes: ['1BHK', '2BHK', '3BHK', 'Studio', 'Private Room', 'Shared Room'] },
+  { id: 'pg',    label: 'PGs & Hostels', flatTypes: ['PG', 'Hostel'] },
+  { id: 'coliving', label: 'Coliving',   flatTypes: ['Coliving'] },
+];
 export const furnishingTypes = ['Fully Furnished', 'Semi-Furnished', 'Unfurnished'];
 export const amenitiesList = ['WiFi', 'AC', 'Parking', 'Washing Machine', 'Gym', 'Geyser', 'Fridge', 'TV'];
 export const houseRulesList = [

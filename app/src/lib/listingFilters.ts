@@ -30,6 +30,67 @@ export interface FilterableListing {
     flatType?: string;
     furnishing?: string;
     amenities?: string[];
+    /** Optional text fields used as secondary match source for PG/Coliving queries */
+    title?: string;
+    description?: string;
+}
+
+/**
+ * Normalize a flatType string for comparison:
+ * trims whitespace, collapses internal spaces, lowercases.
+ * e.g. '1 BHK' → '1bhk', 'PG' → 'pg'.
+ */
+function normFlatType(s: string): string {
+    return s.toLowerCase().replace(/\s+/g, '');
+}
+
+/**
+ * Category-aware flatType matching.
+ *
+ * The landing page uses semantic categories ('Private Room', 'PG', 'Coliving').
+ * Owner onboarding may store BHK variants ('1BHK', '2BHK', 'PG', etc.).
+ * This function accepts a filter set and a listing flatType and returns true
+ * if any semantic mapping covers the listing.
+ *
+ * Mapping logic:
+ *  - 'Private Room' covers: Private Room, 1BHK, Studio (single-occupancy types)
+ *  - 'Shared Room'  covers: Shared Room, 2BHK, 3BHK (multi-occupancy sharing)
+ *  - 'PG'           covers: PG, Hostel (managed accommodation category)
+ *  - 'Hostel'       covers: Hostel, PG (same category)
+ *  - 'Coliving'     covers: Coliving only
+ *  - All other types (1BHK, 2BHK, 3BHK, Studio) match exactly after normalization.
+ */
+function flatTypeMatches(filterTypes: string[], listingFlatType: string): boolean {
+    const listingNorm = normFlatType(listingFlatType);
+
+    for (const ft of filterTypes) {
+        const ftNorm = normFlatType(ft);
+
+        // Direct exact match (catches '1BHK', '2BHK', 'Studio', 'PG', 'Coliving', etc.)
+        if (ftNorm === listingNorm) return true;
+
+        // 'Private Room' filter → also matches single-occupancy flat types
+        if (ftNorm === 'privateroom') {
+            if (['1bhk', 'studio', 'privateroom'].includes(listingNorm)) return true;
+        }
+
+        // 'Shared Room' filter → also matches multi-occupancy flat types
+        if (ftNorm === 'sharedroom') {
+            if (['2bhk', '3bhk', 'sharedroom'].includes(listingNorm)) return true;
+        }
+
+        // 'PG' filter → also matches Hostel (same managed-accommodation category)
+        if (ftNorm === 'pg') {
+            if (['pg', 'hostel'].includes(listingNorm)) return true;
+        }
+
+        // 'Hostel' filter → also matches PG
+        if (ftNorm === 'hostel') {
+            if (['hostel', 'pg'].includes(listingNorm)) return true;
+        }
+    }
+
+    return false;
 }
 
 export function applyClientFilters<T extends FilterableListing>(
@@ -67,7 +128,7 @@ export function applyClientFilters<T extends FilterableListing>(
         out = out.filter(l => (l.partnerShare || l.totalRent || 0) <= (filters.budgetMax ?? Infinity));
     }
     if (filters.flatType?.length) {
-        out = out.filter(l => filters.flatType!.includes(l.flatType || ''));
+        out = out.filter(l => flatTypeMatches(filters.flatType!, l.flatType || ''));
     }
     if (filters.furnishing?.length) {
         out = out.filter(l => filters.furnishing!.includes(l.furnishing || ''));
@@ -76,4 +137,4 @@ export function applyClientFilters<T extends FilterableListing>(
         out = out.filter(l => filters.amenities!.every(a => l.amenities?.includes(a)));
     }
     return out;
-}
+}

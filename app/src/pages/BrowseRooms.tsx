@@ -2,63 +2,109 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { useListings } from '@/hooks/useListings';
+import type { Listing } from '@/hooks/useListings';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { calculateCompatibility, calculateRoomCompatibility } from '@/hooks/useMatches';
+import { useChat } from '@/hooks/useChat';
+import { calculateRoomCompatibility } from '@/hooks/useMatches';
 import {
-  Search, MapPin, Heart, ShieldCheck, Bed, Loader2,
-  SlidersHorizontal, X, ChevronLeft, ChevronRight, Map,
-  ShieldAlert
+  Search, MapPin, Bed, SlidersHorizontal, X, ChevronDown,
+  ArrowUpDown, LayoutGrid, List, ShieldAlert, Check
 } from 'lucide-react';
-import { amenitiesList as allAmenities } from '@/lib/staticData';
+import { cities } from '@/lib/staticData';
+import { areSameCityAlias } from '@/lib/cityNormalization';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import StateEmpty from '@/components/StateEmpty';
+import StateLoading from '@/components/StateLoading';
 import RoomCard from '@/components/RoomCard';
+import CompactRoomCard from '@/components/CompactRoomCard';
+import ContactModal from '@/components/ContactModal';
 import { isPubliclyVisibleListing } from '@/lib/marketplaceVisibility';
 import AdvancedFiltersModal, { DEFAULT_ADVANCED_FILTERS } from '@/components/AdvancedFiltersModal';
 import type { AdvancedFilterState } from '@/components/AdvancedFiltersModal';
 
-export default function BrowseRooms({ embedded = false }: { embedded?: boolean }) {
+type SortOption = 'match' | 'newest' | 'price_asc' | 'price_desc';
+
+const sortLabels: Record<SortOption, string> = {
+  match: 'Best Match',
+  newest: 'Newest First',
+  price_asc: 'Lowest Rent',
+  price_desc: 'Highest Rent',
+};
+
+
+
+interface BrowseRoomsProps {
+  embedded?: boolean;
+  city?: string;
+  category?: 'rooms' | 'pg' | 'all';
+  searchQuery?: string;
+  onOpenFilters?: () => void;
+}
+
+export default function BrowseRooms({
+  embedded = false,
+  city: propCity,
+  category = 'all',
+  searchQuery: propSearchQuery = '',
+  onOpenFilters,
+}: BrowseRoomsProps) {
   const navigate = useNavigate();
   const { filters, updateFilters } = useStore();
   const { listings, getListings, isLoading, hasMore, loadMore, error } = useListings();
   const { user, profile, refreshProfile } = useAuth();
   const { toggleSavedRoom } = useUserProfile();
+  const { getOrCreateChatRoom } = useChat();
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(propSearchQuery);
   const [showFilters, setShowFilters] = useState(false);
   const [savingRoomId, setSavingRoomId] = useState<string | null>(null);
-  const [localFilters, setLocalFilters] = useState(filters);
   const [advFilters, setAdvFilters] = useState<AdvancedFilterState>(DEFAULT_ADVANCED_FILTERS);
-  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
-  const [imageIndexes, setImageIndexes] = useState<Record<string, number>>({});
+  const [contactOwnerProfile, setContactOwnerProfile] = useState<any | null>(null);
+
+  const [isCityOpen, setIsCityOpen] = useState(false);
+  const [isSortOpen, setIsSortOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<SortOption>('match');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const savedRoomIds: string[] = profile?.savedRoomIds || [];
+  const currentCity = propCity !== undefined ? propCity : (filters.city || advFilters.city || profile?.city || '');
 
   useEffect(() => {
     getListings(filters);
   }, [filters, getListings]);
 
-  const applyFilters = () => {
-    updateFilters(localFilters);
-    setShowFilters(false);
+  // Sync prop changes
+  useEffect(() => {
+    if (propSearchQuery !== undefined) {
+      setSearchQuery(propSearchQuery);
+    }
+  }, [propSearchQuery]);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.dropdown-container')) {
+        setIsCityOpen(false);
+        setIsSortOpen(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  const handleCitySelect = (cityName: string) => {
+    updateFilters({ city: cityName });
+    setAdvFilters(prev => ({ ...prev, city: cityName }));
+    setIsCityOpen(false);
   };
 
   const clearFilters = () => {
-    const reset = { city: '', budgetMin: 1000, budgetMax: 25000, localities: [], gender: 'any', verifiedOnly: false, amenities: [] };
-    updateFilters(reset);
-    setLocalFilters(reset as any);
-    setAdvFilters(DEFAULT_ADVANCED_FILTERS);
+    updateFilters({ city: '', budgetMin: 0, budgetMax: 100000, localities: [], gender: 'any', verifiedOnly: false, amenities: [], flatType: [] });
+    setAdvFilters({ ...DEFAULT_ADVANCED_FILTERS, city: '' });
     setSearchQuery('');
     setShowFilters(false);
-  };
-
-  const handleAmenityToggle = (amenity: string) => {
-    setLocalFilters(prev => ({
-      ...prev,
-      amenities: (prev.amenities || []).includes(amenity)
-        ? prev.amenities.filter(a => a !== amenity)
-        : [...(prev.amenities || []), amenity],
-    }));
   };
 
   const handleToggleSave = async (e: React.MouseEvent, roomId: string) => {
@@ -84,252 +130,511 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
     }
   };
 
-  const prevImage = (e: React.MouseEvent, roomId: string, maxIdx: number) => {
-    e.stopPropagation();
-    setImageIndexes(prev => {
-      const curr = prev[roomId] || 0;
-      return { ...prev, [roomId]: curr === 0 ? maxIdx : curr - 1 };
-    });
+  const handleCallOwner = async (room: Listing) => {
+    if (!user?.uid) {
+      useStore.getState().openAuthModal({
+        title: 'Sign in to Contact Owner',
+        subtitle: 'Sign in to view verified contact numbers and reach out to property owners.',
+        redirect: `/room/${room.id}`,
+      });
+      return;
+    }
+    try {
+      const ownerSnap = await getDoc(doc(db, 'users', room.ownerId));
+      const ownerData = ownerSnap.exists() ? ownerSnap.data() : null;
+      setContactOwnerProfile({
+        uid: room.ownerId,
+        name: room.ownerName || ownerData?.name || 'Property Owner',
+        phone: (room as any).contactPhone || ownerData?.phone || '',
+        locality: room.locality || room.city || currentCity,
+        budget: room.partnerShare || room.totalRent || 0,
+        isVerified: room.ownerVerified || (room as any).isOwnerVerified || ownerData?.isVerified,
+        avatar: room.ownerAvatar || ownerData?.avatar,
+      });
+    } catch {
+      setContactOwnerProfile({
+        uid: room.ownerId,
+        name: room.ownerName || 'Property Owner',
+        phone: (room as any).contactPhone || '',
+        locality: room.locality || room.city || currentCity,
+        budget: room.partnerShare || room.totalRent || 0,
+        isVerified: room.ownerVerified || (room as any).isOwnerVerified,
+        avatar: room.ownerAvatar,
+      });
+    }
   };
 
-  const nextImage = (e: React.MouseEvent, roomId: string, maxIdx: number) => {
-    e.stopPropagation();
-    setImageIndexes(prev => {
-      const curr = prev[roomId] || 0;
-      return { ...prev, [roomId]: curr === maxIdx ? 0 : curr + 1 };
-    });
+  const handleChatOwner = async (room: Listing) => {
+    if (!user?.uid) {
+      useStore.getState().openAuthModal({
+        title: 'Sign in to Inquire',
+        subtitle: 'Sign in to chat with property owners and schedule visits.',
+        redirect: `/room/${room.id}`,
+      });
+      return;
+    }
+    if (!room.ownerId) {
+      navigate(`/room/${room.id}`);
+      return;
+    }
+    try {
+      const roomId = await getOrCreateChatRoom(user.uid, room.ownerId);
+      navigate(`/chat/${roomId}`);
+    } catch (err) {
+      navigate(`/room/${room.id}`);
+    }
   };
 
   const filtered = listings.filter(l => {
-    // Sprint 2E hardening: shared visibility rule — paused/stale listings and
-    // any other non-discoverable state never render on the Explore surface.
     if (!isPubliclyVisibleListing(l)) return false;
     if (profile?.blockedUserIds?.includes(l.ownerId)) return false;
+
+    // City filter
+    if (currentCity) {
+      const qCity = currentCity.toLowerCase().trim();
+      const lCity = (l.city || '').toLowerCase().trim();
+      if (lCity && !lCity.includes(qCity) && !qCity.includes(lCity) && !areSameCityAlias(qCity, lCity)) {
+        return false;
+      }
+    }
+
+    // Category filter from props (rooms vs pg)
+    if (category === 'pg') {
+      const isPg = (l.flatType || '').toLowerCase().includes('pg') || (l.flatType || '').toLowerCase().includes('hostel') || (l.flatType || '').toLowerCase().includes('coliving');
+      if (!isPg) return false;
+    } else if (category === 'rooms') {
+      const isPg = (l.flatType || '').toLowerCase().includes('pg') || (l.flatType || '').toLowerCase().includes('hostel');
+      if (isPg) return false;
+    }
+
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const match = l.title?.toLowerCase().includes(q) || l.locality?.toLowerCase().includes(q) || l.city?.toLowerCase().includes(q);
       if (!match) return false;
     }
 
-    // Advanced Filters (DISC-02)
-    if (advFilters.highMatchOnly && profile) {
-      const score = calculateRoomCompatibility(profile, l);
-      if (score < 70) return false;
+    // Budget filter from advFilters
+    const rent = l.partnerShare || l.totalRent || (l as any).monthlyRent || 0;
+    if (advFilters.budgetMin && rent < advFilters.budgetMin) return false;
+    if (advFilters.budgetMax && advFilters.budgetMax < 100000 && rent > advFilters.budgetMax) return false;
+
+    // Move-in Date filter
+    if (advFilters.moveInDate && advFilters.moveInDate !== 'any' && l.availableFrom) {
+      const avail = new Date(l.availableFrom).getTime();
+      const now = Date.now();
+      const daysDiff = (avail - now) / (1000 * 60 * 60 * 24);
+      if (advFilters.moveInDate === 'immediate' && daysDiff > 7) return false;
+      if (advFilters.moveInDate === '15_days' && daysDiff > 15) return false;
+      if (advFilters.moveInDate === '30_days' && daysDiff > 30) return false;
     }
-    if (advFilters.dietary !== 'any') {
-      const d = (l as any).rules?.dietary;
-      if (d && d !== 'any' && d !== advFilters.dietary) return false;
+
+    // Gender filter
+    if (advFilters.gender && advFilters.gender !== 'any') {
+      const prefGender = ((l as any).preferredGender || (l as any).gender || '').toLowerCase();
+      if (prefGender && prefGender !== 'any' && !prefGender.includes(advFilters.gender)) return false;
     }
-    if (advFilters.smoking !== 'any') {
-      const s = (l as any).rules?.smoking;
-      if (s && s !== 'any' && s !== advFilters.smoking) return false;
+
+    // Room Type filter
+    if (advFilters.roomTypes && advFilters.roomTypes.length > 0) {
+      const flatType = (l.flatType || '').toLowerCase();
+      const matches = advFilters.roomTypes.some(rt => {
+        const norm = rt.toLowerCase().replace(/\s+/g, '');
+        const flatNorm = flatType.replace(/\s+/g, '');
+        if (norm === flatNorm) return true;
+        if (norm === 'privateroom') return ['1bhk', 'studio', 'privateroom'].some(k => flatNorm.includes(k));
+        if (norm === 'sharedroom') return ['2bhk', '3bhk', 'sharedroom'].some(k => flatNorm.includes(k));
+        return flatNorm.includes(norm);
+      });
+      if (!matches) return false;
     }
-    if (advFilters.alcohol !== 'any') {
-      const a = (l as any).rules?.alcohol;
-      if (a && a !== 'any' && a !== advFilters.alcohol) return false;
-    }
-    if (advFilters.petPolicy !== 'any') {
-      const p = (l as any).rules?.petPolicy;
-      if (p && p !== 'any' && p !== advFilters.petPolicy) return false;
-    }
-    if (advFilters.furnishing !== 'any') {
+
+    // Furnishing filter
+    if (advFilters.furnishing && advFilters.furnishing !== 'any') {
       if (l.furnishing && l.furnishing !== advFilters.furnishing) return false;
     }
-    if (advFilters.bachelorsFriendly) {
-      if ((l as any).rules?.bachelorsAllowed === false) return false;
-    }
-    if (advFilters.amenities.length > 0) {
-      const listingAmenities = l.amenities || [];
-      const hasAll = advFilters.amenities.every(a => listingAmenities.includes(a));
-      if (!hasAll) return false;
+
+    // Verified Only filter
+    if (advFilters.verifiedOnly) {
+      if (!l.ownerVerified && !l.isOwnerVerified) return false;
     }
 
     return true;
   });
 
-  const hasActiveFilters =
-    Boolean(filters.city && filters.city !== 'Bengaluru') ||
-    Boolean(filters.budgetMax && filters.budgetMax < 25000) ||
-    advFilters.dietary !== 'any' ||
-    advFilters.smoking !== 'any' ||
-    advFilters.alcohol !== 'any' ||
-    advFilters.furnishing !== 'any' ||
-    advFilters.petPolicy !== 'any' ||
-    advFilters.bachelorsFriendly ||
-    advFilters.highMatchOnly ||
-    advFilters.amenities.length > 0;
-
-  // Prioritize rooms by compatibility score when seeker is logged in
+  // Sorting
   const sortedListings = useMemo(() => {
     return [...filtered].sort((a, b) => {
-      if (profile) {
+      if (sortBy === 'price_asc') {
+        const rentA = a.partnerShare || a.totalRent || (a as any).monthlyRent || 0;
+        const rentB = b.partnerShare || b.totalRent || (b as any).monthlyRent || 0;
+        return rentA - rentB;
+      }
+      if (sortBy === 'price_desc') {
+        const rentA = a.partnerShare || a.totalRent || (a as any).monthlyRent || 0;
+        const rentB = b.partnerShare || b.totalRent || (b as any).monthlyRent || 0;
+        return rentB - rentA;
+      }
+      if (sortBy === 'match' && profile) {
         const scoreA = calculateRoomCompatibility(profile, a);
         const scoreB = calculateRoomCompatibility(profile, b);
-        if (scoreB !== scoreA) {
-          return scoreB - scoreA;
-        }
+        if (scoreB !== scoreA) return scoreB - scoreA;
       }
       const aTime = a.createdAt?.toMillis?.() || 0;
       const bTime = b.createdAt?.toMillis?.() || 0;
       return bTime - aTime;
     });
-  }, [filtered, profile]);
+  }, [filtered, sortBy, profile]);
+
+  // EMBEDDED VIEW: EXACT REFERENCE CARD ARCHITECTURE (NO DUPLICATE SEARCH OR CONTROL BARS)
+  if (embedded) {
+    return (
+      <div className="space-y-3.5 sm:space-y-4">
+        {isLoading && (
+          <div className="py-20 flex justify-center">
+            <StateLoading label="Finding verified rooms..." />
+          </div>
+        )}
+
+        {error && !isLoading && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-xs text-red-600 flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 shrink-0 text-red-500" />
+            <span>Failed to load rooms. Please check your connection and try again.</span>
+          </div>
+        )}
+
+        {/* RESPONSIVE FEED: 1 COLUMN ON MOBILE, 2 COLUMNS ON DESKTOP WITH SIDEBAR */}
+        {!isLoading && sortedListings.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
+            {sortedListings.map((listing) => (
+              <CompactRoomCard
+                key={listing.id}
+                room={listing}
+                isSaved={savedRoomIds.includes(listing.id)}
+                onToggleSave={(e) => handleToggleSave(e, listing.id)}
+                compatibilityScore={profile ? calculateRoomCompatibility(profile, listing) : 85}
+                distanceKm={0}
+                onClick={() => navigate(`/room/${listing.id}`)}
+                onCall={(r) => handleCallOwner(r)}
+                onChat={(r) => handleChatOwner(r)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Real-User Dynamic Empty State */}
+        {!isLoading && sortedListings.length === 0 && (
+          <StateEmpty
+            icon={Bed}
+            title={searchQuery ? `No rooms match "${searchQuery}" in ${currentCity}` : `No rooms available in ${currentCity} yet`}
+            description={
+              searchQuery
+                ? "Try clearing your search terms or adjusting budget filters."
+                : `Be the first to list a verified flat or private room in ${currentCity} and connect with genuine roommates.`
+            }
+            action={
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/post-room')}
+                  className="px-6 py-2.5 bg-[#E5501A] hover:bg-[#D0400B] text-white font-bold text-xs rounded-full shadow-xs cursor-pointer transition-colors"
+                >
+                  + Post a Room
+                </button>
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-[#1A1A2E] font-semibold text-xs rounded-full cursor-pointer transition-colors"
+                  >
+                    Clear Search
+                  </button>
+                ) : currentCity && (
+                  <button
+                    type="button"
+                    onClick={() => handleCitySelect('')}
+                    className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-[#1A1A2E] font-semibold text-xs rounded-full cursor-pointer transition-colors"
+                  >
+                    Browse All Cities
+                  </button>
+                )}
+              </div>
+            }
+            className="bg-white rounded-3xl border border-gray-100 py-14 shadow-xs max-w-xl mx-auto"
+          />
+        )}
+
+        {/* Call / Contact Modal */}
+        <ContactModal
+          isOpen={Boolean(contactOwnerProfile)}
+          onClose={() => setContactOwnerProfile(null)}
+          profile={contactOwnerProfile}
+        />
+      </div>
+    );
+  }
+
+  // STANDALONE VIEW (When accessed directly at /rooms)
+  const hasActiveFilters =
+    Boolean(currentCity) ||
+    Boolean(advFilters.budgetMax && advFilters.budgetMax < 100000) ||
+    Boolean(advFilters.moveInDate && advFilters.moveInDate !== 'any') ||
+    Boolean(advFilters.gender && advFilters.gender !== 'any') ||
+    Boolean(advFilters.roomTypes && advFilters.roomTypes.length > 0) ||
+    Boolean(advFilters.furnishing && advFilters.furnishing !== 'any') ||
+    Boolean(advFilters.verifiedOnly);
 
   const contentGrid = (
-    <div>
-      {/* Search & Filter Row — matching screenshot styling */}
-      <div className="flex items-center gap-2.5 mb-4">
+    <div className="space-y-4">
+      {/* Top Search & Filter Bar */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
         {/* Search input */}
         <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search Bangalore localities (e.g. Koramangala, HSR, Indiranagar)..."
+            placeholder="Search by locality, landmark or society (e.g. Kilpauk, T. Nagar, Koramangala...)"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             aria-label="Search rooms"
-            className="w-full pl-10 pr-8 py-3 min-h-[44px] bg-white rounded-xl text-xs sm:text-sm border border-slate-200 shadow-xs outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/10 transition-all text-slate-800 placeholder:text-slate-400"
+            className="w-full pl-11 pr-10 py-3 bg-white rounded-2xl text-xs sm:text-sm border border-gray-200/90 shadow-2xs outline-none focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 transition-all text-[#1A1A2E] placeholder:text-gray-400 font-medium"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
               aria-label="Clear search"
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
-        {/* Filter button */}
-        <button
-          type="button"
-          onClick={() => setShowFilters(true)}
-          aria-label="Open filters"
-          className={`flex-shrink-0 flex items-center gap-2 px-4 py-3 min-h-[44px] bg-white border rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs cursor-pointer ${hasActiveFilters
-              ? 'border-brand-orange text-brand-orange bg-brand-orange/5'
-              : 'border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50'
-            }`}
-        >
-          <SlidersHorizontal className="w-4 h-4" />
-          <span>Filters</span>
-          {hasActiveFilters ? (
-            <span className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
-          ) : null}
-        </button>
-      </div>
-
-      {/* Count badge */}
-      <div className="text-xs text-slate-500 font-semibold mb-4 block px-0.5">
-        {filtered.length} found
-      </div>
-
-      {/* Skeleton Loading */}
-      {isLoading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex flex-col bg-white rounded-2xl p-3 border border-border">
-              <div className="aspect-[4/3] w-full rounded-2xl skeleton-shimmer mb-2.5" />
-              <div className="px-1 space-y-2">
-                <div className="flex justify-between items-center">
-                  <div className="h-4 w-2/3 skeleton-shimmer rounded-md" />
-                  <div className="h-4 w-1/4 skeleton-shimmer rounded-md" />
-                </div>
-                <div className="h-3 w-1/2 skeleton-shimmer rounded-md" />
+        {/* Mobile Control Bar */}
+        <div className="grid grid-cols-2 gap-2.5 md:hidden w-full">
+          <div className="relative dropdown-container">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSortOpen(!isSortOpen);
+                setIsCityOpen(false);
+              }}
+              className="w-full px-3.5 py-3 bg-white border border-gray-200/90 rounded-2xl text-xs sm:text-sm font-semibold text-[#1A1A2E] flex items-center justify-between shadow-2xs hover:border-gray-300 transition-all cursor-pointer whitespace-nowrap"
+            >
+              <div className="flex items-center gap-1.5 truncate">
+                <ArrowUpDown className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                <span className="truncate">{sortLabels[sortBy]}</span>
               </div>
-            </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${isSortOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isSortOpen && (
+              <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-40 animate-fade-up">
+                {(Object.keys(sortLabels) as (keyof typeof sortLabels)[]).map(key => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      setSortBy(key);
+                      setIsSortOpen(false);
+                    }}
+                    className={`w-full px-4 py-2.5 text-left text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                      sortBy === key ? 'text-[#E5501A] bg-[#FFF2EB]' : 'text-[#1A1A2E] hover:bg-gray-50'
+                    }`}
+                  >
+                    <span>{sortLabels[key]}</span>
+                    {sortBy === key && <Check className="w-3.5 h-3.5 text-[#E5501A]" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowFilters(true)}
+            aria-label="Open filters"
+            className={`w-full px-3.5 py-3 bg-white border rounded-2xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer ${
+              hasActiveFilters ? 'border-[#E5501A] text-[#E5501A] bg-[#FFF2EB]' : 'border-gray-200/90 text-[#1A1A2E] hover:border-gray-300'
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-gray-500" />
+            <span>Filters</span>
+          </button>
+        </div>
+
+        {/* Desktop Controls */}
+        <div className="hidden md:flex items-center gap-3 shrink-0">
+          <div className="relative dropdown-container shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setIsCityOpen(!isCityOpen);
+                setIsSortOpen(false);
+              }}
+              className="px-4 py-3 bg-white border border-gray-200/90 rounded-2xl text-xs sm:text-sm font-semibold text-[#1A1A2E] flex items-center gap-2 shadow-2xs hover:border-gray-300 transition-all cursor-pointer whitespace-nowrap"
+            >
+              <MapPin className="w-4 h-4 text-gray-500 shrink-0" />
+              <span>{currentCity}</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isCityOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isCityOpen && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-40 animate-fade-up">
+                {cities.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => handleCitySelect(c)}
+                    className={`w-full px-4 py-2.5 text-left text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                      currentCity === c ? 'text-[#E5501A] bg-[#FFF2EB]' : 'text-[#1A1A2E] hover:bg-gray-50'
+                    }`}
+                  >
+                    <span>{c}</span>
+                    {currentCity === c && <Check className="w-3.5 h-3.5 text-[#E5501A]" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="relative dropdown-container shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSortOpen(!isSortOpen);
+                setIsCityOpen(false);
+              }}
+              className="px-4 py-3 bg-white border border-gray-200/90 rounded-2xl text-xs sm:text-sm font-semibold text-[#1A1A2E] flex items-center gap-2 shadow-2xs hover:border-gray-300 transition-all cursor-pointer whitespace-nowrap"
+            >
+              <ArrowUpDown className="w-4 h-4 text-gray-500 shrink-0" />
+              <span>{sortLabels[sortBy]}</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isSortOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isSortOpen && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-40 animate-fade-up">
+                {(Object.keys(sortLabels) as (keyof typeof sortLabels)[]).map(key => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      setSortBy(key);
+                      setIsSortOpen(false);
+                    }}
+                    className={`w-full px-4 py-2.5 text-left text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                      sortBy === key ? 'text-[#E5501A] bg-[#FFF2EB]' : 'text-[#1A1A2E] hover:bg-gray-50'
+                    }`}
+                  >
+                    <span>{sortLabels[key]}</span>
+                    {sortBy === key && <Check className="w-3.5 h-3.5 text-[#E5501A]" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowFilters(true)}
+            aria-label="Open filters"
+            className={`flex items-center gap-2 px-4 sm:px-5 py-3 bg-white border rounded-2xl text-xs sm:text-sm font-semibold transition-all shadow-2xs cursor-pointer shrink-0 ${
+              hasActiveFilters
+                ? 'border-[#E5501A] text-[#E5501A] bg-[#FFF2EB]'
+                : 'border-gray-200/90 text-[#1A1A2E] hover:border-gray-300'
+            }`}
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            <span>Filters</span>
+          </button>
+
+          <div className="flex items-center gap-1 bg-white border border-gray-200/90 rounded-2xl p-1 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              aria-label="Grid view"
+              className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+                viewMode === 'grid'
+                  ? 'border-[#E5501A] bg-[#FFF2EB] text-[#E5501A]'
+                  : 'border-gray-200/90 bg-white text-gray-500 hover:text-[#1A1A2E]'
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              aria-label="List view"
+              className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+                viewMode === 'list'
+                  ? 'border-[#E5501A] bg-[#FFF2EB] text-[#E5501A]'
+                  : 'border-gray-200/90 bg-white text-gray-500 hover:text-[#1A1A2E]'
+              }`}
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Verified Properties Count */}
+      <div className="pt-1 pb-1">
+        <h2 className="text-sm font-bold text-[#1A1A2E]">
+          {sortedListings.length} verified properties
+        </h2>
+      </div>
+
+      {/* Standalone Listings Grid */}
+      {!isLoading && sortedListings.length > 0 && (
+        <div className={
+          viewMode === 'grid'
+            ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+            : "flex flex-col space-y-4"
+        }>
+          {sortedListings.map((listing) => (
+            <RoomCard
+              key={listing.id}
+              room={listing}
+              listing={listing}
+              currentUser={profile}
+              isSaved={savedRoomIds.includes(listing.id)}
+              isSaving={savingRoomId === listing.id}
+              onToggleSave={handleToggleSave}
+              onClick={() => navigate(`/room/${listing.id}`)}
+            />
           ))}
         </div>
       )}
 
-      {/* Error */}
-      {error && (
-        <div className="p-4 bg-red-50 text-red-600 rounded-2xl mb-6 text-center text-sm font-medium flex items-center justify-center gap-2 border border-red-100 max-w-md mx-auto">
-          <ShieldAlert className="w-4 h-4" /> {error}
-        </div>
-      )}
-
-      {/* Room Grid — 1 col mobile, 2 col tablet, 4 col desktop */}
-      {!isLoading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-          {sortedListings.map(room => {
-            const isSaved = savedRoomIds.includes(room.id);
-            const isSaving = savingRoomId === room.id;
-            const compatibilityScore = profile ? calculateRoomCompatibility(profile, room) : undefined;
-            return (
-              <RoomCard
-                key={room.id}
-                room={room}
-                isSaved={isSaved}
-                isSaving={isSaving}
-                compatibilityScore={compatibilityScore}
-                onToggleSave={handleToggleSave}
-                onClick={() => navigate(`/room/${room.id}`)}
-              />
-            );
-          })}
-        </div>
-      )}
-
-      {/* Can't find what you're looking for? Callout Banner */}
-      {!isLoading && filtered.length > 0 && (
-        <div className="bg-[#fff3f0] border border-[#ffe0d8] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs mt-8 mb-6">
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div className="w-10 h-10 bg-[#ffebd9] rounded-xl flex items-center justify-center text-brand-orange shrink-0">
-              <MapPin className="w-5 h-5 text-brand-orange" />
-            </div>
-            <div>
-              <h4 className="font-bold text-slate-900 text-sm sm:text-base leading-tight">
-                Can't find what you're looking for?
-              </h4>
-              <p className="text-xs text-slate-500 mt-1 leading-snug">
-                Post your requirements and let the right matches find you.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => {
-              if (!user) {
-                useStore.getState().openAuthModal({
-                  title: 'Post Your Requirement',
-                  subtitle: 'Create a seeker profile with your budget and location preferences so matching flatmates can find you.',
-                  redirect: '/onboarding/seeker',
-                });
-              } else {
-                navigate(profile?.onboardingComplete ? '/edit-profile' : '/onboarding/seeker');
-              }
-            }}
-            className="bg-brand-orange hover:bg-orange-600 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm shadow-orange-500/20 shrink-0 cursor-pointer self-stretch sm:self-auto justify-center"
-          >
-            <span>Post Requirement</span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {!isLoading && hasMore && filtered.length > 0 && (
-        <div className="mt-16 text-center">
+      {/* Load More */}
+      {hasMore && !isLoading && sortedListings.length > 0 && (
+        <div className="flex justify-center pt-6">
           <button
             onClick={() => loadMore(filters)}
-            className="px-8 py-3.5 bg-ink text-white rounded-full text-xs font-bold hover:bg-ink/90 transition-all shadow-md active:scale-95"
+            className="px-6 py-2.5 bg-white border border-gray-200/90 rounded-full text-xs font-semibold text-[#1A1A2E] hover:border-gray-300 hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
           >
-            Load more listings
+            Load More Rooms
           </button>
         </div>
       )}
 
-      {!isLoading && filtered.length === 0 && (
-        <StateEmpty
-          icon={Bed}
-          title="No rooms match your search"
-          description="Try refining your filter settings."
-          action={
-            <button onClick={clearFilters} className="btn-fire text-sm px-5">
-              Clear All Filters
-            </button>
-          }
-          className="bg-cream/20 rounded-2xl max-w-xl mx-auto border border-border/40"
-        />
+      {/* Empty State */}
+      {!isLoading && sortedListings.length === 0 && (
+        <div className="py-12">
+          <StateEmpty
+            icon={Bed}
+            title="No rooms match your search"
+            description="Try widening your budget range or clearing some filters."
+            action={
+              <button
+                onClick={clearFilters}
+                className="px-6 py-3 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full text-xs font-semibold shadow-xs cursor-pointer"
+              >
+                Clear All Filters
+              </button>
+            }
+            className="bg-white rounded-3xl max-w-xl mx-auto border border-gray-100 p-8 shadow-xs"
+          />
+        </div>
       )}
     </div>
   );
@@ -338,8 +643,11 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
     <AdvancedFiltersModal
       isOpen={showFilters}
       onClose={() => setShowFilters(false)}
-      filters={advFilters}
+      filters={{ ...advFilters, city: currentCity }}
       onApply={(updated) => {
+        if (updated.city && updated.city !== currentCity) {
+          updateFilters({ city: updated.city });
+        }
         setAdvFilters(updated);
         setShowFilters(false);
       }}
@@ -347,17 +655,8 @@ export default function BrowseRooms({ embedded = false }: { embedded?: boolean }
     />
   );
 
-  if (embedded) {
-    return (
-      <div>
-        {contentGrid}
-        {filterDrawer}
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-parchment pb-24 font-sans text-ink overflow-x-hidden">
+    <div className="min-h-screen bg-[#FBF9F6] pb-24 font-sans overflow-x-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {contentGrid}
       </div>

@@ -74,5 +74,16 @@ describe('filterFlatmateProfiles (DISC-03 discovery logic)', () => {
     const result = filterFlatmateProfiles(onlySelf, 'seeker1', 'seeker');
     expect(result).toHaveLength(0);
   });
+
+  it('Seeker discovers live-in owner_flatmate', () => {
+    const pool: (UserProfileLike & { ownerType?: string })[] = [
+      { uid: 'seeker1', role: 'seeker', name: 'Seeker 1' },
+      { uid: 'owner_flatmate1', role: 'owner', ownerType: 'owner_flatmate', name: 'Live-in Host' },
+      { uid: 'landlord1', role: 'owner', ownerType: 'landlord', name: 'Absentee Landlord' },
+    ];
+    const result = filterFlatmateProfiles(pool, 'seeker1', 'seeker');
+    expect(result.map(r => r.uid)).toEqual(['owner_flatmate1']);
+  });
 });
+
 

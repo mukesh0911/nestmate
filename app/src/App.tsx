@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useState, Suspense, lazy } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -327,9 +327,34 @@ function AppRoutes() {
 
   const isAuthenticated = !!authState.uid;
 
+function DashboardRedirect() {
+  const [searchParams] = useSearchParams();
+  const tab = searchParams.get('tab');
+  if (authState.role === 'owner') {
+    const target = tab ? `/owner-dashboard?tab=${tab}` : '/owner-dashboard';
+    return <Navigate to={target} replace />;
+  }
+  const target = tab ? `/explore?tab=${tab}` : '/explore?tab=rooms';
+  return <Navigate to={target} replace />;
+}
+
+function BrowseSeekersRedirect() {
+  if (authState.role === 'owner') {
+    return <Navigate to="/owner-dashboard?tab=seekers" replace />;
+  }
+  return <Navigate to="/explore?tab=roommates" replace />;
+}
+
+function BrowseRoomsRedirect() {
+  if (authState.role === 'owner') {
+    return <Navigate to="/owner-dashboard?tab=listings" replace />;
+  }
+  return <Navigate to="/explore?tab=rooms" replace />;
+}
+
   const getDashboardRoute = (): string => {
     if (!isAuthenticated) return '/login';
-    return authState.role === 'owner' ? '/owner-dashboard' : '/dashboard';
+    return authState.role === 'owner' ? '/owner-dashboard' : '/explore?tab=rooms';
   };
 
   return (
@@ -346,12 +371,12 @@ function AppRoutes() {
             on /onboarding/seeker or /role-select doesn't restart onboarding. */}
         <Route path="/role-select" element={
           isAuthenticated && authState.onboardingComplete
-            ? <Navigate to={authState.role === 'owner' ? '/owner-dashboard' : '/dashboard'} replace />
+            ? <Navigate to={authState.role === 'owner' ? '/owner-dashboard' : '/explore?tab=rooms'} replace />
             : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><RoleSelect /></PrivateRoute>
         } />
         <Route path="/onboarding/seeker" element={
           isAuthenticated && authState.onboardingComplete
-            ? <Navigate to="/dashboard" replace />
+            ? <Navigate to="/explore?tab=rooms" replace />
             : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><SeekerOnboarding /></PrivateRoute>
         } />
         <Route path="/onboarding/owner" element={
@@ -365,10 +390,10 @@ function AppRoutes() {
           {/* Unauthenticated public browsing */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/explore" element={<ExplorePage />} />
-          <Route path="/browse-rooms" element={<Navigate to="/explore?tab=rooms" replace />} />
-          <Route path="/browse-seekers" element={<Navigate to="/explore?tab=roommates" replace />} />
-          <Route path="/find-rooms" element={<Navigate to="/explore?tab=rooms" replace />} />
-          <Route path="/find-flatmates" element={<Navigate to="/explore?tab=roommates" replace />} />
+          <Route path="/browse-rooms" element={<BrowseRoomsRedirect />} />
+          <Route path="/browse-seekers" element={<BrowseSeekersRedirect />} />
+          <Route path="/find-rooms" element={<BrowseRoomsRedirect />} />
+          <Route path="/find-flatmates" element={<BrowseSeekersRedirect />} />
           <Route path="/room/:id" element={<RoomDetail />} />
           <Route path="/match/:id" element={<MatchDetail />} />
           <Route path="/trust" element={<TrustCenter />} />
@@ -383,7 +408,7 @@ function AppRoutes() {
           <Route path="/pricing" element={<Navigate to="/" replace />} />
 
           {/* Authenticated user routes */}
-          <Route path="/dashboard" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState} expectedRole="seeker"><SeekerDashboard /></OnboardingGuard>} />
+          <Route path="/dashboard" element={<DashboardRedirect />} />
           <Route path="/owner-dashboard" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState} expectedRole="owner"><OwnerDashboard /></OnboardingGuard>} />
           <Route path="/edit-listing/:id" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState} expectedRole="owner"><EditListing /></OnboardingGuard>} />
           <Route path="/chat" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><ChatPage /></OnboardingGuard>} />
@@ -420,7 +445,7 @@ function AppRoutes() {
 
         {/* Deep Link & Convenience Redirects */}
         <Route path="/home" element={<Navigate to={getDashboardRoute()} replace />} />
-        <Route path="/connections" element={<Navigate to="/dashboard?tab=connections" replace />} />
+        <Route path="/connections" element={<Navigate to="/explore?tab=connections" replace />} />
         <Route path="/applicants" element={<Navigate to="/owner-dashboard?tab=applicants" replace />} />
         <Route path="/create-listing" element={<Navigate to="/edit-listing/new" replace />} />
         <Route path="/listings" element={<Navigate to="/owner-dashboard?tab=listings" replace />} />

@@ -4,7 +4,7 @@ import { MapContainer, TileLayer, CircleMarker, Popup, Circle, useMap, useMapEve
 import L from 'leaflet';
 import { useAuth } from '@/hooks/useAuth';
 import { useListings } from '@/hooks/useListings';
-import { useMatches, calculateCompatibility } from '@/hooks/useMatches';
+import { useMatches, calculateProfileCompatibility } from '@/hooks/useMatches';
 import { useGeocoding } from '@/hooks/useGeocoding';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { UserProfile } from '@/hooks/useAuth';
@@ -214,9 +214,8 @@ export default function MapView() {
     setItems([]);
     try {
       let q;
-      if (profile?.role) {
-        const oppositeRole = profile.role === 'seeker' ? 'owner' : 'seeker';
-        q = query(collection(db, 'users'), where('onboardingComplete', '==', true), where('role', '==', oppositeRole));
+      if (profile?.role === 'owner') {
+        q = query(collection(db, 'users'), where('onboardingComplete', '==', true), where('role', '==', 'seeker'));
       } else {
         q = query(collection(db, 'users'), where('onboardingComplete', '==', true));
       }
@@ -244,10 +243,9 @@ export default function MapView() {
 
         if (!coords || !isValidCoord(coords.lat, coords.lng)) return;
 
-        // Sprint 2E hardening: no fabricated scores — missing preference data
-        // yields 0, never a fake default like the previous hardcoded 85.
-        const compat = profile?.quizAnswers
-          ? calculateCompatibility(profile.quizAnswers, data.quizAnswers || {}, profile.city, data.city)
+        // Dynamic multi-factor compatibility
+        const compat = profile
+          ? calculateProfileCompatibility(profile, data).score
           : 0;
         people.push({
           type: 'person', uid: d.id, name: data.name || 'User', avatar: data.avatar || '',

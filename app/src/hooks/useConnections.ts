@@ -29,6 +29,8 @@ export interface Connection {
   createdAt: Timestamp;
   /** Sprint 3C — listing attribution: which listing this interest originated from (optional, legacy docs lack it) */
   listingId?: string;
+  /** Screening questionnaire responses submitted by the seeker */
+  screeningAnswers?: Record<string, any>;
 }
 
 export { FREE_CONNECT_LIMIT };
@@ -88,7 +90,11 @@ export function useConnections() {
    * another owner's listing. Legacy connections (no listingId) are unaffected.
    */
   const sendRequest = useCallback(
-    async (fromId: string, toId: string, opts?: { listingId?: string }): Promise<string> => {
+    async (
+      fromId: string,
+      toId: string,
+      opts?: { listingId?: string; screeningAnswers?: Record<string, any> }
+    ): Promise<string> => {
       if (fromId === toId) throw new Error("Cannot connect with yourself");
 
       const q = query(
@@ -113,12 +119,14 @@ export function useConnections() {
 
       // Only attach listingId when provided AND non-empty; rules validate ownership.
       const listingId = opts?.listingId?.trim();
+      const screeningAnswers = opts?.screeningAnswers;
       const ref = await addDoc(collection(db, 'connections'), {
         fromUserId: fromId,
         toUserId: toId,
         status: 'pending',
         createdAt: serverTimestamp(),
         ...(listingId ? { listingId } : {}),
+        ...(screeningAnswers ? { screeningAnswers } : {}),
       });
       return ref.id;
     },

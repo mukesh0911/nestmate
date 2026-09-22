@@ -399,6 +399,118 @@ export function getRoomMatchReasons(
 }
 
 /**
+ * Synthesize comparable quiz tokens from a profile's quizAnswers,
+ * householdExpectations, and listing houseRules.
+ */
+export function synthesizeQuizFromProfile(profile: any, listing?: any): Record<string, string> {
+  const result: Record<string, string> = { ...(profile?.quizAnswers || {}) };
+
+  // 1. Household expectations from owner or seeker
+  if (profile?.householdExpectations) {
+    const exp = profile.householdExpectations;
+    if (!result.smoking && exp.smokingPolicy) {
+      result.smoking = exp.smokingPolicy === 'no_smoking' ? 'never' : 'occasionally';
+    }
+    if (!result.pets && exp.petPolicy) {
+      result.pets = exp.petPolicy === 'no_pets' ? 'no' : 'love';
+    }
+    if (!result.food_pref && exp.dietPref) {
+      result.food_pref = exp.dietPref === 'veg' ? 'veg' : 'non_veg';
+    }
+    if (!result.roommate_gender && exp.genderPref) {
+      result.roommate_gender = exp.genderPref;
+    }
+  }
+
+  // 2. Listing expectations / rules
+  if (listing) {
+    if (!result.roommate_gender && listing.genderPreference) {
+      const gp = listing.genderPreference.toLowerCase();
+      result.roommate_gender = gp.includes('female') ? 'female' : gp.includes('male') ? 'male' : 'any';
+    }
+    if (listing.houseRules && Array.isArray(listing.houseRules)) {
+      const rules = listing.houseRules.map((r: string) => (r || '').toLowerCase());
+      if (!result.cleanliness && rules.some((r: string) => r.includes('clean'))) {
+        result.cleanliness = 'very';
+      }
+      if (!result.smoking && rules.some((r: string) => r.includes('no smoking') || r.includes('smoke-free'))) {
+        result.smoking = 'never';
+      }
+      if (!result.pets && rules.some((r: string) => r.includes('no pets'))) {
+        result.pets = 'no';
+      }
+      if (!result.food_pref && rules.some((r: string) => r.includes('veg') && !r.includes('non-veg'))) {
+        result.food_pref = 'veg';
+      }
+      if (!result.guests && rules.some((r: string) => r.includes('no parties') || r.includes('no guests'))) {
+        result.guests = 'rarely';
+      }
+    }
+    if (listing.ownerQuizAnswers && typeof listing.ownerQuizAnswers === 'object') {
+      Object.assign(result, listing.ownerQuizAnswers);
+    }
+  }
+
+  return result;
+}
+
+export interface ProfileMatchResult {
+  score: number;
+  reasons: string[];
+  caveats: string[];
+}
+
+/**
+ * Universal profile compatibility calculator:
+ * - Computes multi-factor room compatibility if one party has an active room listing.
+ * - Computes synthesized quiz and preference compatibility for flatmate pairs.
+ */
+export function calculateProfileCompatibility(
+  userA: any,
+  userB: any,
+  listing?: any
+): ProfileMatchResult {
+  if (!userA || !userB) {
+    return { score: 0, reasons: [], caveats: ['Profile information unavailable'] };
+  }
+
+  const roleA = (userA.role || '').toLowerCase();
+  const roleB = (userB.role || '').toLowerCase();
+
+  // Scenario 1: One user is Seeker and the other has a Listing (or listing provided)
+  const isSeekerAndOwnerWithListing =
+    listing &&
+    ((roleA === 'seeker' && roleB === 'owner') ||
+      (roleA === 'owner' && roleB === 'seeker') ||
+      roleB === 'owner' ||
+      roleA === 'owner');
+
+  if (isSeekerAndOwnerWithListing) {
+    const seeker = roleA === 'owner' ? userB : userA;
+    const owner = roleA === 'owner' ? userA : userB;
+    const breakdown = getRoomMatchReasons(seeker, listing, owner);
+    return {
+      score: breakdown.score,
+      reasons: breakdown.reasons,
+      caveats: breakdown.caveats,
+    };
+  }
+
+  // Scenario 2: Seeker ↔ Seeker OR User ↔ User without active room listing
+  const answersA = synthesizeQuizFromProfile(userA);
+  const answersB = synthesizeQuizFromProfile(userB, listing);
+
+  const reasonsData = getMatchReasons(answersA, answersB, {
+    myCity: userA.city,
+    theirCity: userB.city,
+    myBudget: userA.budget,
+    theirBudget: userB.budget,
+  });
+
+  return reasonsData;
+}
+
+/**
  * Pure scalar helper for calculating room compatibility score (0-100%).
  */
 export function calculateRoomCompatibility(
@@ -434,4 +546,5 @@ export function getActiveStatus(timestamp: any): { status: 'online' | 'recent' |
     return { status: 'offline', text: `Active ${diffDays} days ago` };
   }
 }
+
 

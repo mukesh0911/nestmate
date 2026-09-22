@@ -26,18 +26,25 @@ export default function PageShell({
   return (
     <div
       className={cn(
-        'min-h-[calc(100vh-60px)] bg-parchment page-transition',
-        withBottomNavPad && 'pb-4',
+        'min-h-[calc(100vh-60px)] bg-[#FBF9F6] page-transition',
+        withBottomNavPad && 'pb-6',
         className
       )}
     >
-      <div className={cn(maxWidth, 'mx-auto px-4 sm:px-6 py-6')}>
+      <div className={cn(maxWidth, 'mx-auto px-4 sm:px-6 py-6 sm:py-8')}>
         {(title || actions) && (
-          <div className="flex items-start justify-between gap-4 mb-6">
+          <div className="flex items-start justify-between gap-4 mb-6 sm:mb-8">
             <div className="min-w-0">
-              {/* Sprint 5C: sans voice for page headings */}
-              {title && <h1 className="type-h2 text-ink">{title}</h1>}
-              {subtitle && <p className="text-sm text-ink/50 mt-1">{subtitle}</p>}
+              {title && (
+                <h1 className="font-serif font-medium text-3xl sm:text-4xl text-[#1A1A2E] tracking-tight">
+                  {title}
+                </h1>
+              )}
+              {subtitle && (
+                <p className="text-sm text-gray-500 mt-1.5 font-sans leading-relaxed">
+                  {subtitle}
+                </p>
+              )}
             </div>
             {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
           </div>

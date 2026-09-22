@@ -88,4 +88,106 @@ describe('applyClientFilters — Sprint 4B locality truth fixes', () => {
         const bombayListing = [makeListing({ city: 'Bombay' })];
         expect(applyClientFilters(bombayListing, { city: 'Mumbai' })).toHaveLength(1);
     });
-});
+});
+
+describe('applyClientFilters — flatType category-aware matching', () => {
+    it('exact flatType match works (1BHK, 2BHK, Studio)', () => {
+        const ls = [
+            makeListing({ flatType: '1BHK' }),
+            makeListing({ flatType: '2BHK' }),
+            makeListing({ flatType: 'Studio' }),
+        ];
+        expect(applyClientFilters(ls, { flatType: ['1BHK'] }).map(l => l.flatType)).toEqual(['1BHK']);
+        expect(applyClientFilters(ls, { flatType: ['Studio'] }).map(l => l.flatType)).toEqual(['Studio']);
+    });
+
+    it('PG filter also matches Hostel listings (same managed-accommodation category)', () => {
+        const ls = [
+            makeListing({ flatType: 'PG' }),
+            makeListing({ flatType: 'Hostel' }),
+            makeListing({ flatType: '2BHK' }),
+        ];
+        const result = applyClientFilters(ls, { flatType: ['PG'] });
+        expect(result.map(l => l.flatType)).toEqual(expect.arrayContaining(['PG', 'Hostel']));
+        expect(result).toHaveLength(2);
+    });
+
+    it('Hostel filter also matches PG listings', () => {
+        const ls = [
+            makeListing({ flatType: 'PG' }),
+            makeListing({ flatType: 'Hostel' }),
+            makeListing({ flatType: '1BHK' }),
+        ];
+        const result = applyClientFilters(ls, { flatType: ['Hostel'] });
+        expect(result).toHaveLength(2);
+        expect(result.map(l => l.flatType)).toEqual(expect.arrayContaining(['PG', 'Hostel']));
+    });
+
+    it('Coliving filter only matches Coliving listings', () => {
+        const ls = [
+            makeListing({ flatType: 'Coliving' }),
+            makeListing({ flatType: 'PG' }),
+            makeListing({ flatType: '2BHK' }),
+        ];
+        const result = applyClientFilters(ls, { flatType: ['Coliving'] });
+        expect(result).toHaveLength(1);
+        expect(result[0].flatType).toBe('Coliving');
+    });
+
+    it('Private Room filter also matches 1BHK and Studio (single-occupancy types)', () => {
+        const ls = [
+            makeListing({ flatType: 'Private Room' }),
+            makeListing({ flatType: '1BHK' }),
+            makeListing({ flatType: 'Studio' }),
+            makeListing({ flatType: '2BHK' }),
+        ];
+        const result = applyClientFilters(ls, { flatType: ['Private Room'] });
+        expect(result).toHaveLength(3);
+        expect(result.map(l => l.flatType)).toEqual(expect.arrayContaining(['Private Room', '1BHK', 'Studio']));
+    });
+
+    it('Shared Room filter also matches 2BHK and 3BHK (multi-occupancy types)', () => {
+        const ls = [
+            makeListing({ flatType: 'Shared Room' }),
+            makeListing({ flatType: '2BHK' }),
+            makeListing({ flatType: '3BHK' }),
+            makeListing({ flatType: 'Studio' }),
+        ];
+        const result = applyClientFilters(ls, { flatType: ['Shared Room'] });
+        expect(result).toHaveLength(3);
+        expect(result.map(l => l.flatType)).toEqual(expect.arrayContaining(['Shared Room', '2BHK', '3BHK']));
+    });
+
+    it('multiple flatType categories work together (OR semantics)', () => {
+        const ls = [
+            makeListing({ flatType: 'PG' }),
+            makeListing({ flatType: 'Coliving' }),
+            makeListing({ flatType: '2BHK' }),
+        ];
+        // Landing: PGs & Hostels + Coliving combined
+        const result = applyClientFilters(ls, { flatType: ['PG', 'Coliving'] });
+        expect(result).toHaveLength(2);
+    });
+
+    it('case-insensitive normalization: "pg" matches "PG"', () => {
+        const ls = [makeListing({ flatType: 'PG' })];
+        expect(applyClientFilters(ls, { flatType: ['pg'] })).toHaveLength(1);
+    });
+
+    it('whitespace normalization: "1 BHK" matches listing flatType "1BHK"', () => {
+        const ls = [makeListing({ flatType: '1BHK' })];
+        // Filter with extra space like the old bad landing filter '1 BHK'
+        expect(applyClientFilters(ls, { flatType: ['1 BHK'] })).toHaveLength(1);
+    });
+
+    it('no flatType filter returns all listings', () => {
+        const ls = [
+            makeListing({ flatType: 'PG' }),
+            makeListing({ flatType: '1BHK' }),
+            makeListing({ flatType: 'Coliving' }),
+        ];
+        expect(applyClientFilters(ls, { flatType: [] })).toHaveLength(3);
+        expect(applyClientFilters(ls, {})).toHaveLength(3);
+    });
+});
+

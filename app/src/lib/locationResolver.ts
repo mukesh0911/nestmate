@@ -19,7 +19,16 @@ export const CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
   'Delhi NCR': { lat: 28.6139, lng: 77.2090 },
   'Delhi': { lat: 28.6139, lng: 77.2090 },
   'Gurgaon': { lat: 28.4595, lng: 77.0266 },
-  'Noida': { lat: 28.5355, lng: 77.3910 }
+  'Noida': { lat: 28.5355, lng: 77.3910 },
+  'Kolkata': { lat: 22.5726, lng: 88.3639 },
+  'Ahmedabad': { lat: 23.0225, lng: 72.5714 },
+  'Jaipur': { lat: 26.9124, lng: 75.7873 },
+  'Chandigarh': { lat: 30.7333, lng: 76.7794 },
+  'Kochi': { lat: 9.9312, lng: 76.2673 },
+  'Goa': { lat: 15.2993, lng: 74.1240 },
+  'Lucknow': { lat: 26.8467, lng: 80.9462 },
+  'Indore': { lat: 22.7196, lng: 75.8577 },
+  'Coimbatore': { lat: 11.0168, lng: 76.9558 },
 };
 
 export const LOCALITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
@@ -78,7 +87,45 @@ export const LOCALITY_COORDINATES: Record<string, { lat: number; lng: number }> 
   'Dwarka': { lat: 28.5921, lng: 77.0460 },
   'Saket': { lat: 28.5244, lng: 77.2188 },
   'Vasant Kunj': { lat: 28.5293, lng: 77.1539 },
-  'Greater Kailash': { lat: 28.5482, lng: 77.2343 }
+  'Greater Kailash': { lat: 28.5482, lng: 77.2343 },
+
+  // Kolkata
+  'Salt Lake': { lat: 22.5867, lng: 88.4178 },
+  'New Town': { lat: 22.5855, lng: 88.4682 },
+  'Park Street': { lat: 22.5511, lng: 88.3526 },
+
+  // Ahmedabad
+  'Satellite': { lat: 23.0304, lng: 72.5178 },
+  'Bodakdev': { lat: 23.0384, lng: 72.5117 },
+  'Vastrapur': { lat: 23.0350, lng: 72.5293 },
+
+  // Jaipur
+  'Malviya Nagar': { lat: 26.8532, lng: 75.8197 },
+  'Vaishali Nagar': { lat: 26.9064, lng: 75.7428 },
+
+  // Chandigarh
+  'Sector 17': { lat: 30.7415, lng: 76.7791 },
+  'Sector 35': { lat: 30.7231, lng: 76.7645 },
+
+  // Kochi
+  'Kakkanad': { lat: 10.0159, lng: 76.3419 },
+  'Edappally': { lat: 10.0236, lng: 76.3117 },
+
+  // Goa
+  'Panaji': { lat: 15.4909, lng: 73.8278 },
+  'Candolim': { lat: 15.5179, lng: 73.7634 },
+
+  // Lucknow
+  'Gomti Nagar': { lat: 26.8536, lng: 80.9992 },
+  'Hazratganj': { lat: 26.8467, lng: 80.9462 },
+
+  // Indore
+  'Vijay Nagar': { lat: 22.7533, lng: 75.8937 },
+  'Palasia': { lat: 22.7244, lng: 75.8839 },
+
+  // Coimbatore
+  'RS Puram': { lat: 11.0117, lng: 76.9472 },
+  'Gandhipuram': { lat: 11.0183, lng: 76.9688 },
 };
 
 function getStringHash(str: string): number {

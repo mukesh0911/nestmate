@@ -105,6 +105,12 @@ describe('isPubliclyVisibleProfile (demo exclusion + account status)', () => {
         expect(isPubliclyVisibleProfile({ uid: 'u2', name: 'Legacy' })).toBe(true);
     });
 
+    it('hides ghost accounts with missing or empty display names', () => {
+        expect(isPubliclyVisibleProfile({ uid: 'u3' })).toBe(false);
+        expect(isPubliclyVisibleProfile({ uid: 'u3', name: '' })).toBe(false);
+        expect(isPubliclyVisibleProfile({ uid: 'u3', name: '   ' })).toBe(false);
+    });
+
     it('rejects malformed input safely', () => {
         expect(isPubliclyVisibleProfile(null)).toBe(false);
         expect(isPubliclyVisibleProfile(42)).toBe(false);

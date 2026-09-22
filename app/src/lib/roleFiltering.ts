@@ -33,12 +33,16 @@ export function filterProfilesByRole<T extends UserProfileLike>(
 export function filterFlatmateProfiles<T extends UserProfileLike>(
   profiles: T[],
   currentUserId: string | null | undefined,
-  _currentUserRole?: 'seeker' | 'owner' | string | null | undefined
+  currentUserRole?: 'seeker' | 'owner' | string | null | undefined
 ): T[] {
-  const targetRole = 'seeker';
   return profiles.filter(p => {
     if (!p.uid || p.uid === currentUserId) return false;
     const r = (p.role || '').toLowerCase();
-    return r === targetRole;
+    const isOwnerFlatmate = (p as any).ownerType === 'owner_flatmate';
+    if (currentUserRole === 'owner') {
+      return r === 'seeker';
+    }
+    return r === 'seeker' || isOwnerFlatmate;
   });
 }
+

@@ -34,7 +34,7 @@ export default function PricingPage() {
     { q: 'Can I cancel my premium subscription?', a: 'Yes, once Premium launches you can cancel anytime. Features remain active until the end of your billing period.' },
     { q: 'How does compatibility matching work?', a: 'We ask 10 lifestyle questions covering sleep schedule, food preferences, work mode, cleanliness, and more. Our algorithm compares answers to generate a compatibility percentage for every match.' },
     { q: 'Is Aadhaar verification mandatory?', a: 'No, but verified profiles appear higher in search results. Upload ID from Edit Profile for admin review.' },
-    { q: 'What cities is NestMate available in?', a: 'We are currently active in Chennai, Bengaluru, Hyderabad, Pune, Mumbai, and Delhi NCR. We are expanding to more cities soon.' },
+    { q: 'What cities is NestMate available in?', a: 'NestMate is active across 15 major hubs nationwide — Bengaluru, Mumbai, Delhi NCR, Hyderabad, Pune, Chennai, Kolkata, Ahmedabad, Jaipur, Chandigarh, Kochi, Goa, Lucknow, Indore, and Coimbatore — with locality-level search throughout India.' },
   ];
 
   const loadRazorpay = () => {

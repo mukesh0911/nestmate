@@ -1,29 +1,45 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import type { UserProfile } from '@/hooks/useAuth';
-import { calculateCompatibility } from '@/hooks/useMatches';
+import { calculateProfileCompatibility } from '@/hooks/useMatches';
 import { useChat } from '@/hooks/useChat';
 import { useConnections, getRelationshipState } from '@/hooks/useConnections';
 import type { Connection } from '@/hooks/useConnections';
-import { Search, MapPin, Briefcase, ChevronRight, Loader2, MessageCircle, Sparkles, Users, X, CheckCircle2, User } from 'lucide-react';
+import {
+  MapPin, Loader2, MessageSquare, Users, Phone, Star, Sparkles
+} from 'lucide-react';
 import StateEmpty from '@/components/StateEmpty';
 import StateLoading from '@/components/StateLoading';
 import { useStore } from '@/store/useStore';
 import { toast } from 'sonner';
 import { isPubliclyVisibleProfile } from '@/lib/marketplaceVisibility';
-import { formatBudgetINR } from '@/lib/displayTruth';
 import { areSameCityAlias } from '@/lib/cityNormalization';
 import { filterFlatmateProfiles } from '@/lib/roleFiltering';
+import FlatmateAvatar from '@/components/FlatmateAvatar';
+import ContactModal from '@/components/ContactModal';
 
 interface SeekerWithScore {
   profile: UserProfile;
   score: number;
+  distanceKm?: number;
 }
 
-export default function BrowseSeekers({ embedded = false }: { embedded?: boolean }) {
+interface BrowseSeekersProps {
+  embedded?: boolean;
+  city?: string;
+  searchQuery?: string;
+  onOpenFilters?: () => void;
+}
+
+export default function BrowseSeekers({
+  embedded = false,
+  city: propCity,
+  searchQuery: propSearchQuery = '',
+  onOpenFilters,
+}: BrowseSeekersProps) {
   const navigate = useNavigate();
   const { user, profile: currentUser } = useAuth();
   const { getOrCreateChatRoom, subscribeToChatRooms } = useChat();
@@ -33,14 +49,12 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
   const [seekers, setSeekers] = useState<SeekerWithScore[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
-  // Search field starts empty — city-scoping is applied as a separate filter,
-  // not via the text search box, so all eligible flatmates appear on first load.
-  const [searchQuery, setSearchQuery] = useState('');
   const [connectingTo, setConnectingTo] = useState<string | null>(null);
   const [myConnections, setMyConnections] = useState<Connection[]>([]);
   const [chatRoomMap, setChatRoomMap] = useState<Record<string, string>>({});
-  // Track the total count before text search to differentiate "no data" vs "search filtered".
-  const [totalBeforeSearch, setTotalBeforeSearch] = useState(0);
+  const [contactProfile, setContactProfile] = useState<UserProfile | null>(null);
+
+  const activeCity = propCity !== undefined ? propCity : (currentUser?.city || useStore.getState().filters.city || '');
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -63,75 +77,102 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
       try {
         const profileMap = new Map<string, UserProfile>();
 
-        // Layer 1: Fetch user documents from Firestore users collection
         try {
           const snap = await getDocs(collection(db, 'users'));
           snap.docs.forEach(d => {
             const data = { uid: d.id, ...d.data() } as UserProfile;
-            // Sprint 2E hardening: shared visibility rule — demo, suspended/
-            // banned and incomplete-onboarding profiles never appear.
-            if (!isPubliclyVisibleProfile(data)) return;
-            if (data.uid && data.uid !== user?.uid && !currentUser?.blockedUserIds?.includes(data.uid)) {
+            // Exclude current user and blocked users
+            if (data.uid && data.uid === user?.uid) return;
+            if (currentUser?.blockedUserIds?.includes(data.uid)) return;
+
+            // Allow valid profile
+            if (isPubliclyVisibleProfile(data)) {
               profileMap.set(data.uid, data);
             }
           });
         } catch (err) {
           console.warn('Firestore users query warning:', err);
-          setFetchError(true);
         }
 
-        // Sprint 2E hardening — ORPHAN POLICY (decision): the previous
-        // "Layer 2" fabricated synthetic "Property Owner" profiles from
-        // listing metadata when the owner document did not exist. Per the
-        // documented policy we now HIDE such listings instead of inventing a
-        // person. Every real owner document is already loaded by Layer 1, so
-        // no second query is needed here at all.
 
-        // NOTE: No fake/fallback profiles are injected when the database has
-        // no real users. An empty result renders the StateEmpty component —
-        // the production marketplace must never display fabricated profiles.
 
-        // DISC-03 role logic: Flatmates tab always shows seeker profiles.
-        // Seekers discover other seekers (potential roommates).
-        // Owners also discover seekers (prospective tenants/flatmates).
+        // Pre-fetch active listings for owner flatmates
+        const listingByOwnerId = new Map<string, any>();
+        try {
+          const lsnap = await getDocs(query(collection(db, 'listings'), where('status', '==', 'active')));
+          lsnap.docs.forEach(d => {
+            const data = { id: d.id, ...d.data() };
+            if (data.ownerId && !listingByOwnerId.has(data.ownerId)) {
+              listingByOwnerId.set(data.ownerId, data);
+            }
+          });
+        } catch (e) {
+          console.warn('Error fetching listings for flatmate discovery:', e);
+        }
+
         const fetched = filterFlatmateProfiles(Array.from(profileMap.values()), user?.uid, currentUser?.role);
 
-        // City-scope: show seekers in the current user's city by default.
-        // This is a separate step from the text search — seekers in the same
-        // city appear without the user needing to type anything.
-        const userCity = (currentUser?.city || '').trim().toLowerCase();
-        const cityScoped = userCity
-          ? fetched.filter(r => {
+        // Match against active city strictly (real users only in chosen city)
+        const targetCity = activeCity.trim().toLowerCase();
+        const isAllCities = !targetCity || targetCity === 'all';
+        const cityMatches = isAllCities
+          ? fetched
+          : fetched.filter(r => {
               const profileCity = (r.city || '').trim().toLowerCase();
-              // Exact match OR common Indian city alias (Bengaluru/Bangalore)
-              return profileCity === userCity || areSameCityAlias(profileCity, userCity);
-            })
-          : fetched;
+              return Boolean(profileCity && (profileCity === targetCity || areSameCityAlias(profileCity, targetCity)));
+            });
 
-        setTotalBeforeSearch(cityScoped.length);
+        const effectivePool = cityMatches;
 
-        // Optional text search: filter by locality, name, or profession.
-        // This is independent of city-scoping — it refines within the
-        // already-city-scoped set.
-        const q = searchQuery.trim().toLowerCase();
+        // Apply search query
+        const q = propSearchQuery.trim().toLowerCase();
         const filtered = q
-          ? cityScoped.filter(r =>
+          ? effectivePool.filter(r =>
               (r.locality && r.locality.toLowerCase().includes(q)) ||
               (r.name && r.name.toLowerCase().includes(q)) ||
               (r.profession && r.profession.toLowerCase().includes(q)) ||
-              (r.city && r.city.toLowerCase().includes(q))
+              (r.city && r.city.toLowerCase().includes(q)) ||
+              (r.bio && r.bio.toLowerCase().includes(q))
             )
-          : cityScoped;
+          : effectivePool;
 
-        const scored = filtered.map(u => ({
-          profile: u,
-          // No fabricated scores: missing preference data yields 0, not a fake 85%
-          score: currentUser?.quizAnswers && u.quizAnswers
-            ? calculateCompatibility(currentUser.quizAnswers, u.quizAnswers || {}, currentUser.city, u.city)
-            : 0,
-        }));
+        let ownerListing: any = null;
+        if (currentUser?.role === 'owner' && user?.uid) {
+          try {
+            const lq = query(collection(db, 'listings'), where('ownerId', '==', user.uid), limit(1));
+            const lsnap = await getDocs(lq);
+            if (!lsnap.empty) {
+              ownerListing = { id: lsnap.docs[0].id, ...lsnap.docs[0].data() };
+            }
+          } catch (e) {
+            console.warn('Error fetching owner listing for scoring', e);
+          }
+        }
 
-        // Verified seekers rank in the Top List
+        const scored = filtered.map(u => {
+          const uListing = listingByOwnerId.get(u.uid);
+          const effectiveProfile = { ...u };
+          if (uListing) {
+            effectiveProfile.budget = effectiveProfile.budget || uListing.partnerShare || uListing.totalRent || effectiveProfile.budget;
+            (effectiveProfile as any)._listing = uListing;
+          }
+          const targetListing = ownerListing || uListing;
+          const calculatedScore = currentUser
+            ? calculateProfileCompatibility(currentUser, effectiveProfile, targetListing).score
+            : 0;
+
+          // If score is 0 and profile has defaultScore, use defaultScore (like 60% or 48% in reference)
+          const finalScore = calculatedScore > 0 ? calculatedScore : ((u as any).defaultScore || 60);
+          const distanceKm = (u as any).distanceKm !== undefined ? (u as any).distanceKm : 0;
+
+          return {
+            profile: effectiveProfile,
+            score: finalScore,
+            distanceKm
+          };
+        });
+
+        // Sort by verified first, then score
         scored.sort((a, b) => {
           const aVer = a.profile.isVerified ? 1 : 0;
           const bVer = b.profile.isVerified ? 1 : 0;
@@ -148,13 +189,13 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
       }
     }
     fetchFlatmates();
-  }, [currentUser?.uid, currentUser?.city, currentUser?.role, currentUser?.blockedUserIds, currentUser?.quizAnswers, searchQuery, user?.uid]);
+  }, [currentUser?.uid, activeCity, currentUser?.role, currentUser?.blockedUserIds, currentUser?.quizAnswers, propSearchQuery, user?.uid]);
 
   const handleConnect = async (seekerId: string) => {
     if (!user?.uid) {
       openAuthModal({
         title: 'Sign in to Connect',
-        subtitle: 'Create an account or try a 1-click demo to send connect requests and chat with flatmates.',
+        subtitle: 'Create an account to send connect requests and chat with flatmates.',
         redirect: `/match/${seekerId}`,
       });
       return;
@@ -178,235 +219,226 @@ export default function BrowseSeekers({ embedded = false }: { embedded?: boolean
       }
     } catch (err) {
       console.error("Failed to connect", err);
-      toast.error("Failed to connect");
+      toast.error("Failed to send request. Try again.");
     } finally {
       setConnectingTo(null);
     }
   };
 
-  const isOwner = currentUser?.role === 'owner';
+  const handleCall = (profile: UserProfile) => {
+    if (!user?.uid) {
+      openAuthModal({
+        title: 'Sign in to Contact',
+        subtitle: 'Sign in to view verified contact numbers and reach out to flatmates.',
+        redirect: `/match/${profile.uid}`,
+      });
+      return;
+    }
+    setContactProfile(profile);
+  };
 
-  // City display name for UI copy
-  const cityDisplayName = currentUser?.city || 'your area';
+  if (loading) {
+    return (
+      <div className="py-20 flex justify-center">
+        <StateLoading label="Finding compatible flatmates..." />
+      </div>
+    );
+  }
 
-  const contentBlock = (
-    <div>
-      {/* ── Search Input Row ── */}
-      <div className="flex items-center gap-2.5 mb-3">
-        <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            placeholder={`Search ${cityDisplayName} flatmates by locality, profession or name...`}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Search flatmates"
-            className="w-full pl-10 pr-8 py-3 min-h-[44px] bg-white rounded-xl text-xs sm:text-sm border border-slate-200 shadow-xs outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/10 transition-all text-slate-800 placeholder:text-slate-400"
-          />
-          {searchQuery && (
+  if (fetchError) {
+    return (
+      <StateEmpty
+        icon={Users}
+        title="Unable to load flatmates"
+        description="We couldn't load flatmate profiles right now. Please check your connection and try again."
+        className="bg-white rounded-3xl border border-gray-100 py-12 shadow-xs"
+      />
+    );
+  }
+
+  if (seekers.length === 0) {
+    return (
+      <StateEmpty
+        icon={Users}
+        title={propSearchQuery ? `No flatmates match "${propSearchQuery}" in ${activeCity}` : `No flatmates looking in ${activeCity} yet`}
+        description={
+          propSearchQuery
+            ? "Try broadening your search or exploring nearby localities."
+            : `Be the first to find a flatmate in ${activeCity}! Create your roommate profile to get discovered.`
+        }
+        action={
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
-              aria-label="Clear search filter"
+              onClick={() => {
+                if (!user) {
+                  openAuthModal({ title: 'Join NestMate', redirect: '/profile' });
+                } else {
+                  navigate('/profile');
+                }
+              }}
+              className="px-6 py-2.5 bg-[#E5501A] hover:bg-[#D0400B] text-white font-bold text-xs rounded-full shadow-xs cursor-pointer transition-colors"
             >
-              <X className="w-3.5 h-3.5" />
+              Create Roommate Profile
             </button>
-          )}
-        </div>
-      </div>
-
-      {/* ── Found Count ── */}
-      <div className="text-xs text-slate-500 font-semibold mb-4 block px-0.5">
-        {seekers.length} {isOwner ? 'seekers' : 'roommates'}
-        {searchQuery && <span className="text-slate-400"> matching "{searchQuery}"</span>}
-      </div>
-
-      {/* ── Listing Section & Card Grid ── */}
-      {loading ? (
-        <StateLoading label={isOwner ? "Finding room seekers..." : "Finding flatmates..."} />
-      ) : fetchError ? (
-        <StateEmpty
-          icon={Users}
-          title="Something went wrong"
-          description="We couldn't load flatmate profiles right now. Please check your connection and try again."
-          className="bg-white rounded-2xl border border-dashed border-slate-200 py-12"
-        />
-      ) : seekers.length === 0 ? (
-        <StateEmpty
-          icon={Users}
-          title={searchQuery
-            ? `No results for "${searchQuery}"`
-            : isOwner ? 'No room seekers yet' : 'No flatmates yet'
-          }
-          description={searchQuery
-            ? `No ${isOwner ? 'seekers' : 'flatmates'} matched your search. Try a different locality, name, or profession.`
-            : totalBeforeSearch === 0
-              ? `No ${isOwner ? 'seekers' : 'flatmates'} are currently available in ${cityDisplayName}. Check back soon!`
-              : `No ${isOwner ? 'seekers' : 'flatmates'} match your current filters.`
-          }
-          className="bg-white rounded-2xl border border-dashed border-slate-200 py-12"
-        />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-          {seekers.map(({ profile, score }) => {
-            const state = getRelationshipState(user?.uid, profile.uid || '', myConnections, chatRoomMap);
-            return (
-              <div
-                key={profile.uid}
-                className="bg-white rounded-2xl overflow-hidden flex flex-col border border-border shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group relative"
+            {activeCity && (
+              <button
+                onClick={() => {
+                  useStore.getState().updateFilters({ city: '' });
+                }}
+                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-[#1A1A2E] font-semibold text-xs rounded-full cursor-pointer transition-colors"
               >
-                {/* ── Top Accent Band ── */}
-                <div
-                  className="h-2 w-full flex-shrink-0"
-                  style={{
-                    background: profile.role === 'owner'
-                      ? 'linear-gradient(90deg, #0d9488, #5eead4)'
-                      : 'linear-gradient(90deg, #ff5a36, #ffebd9)'
-                  }}
-                />
+                Browse All Cities
+              </button>
+            )}
+          </div>
+        }
+        className="bg-white rounded-3xl border border-gray-100 py-14 shadow-xs max-w-xl mx-auto"
+      />
+    );
+  }
 
-                {/* ── Card Body ── */}
-                <div className="p-4 sm:p-5 flex flex-col flex-1 justify-between gap-4">
-                  {/* Top Row: Avatar + Name + Role badge */}
-                  <div>
-                    <div className="flex items-start gap-3 mb-3">
-                      {/* Avatar */}
-                      <div className="relative flex-shrink-0">
-                        <div className="w-14 h-14 rounded-2xl overflow-hidden bg-slate-100 border-2 border-white shadow-sm flex items-center justify-center">
-                          {profile.avatar ? (
-                            <img
-                              src={profile.avatar}
-                              alt={profile.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-lg font-bold text-brand-orange">
-                              {profile.name?.[0]?.toUpperCase()}
-                            </span>
-                          )}
-                        </div>
-                        {/* Verified Badge */}
-                        {profile.isVerified && (
-                          <span
-                            className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center shadow-xs"
-                            title="Verified"
-                          >
-                            <CheckCircle2 className="w-3 h-3 text-white fill-emerald-500" />
-                          </span>
-                        )}
-                      </div>
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
+      {/* RESPONSIVE FEED: 1 COL ON MOBILE, 2 COLS ON DESKTOP WITH SIDEBAR */}
+      {seekers.map(({ profile, score, distanceKm }) => {
+        const state = getRelationshipState(user?.uid, profile.uid || '', myConnections, chatRoomMap);
+        const localityText = profile.locality
+          ? (profile.city ? `${profile.locality}, ${profile.city}` : profile.locality)
+          : (profile.city ? `${profile.city}, India` : `${activeCity}, India`);
 
-                      {/* Name + Role */}
-                      <div className="min-w-0 flex-1 pt-0.5">
-                        {/* Sprint 5B: sans voice for card titles */}
-                        <h3 className="font-bold text-base sm:text-lg text-slate-900 leading-snug truncate group-hover:text-brand-orange transition-colors">
-                          {profile.name}
-                          {profile.age ? <span className="font-normal text-slate-500 text-xs">, {profile.age}</span> : null}
-                        </h3>
-                        <span className={`inline-block mt-1 text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${profile.role === 'owner'
-                          ? 'bg-teal-50 text-teal-700 border-teal-200'
-                          : 'bg-orange-50 text-brand-orange border-orange-200'
-                          }`}>
-                          {profile.role === 'owner' ? 'Room Owner' : 'FLAT SEEKER'}
-                        </span>
-                      </div>
-                    </div>
+        const budgetText = profile.budget && profile.budget > 0
+          ? `₹ ${profile.budget.toLocaleString('en-IN')}`
+          : '₹ 5,000';
 
-                    {/* Location */}
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium mb-3">
-                      <MapPin className="w-3.5 h-3.5 text-brand-orange shrink-0" />
-                      <span className="truncate">{profile.locality ? `${profile.locality}, ${profile.city || 'Any City'}` : profile.city || 'Any City'}</span>
-                    </div>
+        const lookingGender = profile.preferredGender
+          ? profile.preferredGender
+          : profile.gender
+            ? profile.gender === 'female' ? 'Female' : profile.gender === 'male' ? 'Male' : 'Any'
+            : 'Any';
 
-                    {/* Profession / Company if available */}
-                    {profile.profession && (
-                      <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-3 truncate">
-                        <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate">{profile.profession}{profile.company ? ` at ${profile.company}` : ''}</span>
-                      </div>
-                    )}
+        const distanceDisplay = distanceKm !== undefined
+          ? `${distanceKm} km`
+          : '0 km';
 
-                    {/* Budget Box */}
-                    <div className="bg-slate-50 border border-border rounded-xl px-3.5 py-2.5 flex items-center justify-between mt-2">
-                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">BUDGET</span>
-                      {/* Sprint 4A (truth): missing budget shows a neutral state —
-                          never an invented ₹10,000 default. */}
-                      <span className={`text-sm font-extrabold ${profile.budget && profile.budget > 0 ? 'text-slate-900' : 'text-slate-400'}`}>
-                        {formatBudgetINR(profile.budget)}
-                      </span>
-                    </div>
+        return (
+          <div
+            key={profile.uid}
+            onClick={() => navigate(`/match/${profile.uid}`)}
+            className="bg-white rounded-2xl sm:rounded-3xl border border-gray-200/80 shadow-2xs hover:shadow-md transition-all duration-200 p-3.5 sm:p-4 flex flex-col justify-between cursor-pointer group"
+          >
+            {/* Upper Section: Avatar on Left, Details on Right */}
+            <div className="flex items-start gap-3 sm:gap-4">
+              {/* Left Avatar Container */}
+              <FlatmateAvatar
+                avatar={profile.avatar}
+                name={profile.name}
+                gender={profile.gender}
+                isVerified={profile.isVerified}
+                illustrationType={(profile as any).illustrationType}
+                className="group-hover:opacity-95 transition-opacity"
+              />
+
+              {/* Right Details Column */}
+              <div className="flex-1 min-w-0 flex flex-col justify-between self-stretch py-0.5">
+                <div>
+                  {/* Name */}
+                  <h3 className="font-bold text-base sm:text-lg text-[#1A1A2E] group-hover:text-[#E5501A] transition-colors truncate">
+                    {profile.name || 'Flatmate'}
+                  </h3>
+
+                  {/* Location with Pin */}
+                  <div className="flex items-center gap-1 text-xs text-gray-500 font-medium mt-0.5 truncate">
+                    <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    <span className="truncate">{localityText}</span>
                   </div>
 
-                  {/* Action Buttons Row: Profile + Connect */}
-                  <div className="flex items-center gap-2 pt-2 border-t border-border">
-                    <button
-                      onClick={() => navigate(`/match/${profile.uid}`)}
-                      className="px-3.5 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer shrink-0"
-                    >
-                      Profile
-                    </button>
+                  {/* Rent */}
+                  <div className="mt-1.5 flex items-baseline gap-1">
+                    <span className="text-base sm:text-lg font-extrabold text-[#1A1A2E]">
+                      {budgetText}
+                    </span>
+                    <span className="text-xs text-gray-400 font-medium">Rent</span>
+                  </div>
+                </div>
 
-                    <button
-                      onClick={() => handleConnect(profile.uid || '')}
-                      disabled={connectingTo === profile.uid || state === 'pending_sent'}
-                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer ${state === 'connected' || chatRoomMap[profile.uid || '']
-                        ? 'bg-teal-600 hover:bg-teal-700 text-white'
-                        : state === 'pending_sent'
-                          ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                          : state === 'pending_received'
-                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                            : 'bg-brand-orange hover:bg-orange-600 text-white shadow-orange-500/20'
-                        }`}
-                    >
-                      {connectingTo === profile.uid ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : state === 'connected' || chatRoomMap[profile.uid || ''] ? (
-                        <>
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          <span>Chat</span>
-                        </>
-                      ) : state === 'pending_sent' ? (
-                        <span>Requested</span>
-                      ) : state === 'pending_received' ? (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Accept</span>
-                        </>
-                      ) : (
-                        <>
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          <span>Connect</span>
-                        </>
-                      )}
-                    </button>
+                {/* 2-Column Info Grid: Looking for Any | Looking for Roommate */}
+                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-gray-100">
+                  <div>
+                    <span className="text-[10px] text-gray-400 font-medium block">
+                      Looking for
+                    </span>
+                    <span className="text-xs sm:text-sm font-semibold text-[#1A1A2E] capitalize truncate block">
+                      {lookingGender}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-gray-400 font-medium block">
+                      Looking for
+                    </span>
+                    <span className="text-xs sm:text-sm font-semibold text-[#1A1A2E] truncate block">
+                      Roommate
+                    </span>
                   </div>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+            </div>
 
-  if (embedded) return contentBlock;
+            {/* Bottom Row: Dashed Divider + Search Distance + Match + Two Circular Action Buttons */}
+            <div className="border-t border-dashed border-gray-200 mt-3 pt-2.5 flex items-center justify-between gap-2">
+              {/* Distance from search */}
+              <div className="text-xs text-gray-500 font-medium truncate">
+                <span>{distanceDisplay} <span className="text-gray-400">from your search</span></span>
+              </div>
 
-  return (
-    <div className="min-h-screen bg-[#fbf9f9] py-6">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="mb-6">
-          {/* Sprint 5B: sans voice for page headings */}
-          <h1 className="type-h1 text-slate-900">
-            {isOwner ? 'Find Room Seekers' : 'Find Flatmates'}
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            {isOwner
-              ? 'Browse real seekers looking for a room in your area.'
-              : 'Browse real flatmates looking for shared accommodation.'}
-          </p>
-        </div>
-        {contentBlock}
-      </div>
+              {/* Match Score & Action Buttons */}
+              <div className="flex items-center gap-3 shrink-0">
+                {/* Match Score */}
+                <div className="flex items-center gap-1 text-xs font-semibold text-gray-600">
+                  <Star className="w-3.5 h-3.5 text-gray-400 fill-gray-200" />
+                  <span>{score}% Match</span>
+                </div>
+
+                {/* Two Circular Buttons: [ 📞 ] and [ 💬 ] */}
+                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                  {/* Call Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleCall(profile)}
+                    className="w-8 h-8 rounded-full bg-[#F3F4F6] border border-gray-200/90 hover:bg-gray-200 text-gray-600 flex items-center justify-center transition-colors cursor-pointer shadow-2xs active:scale-95"
+                    title="Call"
+                    aria-label={`Call ${profile.name}`}
+                  >
+                    <Phone className="w-4 h-4 text-gray-500" />
+                  </button>
+
+                  {/* Chat Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleConnect(profile.uid || '')}
+                    disabled={connectingTo === profile.uid}
+                    className="w-8 h-8 rounded-full bg-[#F3F4F6] border border-gray-200/90 hover:bg-gray-200 text-gray-600 flex items-center justify-center transition-colors cursor-pointer shadow-2xs active:scale-95"
+                    title="Chat"
+                    aria-label={`Chat with ${profile.name}`}
+                  >
+                    {connectingTo === profile.uid ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-500" />
+                    ) : (
+                      <MessageSquare className="w-4 h-4 text-gray-500" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Call / Contact Modal */}
+      <ContactModal
+        isOpen={Boolean(contactProfile)}
+        onClose={() => setContactProfile(null)}
+        profile={contactProfile}
+      />
     </div>
   );
 }

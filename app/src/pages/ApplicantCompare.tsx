@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useConnections, type Connection } from '@/hooks/useConnections';
+import { useConnections } from '@/hooks/useConnections';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import {
-  Users, ArrowLeft, ShieldCheck, Check, X, MessageCircle,
-  Sparkles, CheckCircle2, AlertTriangle, Building2, User
+  Users, ArrowLeft, ShieldCheck, MessageCircle,
+  CheckCircle2, User, Sparkles, Loader2, DollarSign, Calendar, Briefcase
 } from 'lucide-react';
 
 interface CandidateData {
@@ -27,13 +27,14 @@ interface CandidateData {
 export default function ApplicantCompare() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, profile } = useAuth();
-  const { getIncomingRequests, getMyConnections } = useConnections();
+  const { user } = useAuth();
+  const { getMyConnections } = useConnections();
 
   const [candidates, setCandidates] = useState<CandidateData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<CandidateData | null>(null);
   const [confirmSelectModal, setConfirmSelectModal] = useState(false);
+  const [mobileActiveIndex, setMobileActiveIndex] = useState(0);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -120,163 +121,392 @@ export default function ApplicantCompare() {
   };
 
   return (
-    <div className="min-h-screen bg-parchment pb-24">
+    <div className="min-h-screen bg-[#FBF9F6] pb-24">
       {/* Confirm Select Modal */}
       {confirmSelectModal && selectedCandidate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center">
-            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-xl border border-gray-100 text-center space-y-4">
+            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto border border-emerald-200 shadow-2xs">
               <CheckCircle2 className="w-8 h-8" />
             </div>
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Select {selectedCandidate.name}?</h2>
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-6">
-              Confirming selection will execute the <strong>fill cascade (R-09)</strong>:
-              your room listing will be marked <strong>Filled</strong>, other pending applicants will be politely closed, and you can chat with the selected flatmate for lease finalization.
+            <h2 className="font-serif font-medium text-2xl text-[#1A1A2E]">
+              Select {selectedCandidate.name}?
+            </h2>
+            <p className="text-sm text-gray-600 leading-relaxed font-sans">
+              Confirming selection will mark your room as <strong className="text-[#1A1A2E]">Filled</strong>, send polite updates to other pending applicants, and enable direct lease coordination.
             </p>
-            <div className="flex gap-3">
+            <div className="flex gap-3 pt-2">
               <button
+                type="button"
                 onClick={() => setConfirmSelectModal(false)}
-                className="flex-1 py-3 border border-slate-200 rounded-2xl text-xs font-bold text-slate-600 hover:bg-slate-50"
+                className="flex-1 py-3 border border-gray-200 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-all"
               >
-                Cancel
+                Review Others
               </button>
               <button
+                type="button"
                 onClick={handleExecuteFill}
-                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-emerald-600/20"
+                className="flex-1 py-3 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full text-xs font-semibold shadow-sm shadow-[#E5501A]/20 transition-all"
               >
-                Confirm Selection
+                Confirm Flatmate
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Header */}
-      <div className="bg-white border-b border-slate-100 py-4 px-4 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+      {/* Sticky Header */}
+      <div className="bg-white/80 backdrop-blur-md border-b border-gray-100 py-4 px-4 sticky top-0 z-30 shadow-2xs">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
           <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900"
+            onClick={() => navigate('/owner-dashboard')}
+            className="flex items-center gap-2 text-xs font-semibold text-gray-600 hover:text-[#1A1A2E] bg-white px-3.5 py-1.5 rounded-full border border-gray-200 shadow-2xs transition-all"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Dashboard</span>
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Dashboard</span>
           </button>
+
           <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-brand-orange" />
-            <h1 className="text-sm font-bold text-slate-900">Applicant Compare (OWN-05)</h1>
+            <div className="w-7 h-7 rounded-full bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center">
+              <Users className="w-4 h-4" />
+            </div>
+            <h1 className="font-serif font-medium text-base sm:text-lg text-[#1A1A2E]">
+              Compare Applicants
+            </h1>
           </div>
-          <span className="text-xs font-bold text-slate-500">
-            {candidates.length}/3 Candidates
+
+          <span className="text-xs font-bold text-[#E5501A] bg-[#FFF2EB] border border-[#E5501A]/20 px-3 py-1 rounded-full">
+            {candidates.length} Candidate{candidates.length === 1 ? '' : 's'}
           </span>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 pt-6">
+      <div className="max-w-6xl mx-auto px-4 pt-8">
         {loading ? (
-          <div className="py-16 text-center text-xs text-slate-400">Loading applicant comparison...</div>
+          <div className="py-20 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-9 h-9 animate-spin text-[#E5501A]" />
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Analyzing applicants side-by-side...</p>
+          </div>
         ) : candidates.length === 0 ? (
-          <div className="card-nestmate p-12 text-center max-w-md mx-auto">
-            <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <h2 className="text-base font-bold text-slate-900 mb-1">No applicants to compare</h2>
-            <p className="text-xs text-slate-500 mb-6">
-              When prospective flatmates send connection requests and you accept them, you can compare up to 3 candidates side-by-side.
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-12 text-center max-w-md mx-auto space-y-4">
+            <div className="w-16 h-16 rounded-3xl bg-gray-50 flex items-center justify-center mx-auto text-gray-400">
+              <Users className="w-8 h-8" />
+            </div>
+            <h2 className="font-serif font-medium text-2xl text-[#1A1A2E]">No Applicants to Compare</h2>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              When prospective tenants submit inquiries and connect with your property, you can compare up to 3 candidates here side-by-side.
             </p>
-            <Link to="/owner-dashboard" className="btn-fire py-2.5 px-5 rounded-xl font-bold text-xs">
-              Go to Owner Dashboard
+            <Link
+              to="/owner-dashboard"
+              className="inline-flex items-center gap-2 bg-[#E5501A] hover:bg-[#D0400B] text-white py-3 px-6 rounded-full font-semibold text-xs shadow-sm shadow-[#E5501A]/20 transition-all"
+            >
+              Back to Owner Dashboard
             </Link>
           </div>
         ) : (
           <div className="space-y-6">
-            <p className="text-xs text-slate-500">
-              Comparing candidate compatibility, budget fit, and habits side-by-side before selection.
-            </p>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <p className="text-xs text-gray-500 font-medium">
+                Evaluating candidate lifestyle habits, budget alignment, and schedule preferences side-by-side.
+              </p>
+              <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full font-semibold border border-emerald-200">
+                <Sparkles className="w-3.5 h-3.5" /> AI Compatibility Enabled
+              </div>
+            </div>
 
-            {/* Comparison Matrix Table */}
-            <div className="overflow-x-auto">
-              <div className="grid grid-cols-4 min-w-[640px] gap-4">
-                {/* Metric Label Column */}
-                <div className="space-y-4 pt-32 text-xs font-bold text-slate-600">
-                  <div className="h-10 flex items-center border-b border-slate-200">Verification</div>
-                  <div className="h-10 flex items-center border-b border-slate-200">Budget Fit</div>
-                  <div className="h-10 flex items-center border-b border-slate-200">Target Move-in</div>
-                  <div className="h-10 flex items-center border-b border-slate-200">Profession</div>
-                  <div className="h-10 flex items-center border-b border-slate-200">Diet Preference</div>
-                  <div className="h-10 flex items-center border-b border-slate-200">Smoking</div>
-                  <div className="h-10 flex items-center border-b border-slate-200">Sleep Schedule</div>
-                  <div className="h-14 flex items-center">Decision</div>
-                </div>
-
-                {/* Candidate Columns (up to 3) */}
-                {candidates.map((c) => (
-                  <div key={c.applicantId} className="card-nestmate p-4 flex flex-col space-y-4">
-                    {/* Header: Photo & Name */}
-                    <div className="h-28 text-center flex flex-col items-center justify-center">
-                      <div className="w-14 h-14 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 mb-2 flex items-center justify-center">
-                        {c.avatar ? (
-                          <img src={c.avatar} alt={c.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <User className="w-6 h-6 text-slate-400" />
+            {/* MOBILE COMPARISON VIEW (< 768px): Touch-First Cards & Switcher */}
+            <div className="md:hidden space-y-4">
+              {/* Candidate Switcher Tabs */}
+              {candidates.length > 1 && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                  {candidates.map((c, idx) => {
+                    const isSelected = mobileActiveIndex === idx;
+                    return (
+                      <button
+                        key={c.applicantId}
+                        type="button"
+                        onClick={() => setMobileActiveIndex(idx)}
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl border text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#1A1A2E] text-white border-[#1A1A2E] shadow-xs'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="w-6 h-6 rounded-full overflow-hidden bg-gray-100 shrink-0 border border-white/20">
+                          {c.avatar ? (
+                            <img src={c.avatar} alt={c.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="w-3.5 h-3.5 m-auto text-gray-400" />
+                          )}
+                        </div>
+                        <span className="truncate max-w-[110px]">{c.name}</span>
+                        {isSelected && (
+                          <span className="w-2 h-2 rounded-full bg-[#E5501A]" />
                         )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Active Candidate Detailed Card */}
+              {candidates[mobileActiveIndex] && (() => {
+                const c = candidates[mobileActiveIndex];
+                return (
+                  <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-5 space-y-4 animate-fade-up">
+                    {/* Header */}
+                    <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-14 h-14 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0 shadow-2xs">
+                          {c.avatar ? (
+                            <img src={c.avatar} alt={c.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="w-7 h-7 m-auto text-gray-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h3 className="font-serif font-medium text-lg text-[#1A1A2E] truncate">{c.name}</h3>
+                            {c.isVerified && (
+                              <span className="inline-flex items-center gap-1 font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 text-[10px]">
+                                <ShieldCheck className="w-3 h-3 text-emerald-600" /> Verified
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 font-medium truncate mt-0.5">
+                            {c.age ? `${c.age} yrs` : 'Age Unspecified'} • {c.profession || 'Professional'}
+                          </p>
+                        </div>
                       </div>
-                      <h3 className="text-sm font-bold text-slate-900 truncate w-full">{c.name}</h3>
-                      <span className="text-[11px] text-slate-400">{c.age ? `${c.age} yrs` : 'Age N/A'}</span>
+
+                      {/* Candidate Index Badge */}
+                      <span className="text-[11px] font-extrabold text-[#E5501A] bg-[#FFF2EB] border border-[#E5501A]/20 px-2.5 py-1 rounded-full shrink-0">
+                        {mobileActiveIndex + 1} of {candidates.length}
+                      </span>
                     </div>
 
-                    {/* Verification */}
-                    <div className="h-10 flex items-center border-b border-slate-100 text-xs">
-                      {c.isVerified ? (
-                        <span className="inline-flex items-center gap-1 font-bold text-teal text-[11px]">
-                          <ShieldCheck className="w-3.5 h-3.5" /> ID Verified
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 text-[11px]">Phone Verified</span>
-                      )}
+                    {/* Bio if available */}
+                    {c.bio && (
+                      <p className="text-xs text-gray-600 bg-[#FBF9F6] p-3 rounded-2xl border border-gray-100 leading-relaxed italic">
+                        "{c.bio}"
+                      </p>
+                    )}
+
+                    {/* Metric Comparison Key-Value Grid */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="bg-[#FBF9F6] border border-gray-100 rounded-2xl p-3">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Budget Range</p>
+                        <p className="text-sm font-bold text-[#E5501A] mt-0.5">
+                          {c.budget ? `₹${c.budget.toLocaleString()}/mo` : 'Flexible'}
+                        </p>
+                      </div>
+
+                      <div className="bg-[#FBF9F6] border border-gray-100 rounded-2xl p-3">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Move-in Date</p>
+                        <p className="text-xs font-bold text-[#1A1A2E] mt-0.5 truncate">
+                          {c.moveInDate || 'Immediate'}
+                        </p>
+                      </div>
+
+                      <div className="bg-[#FBF9F6] border border-gray-100 rounded-2xl p-3">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Diet Preference</p>
+                        <p className="text-xs font-bold text-[#1A1A2E] mt-0.5 capitalize truncate">
+                          {c.quizAnswers?.food_pref?.replace('_', ' ') || 'Any Diet'}
+                        </p>
+                      </div>
+
+                      <div className="bg-[#FBF9F6] border border-gray-100 rounded-2xl p-3">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Smoking Habit</p>
+                        <p className="text-xs font-bold text-[#1A1A2E] mt-0.5 capitalize truncate">
+                          {c.quizAnswers?.smoking || 'Non-smoker'}
+                        </p>
+                      </div>
+
+                      <div className="bg-[#FBF9F6] border border-gray-100 rounded-2xl p-3 col-span-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sleep Schedule</p>
+                            <p className="text-xs font-bold text-[#1A1A2E] mt-0.5 capitalize">
+                              {c.quizAnswers?.sleep_time || 'Flexible'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Trust Level</p>
+                            <p className="text-xs font-bold text-emerald-700 mt-0.5 text-right">
+                              {c.isVerified ? 'Government ID' : 'Phone Verified'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Budget Fit */}
-                    <div className="h-10 flex items-center border-b border-slate-100 text-xs font-semibold text-slate-800">
-                      {c.budget ? `₹${c.budget.toLocaleString()}/mo` : 'Flexible'}
-                    </div>
+                    {/* Candidate Switcher Stepper buttons */}
+                    {candidates.length > 1 && (
+                      <div className="flex items-center justify-between pt-1 text-xs font-semibold text-gray-500">
+                        <button
+                          type="button"
+                          disabled={mobileActiveIndex === 0}
+                          onClick={() => setMobileActiveIndex(prev => Math.max(0, prev - 1))}
+                          className="px-3 py-1.5 rounded-xl border border-gray-200 text-gray-600 disabled:opacity-30 cursor-pointer"
+                        >
+                          ← Previous
+                        </button>
+                        <span>{mobileActiveIndex + 1} / {candidates.length}</span>
+                        <button
+                          type="button"
+                          disabled={mobileActiveIndex === candidates.length - 1}
+                          onClick={() => setMobileActiveIndex(prev => Math.min(candidates.length - 1, prev + 1))}
+                          className="px-3 py-1.5 rounded-xl border border-gray-200 text-gray-600 disabled:opacity-30 cursor-pointer"
+                        >
+                          Next →
+                        </button>
+                      </div>
+                    )}
 
-                    {/* Move-in */}
-                    <div className="h-10 flex items-center border-b border-slate-100 text-xs text-slate-700">
-                      {c.moveInDate || 'Immediate'}
-                    </div>
-
-                    {/* Profession */}
-                    <div className="h-10 flex items-center border-b border-slate-100 text-xs text-slate-700 truncate">
-                      {c.profession || 'Professional'}
-                    </div>
-
-                    {/* Diet */}
-                    <div className="h-10 flex items-center border-b border-slate-100 text-xs text-slate-700 capitalize">
-                      {c.quizAnswers?.food_pref?.replace('_', ' ') || 'Any'}
-                    </div>
-
-                    {/* Smoking */}
-                    <div className="h-10 flex items-center border-b border-slate-100 text-xs text-slate-700 capitalize">
-                      {c.quizAnswers?.smoking || 'Non-smoker'}
-                    </div>
-
-                    {/* Sleep */}
-                    <div className="h-10 flex items-center border-b border-slate-100 text-xs text-slate-700 capitalize">
-                      {c.quizAnswers?.sleep_time || 'Flexible'}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="h-14 flex items-center gap-2 pt-2">
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
                       <Link
                         to="/chat"
-                        className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
-                        title="Chat"
+                        className="p-3 rounded-2xl border border-gray-200 text-gray-600 hover:text-[#E5501A] hover:border-[#E5501A]/30 hover:bg-[#FFF2EB]/40 transition-colors shadow-2xs shrink-0"
+                        title="Chat with applicant"
                       >
                         <MessageCircle className="w-4 h-4" />
                       </Link>
                       <button
+                        type="button"
                         onClick={() => handleSelectCandidate(c)}
-                        className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all"
+                        className="flex-1 py-3.5 px-4 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full text-xs font-bold shadow-xs shadow-[#E5501A]/20 transition-all active:scale-[0.98]"
                       >
-                        Select
+                        Select {c.name.split(' ')[0]} as Flatmate
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Side-by-Side Quick Summary Card for 2+ candidates */}
+              {candidates.length > 1 && (
+                <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-4 space-y-3">
+                  <h4 className="font-serif font-medium text-sm text-[#1A1A2E]">Side-by-Side Summary</h4>
+                  <div className="divide-y divide-gray-100 text-xs">
+                    {candidates.map((c, idx) => (
+                      <div
+                        key={c.applicantId}
+                        onClick={() => setMobileActiveIndex(idx)}
+                        className={`py-2.5 flex items-center justify-between cursor-pointer rounded-xl px-2 transition-colors ${
+                          mobileActiveIndex === idx ? 'bg-[#FFF2EB]/60 font-semibold' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-7 h-7 rounded-full overflow-hidden bg-gray-100 shrink-0">
+                            {c.avatar ? <img src={c.avatar} alt={c.name} className="w-full h-full object-cover" /> : <User className="w-4 h-4 m-auto text-gray-400" />}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs text-[#1A1A2E] truncate font-bold">{c.name}</p>
+                            <p className="text-[10px] text-gray-400 truncate">{c.moveInDate || 'Immediate'}</p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs font-bold text-[#E5501A]">{c.budget ? `₹${c.budget.toLocaleString()}` : 'Flexible'}</p>
+                          <p className="text-[10px] text-gray-500 capitalize">{c.quizAnswers?.food_pref?.replace('_', ' ') || 'Any'}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* DESKTOP COMPARISON MATRIX (>= 768px) */}
+            <div className="hidden md:block overflow-x-auto pb-4">
+              <div className="grid grid-cols-4 min-w-[720px] gap-4">
+                {/* Metric Label Column */}
+                <div className="bg-white/60 rounded-3xl p-5 space-y-4 pt-36 text-xs font-bold text-gray-500 uppercase tracking-wider border border-gray-100">
+                  <div className="h-12 flex items-center border-b border-gray-100">Identity Trust</div>
+                  <div className="h-12 flex items-center border-b border-gray-100">Budget Range</div>
+                  <div className="h-12 flex items-center border-b border-gray-100">Move-in Date</div>
+                  <div className="h-12 flex items-center border-b border-gray-100">Profession</div>
+                  <div className="h-12 flex items-center border-b border-gray-100">Diet Preference</div>
+                  <div className="h-12 flex items-center border-b border-gray-100">Smoking Habit</div>
+                  <div className="h-12 flex items-center border-b border-gray-100">Sleep Schedule</div>
+                  <div className="h-16 flex items-center">Final Decision</div>
+                </div>
+
+                {/* Candidate Columns (up to 3) */}
+                {candidates.map((c) => (
+                  <div
+                    key={c.applicantId}
+                    className="bg-white rounded-3xl border border-gray-100 shadow-xs p-5 flex flex-col space-y-4 hover:shadow-md transition-shadow"
+                  >
+                    {/* Header: Photo & Name */}
+                    <div className="h-32 text-center flex flex-col items-center justify-center">
+                      <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 mb-2 flex items-center justify-center shadow-2xs">
+                        {c.avatar ? (
+                          <img src={c.avatar} alt={c.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <User className="w-8 h-8 text-gray-400" />
+                        )}
+                      </div>
+                      <h3 className="font-serif font-medium text-base text-[#1A1A2E] truncate w-full">{c.name}</h3>
+                      <span className="text-xs text-gray-400 font-medium">{c.age ? `${c.age} yrs` : 'Age Unspecified'}</span>
+                    </div>
+
+                    {/* Verification */}
+                    <div className="h-12 flex items-center border-b border-gray-100 text-xs">
+                      {c.isVerified ? (
+                        <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 text-[11px]">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> ID Verified
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 font-medium text-xs">Phone Verified</span>
+                      )}
+                    </div>
+
+                    {/* Budget Fit */}
+                    <div className="h-12 flex items-center border-b border-gray-100 text-sm font-semibold text-[#1A1A2E]">
+                      {c.budget ? `₹${c.budget.toLocaleString()}/mo` : 'Flexible Budget'}
+                    </div>
+
+                    {/* Move-in */}
+                    <div className="h-12 flex items-center border-b border-gray-100 text-xs text-gray-700 font-medium">
+                      {c.moveInDate || 'Immediate'}
+                    </div>
+
+                    {/* Profession */}
+                    <div className="h-12 flex items-center border-b border-gray-100 text-xs text-gray-700 font-medium truncate">
+                      {c.profession || 'Professional'}
+                    </div>
+
+                    {/* Diet */}
+                    <div className="h-12 flex items-center border-b border-gray-100 text-xs text-gray-700 font-medium capitalize">
+                      {c.quizAnswers?.food_pref?.replace('_', ' ') || 'Any Diet'}
+                    </div>
+
+                    {/* Smoking */}
+                    <div className="h-12 flex items-center border-b border-gray-100 text-xs text-gray-700 font-medium capitalize">
+                      {c.quizAnswers?.smoking || 'Non-smoker'}
+                    </div>
+
+                    {/* Sleep */}
+                    <div className="h-12 flex items-center border-b border-gray-100 text-xs text-gray-700 font-medium capitalize">
+                      {c.quizAnswers?.sleep_time || 'Flexible'}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="h-16 flex items-center gap-2 pt-2">
+                      <Link
+                        to="/chat"
+                        className="p-3 rounded-2xl border border-gray-200 text-gray-600 hover:text-[#E5501A] hover:border-[#E5501A]/30 hover:bg-[#FFF2EB]/40 transition-colors shadow-2xs"
+                        title="Chat with applicant"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectCandidate(c)}
+                        className="flex-1 py-3 px-4 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full text-xs font-semibold shadow-xs shadow-[#E5501A]/20 transition-all active:scale-[0.98]"
+                      >
+                        Select Flatmate
                       </button>
                     </div>
                   </div>
