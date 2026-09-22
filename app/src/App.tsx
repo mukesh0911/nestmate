@@ -15,6 +15,7 @@ const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
 const PhoneLogin = lazy(() => import('@/pages/PhoneLogin'));
 const OTPVerify = lazy(() => import('@/pages/OTPVerify'));
+const VerifyPhone = lazy(() => import('@/pages/VerifyPhone'));
 const RoleSelect = lazy(() => import('@/pages/RoleSelect'));
 const SeekerOnboarding = lazy(() => import('@/pages/SeekerOnboarding'));
 const OwnerOnboarding = lazy(() => import('@/pages/OwnerOnboarding'));
@@ -68,6 +69,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/about': 'About Us | NestMate',
   '/privacy': 'Privacy Policy | NestMate',
   '/terms': 'Terms of Service | NestMate',
+  '/verify-phone': 'Verify Mobile Number | NestMate',
   '/role-select': 'Choose Your Role | NestMate',
   '/onboarding/seeker': 'Seeker Onboarding | NestMate',
   '/onboarding/owner': 'Owner Onboarding | NestMate',
@@ -117,6 +119,7 @@ interface AuthState {
   onboardingComplete: boolean;
   status: string;
   loading: boolean;
+  hasPhone: boolean;
 }
 
 // Full-screen notice for suspended/banned accounts (server-enforced via rules too)
@@ -172,12 +175,15 @@ function PrivateRoute({ children, isAuthenticated, status }: { children: React.R
 }
 
 // Intelligent login route — honors ?redirect=/admin even if already authenticated
-function LoginRoute({ isAuthenticated, getDashboardRoute }: { isAuthenticated: boolean, getDashboardRoute: () => string }) {
+function LoginRoute({ isAuthenticated, authState, getDashboardRoute }: { isAuthenticated: boolean, authState: AuthState, getDashboardRoute: () => string }) {
   const location = useLocation();
   const redirect = new URLSearchParams(location.search).get('redirect');
   if (isAuthenticated) {
     if (redirect && (redirect === '/admin' || redirect.startsWith('/admin'))) {
       return <Navigate to={redirect} replace />;
+    }
+    if (!authState.hasPhone) {
+      return <Navigate to="/verify-phone" replace />;
     }
     return <Navigate to={getDashboardRoute()} replace />;
   }
@@ -196,6 +202,11 @@ function OnboardingGuard({ children, isAuthenticated, authState, expectedRole }:
   if (authState.loading || (auth.currentUser && authState.uid !== auth.currentUser.uid)) return <PageLoader />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (!isAccountActive(authState.status)) return <BlockedAccountScreen status={authState.status} />;
+
+  // Mandatory Phone Verification: Must verify phone before accessing role/onboarding
+  if (!authState.hasPhone) {
+    return <Navigate to="/verify-phone" replace />;
+  }
 
   // Incomplete onboarding must never reach interactive features.
   // If the user already has a role, send them to the right onboarding page to continue;
@@ -223,6 +234,7 @@ function AppRoutes() {
     onboardingComplete: false,
     status: 'active',
     loading: true,
+    hasPhone: false,
   });
 
   // Track user activity status
@@ -273,6 +285,7 @@ function AppRoutes() {
                 clearTimeout(fallbackTimer);
                 fallbackTimer = null;
               }
+              const hasPhone = data.phoneVerified === true || !!(data.phone && String(data.phone).trim().length > 0) || !!firebaseUser.phoneNumber;
               setAuthState({
                 uid: firebaseUser.uid,
                 role: data.role || null,
@@ -280,6 +293,7 @@ function AppRoutes() {
                 onboardingComplete: isOnboarded,
                 status: data.status || 'active',
                 loading: false,
+                hasPhone,
               });
               if (data.settings?.darkMode) {
                 document.documentElement.classList.add('dark');
@@ -292,7 +306,7 @@ function AppRoutes() {
                 clearTimeout(fallbackTimer);
                 fallbackTimer = null;
               }
-              setAuthState({ uid: firebaseUser.uid, role: null, onboardingComplete: false, status: 'active', loading: false });
+              setAuthState({ uid: firebaseUser.uid, role: null, onboardingComplete: false, status: 'active', loading: false, hasPhone: !!firebaseUser.phoneNumber });
               document.documentElement.classList.remove('dark');
             } else {
               // Local cache miss (fromCache: true, exists: false)
@@ -306,11 +320,11 @@ function AppRoutes() {
               fallbackTimer = null;
             }
             // Fail closed: treat as incomplete until profile is readable
-            setAuthState({ uid: firebaseUser.uid, role: null, onboardingComplete: false, status: 'active', loading: false });
+            setAuthState({ uid: firebaseUser.uid, role: null, onboardingComplete: false, status: 'active', loading: false, hasPhone: !!firebaseUser.phoneNumber });
           }
         );
       } else {
-        setAuthState({ uid: null, role: null, onboardingComplete: false, status: 'active', loading: false });
+        setAuthState({ uid: null, role: null, onboardingComplete: false, status: 'active', loading: false, hasPhone: false });
       }
     });
 
@@ -362,27 +376,46 @@ function BrowseRoomsRedirect() {
       <AdminRedirectWatcher />
       <Routes>
         {/* Auth routes */}
-        <Route path="/login" element={<LoginRoute isAuthenticated={isAuthenticated} getDashboardRoute={getDashboardRoute} />} />
+        <Route path="/login" element={<LoginRoute isAuthenticated={isAuthenticated} authState={authState} getDashboardRoute={getDashboardRoute} />} />
         <Route path="/phone-login" element={isAuthenticated ? <Navigate to={getDashboardRoute()} replace /> : <PhoneLogin />} />
         <Route path="/verify-otp" element={isAuthenticated ? <Navigate to={getDashboardRoute()} replace /> : <OTPVerify />} />
+        <Route path="/verify-phone" element={
+          !isAuthenticated
+            ? <Navigate to="/login" replace />
+            : authState.hasPhone
+              ? <Navigate to={authState.onboardingComplete ? (authState.role === 'owner' ? '/owner-dashboard' : '/explore?tab=rooms') : (authState.role ? `/onboarding/${authState.role}` : '/role-select')} replace />
+              : <VerifyPhone />
+        } />
 
         {/* Post-auth onboarding — reachable until onboarding is complete.
             Once complete, redirect to the correct dashboard so a refresh
             on /onboarding/seeker or /role-select doesn't restart onboarding. */}
         <Route path="/role-select" element={
-          isAuthenticated && authState.onboardingComplete
-            ? <Navigate to={authState.role === 'owner' ? '/owner-dashboard' : '/explore?tab=rooms'} replace />
-            : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><RoleSelect /></PrivateRoute>
+          !isAuthenticated
+            ? <Navigate to="/login" replace />
+            : !authState.hasPhone
+              ? <Navigate to="/verify-phone" replace />
+              : authState.onboardingComplete
+                ? <Navigate to={authState.role === 'owner' ? '/owner-dashboard' : '/explore?tab=rooms'} replace />
+                : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><RoleSelect /></PrivateRoute>
         } />
         <Route path="/onboarding/seeker" element={
-          isAuthenticated && authState.onboardingComplete
-            ? <Navigate to="/explore?tab=rooms" replace />
-            : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><SeekerOnboarding /></PrivateRoute>
+          !isAuthenticated
+            ? <Navigate to="/login" replace />
+            : !authState.hasPhone
+              ? <Navigate to="/verify-phone" replace />
+              : authState.onboardingComplete
+                ? <Navigate to="/explore?tab=rooms" replace />
+                : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><SeekerOnboarding /></PrivateRoute>
         } />
         <Route path="/onboarding/owner" element={
-          isAuthenticated && authState.onboardingComplete
-            ? <Navigate to="/owner-dashboard" replace />
-            : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><OwnerOnboarding /></PrivateRoute>
+          !isAuthenticated
+            ? <Navigate to="/login" replace />
+            : !authState.hasPhone
+              ? <Navigate to="/verify-phone" replace />
+              : authState.onboardingComplete
+                ? <Navigate to="/owner-dashboard" replace />
+                : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><OwnerOnboarding /></PrivateRoute>
         } />
 
         {/* Public & App routes with shared Layout */}

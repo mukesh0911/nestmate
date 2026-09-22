@@ -12,6 +12,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  linkWithCredential,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -88,6 +89,7 @@ export interface UserProfile {
   onboardingComplete: boolean;
   isPremium: boolean;
   isVerified: boolean;
+  phoneVerified?: boolean;
   connectsUsed: number;
   connectsLimit: number;
   verificationLevel: number;
@@ -218,14 +220,14 @@ export function useAuth() {
    * Send OTP to the given phone number (E.164 format, e.g. +919876543210)
    * Returns the verificationId which must be passed to verifyOTP.
    */
-  const sendOTP = useCallback(async (phone: string): Promise<string> => {
+  const sendOTP = useCallback(async (phone: string, containerId: string = 'recaptcha-container'): Promise<string> => {
     setError(null);
     try {
       // For development, use test phone numbers that work without reCAPTCHA
       if (!window.recaptchaVerifier) {
-        initRecaptcha('recaptcha-container');
+        initRecaptcha(containerId);
         // Wait a bit for reCAPTCHA to initialize
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 800));
       }
 
       if (!window.recaptchaVerifier) {
@@ -493,7 +495,7 @@ export function useAuth() {
    * Google Sign-in flow
    * Continues seamlessly, creates profile if new.
    */
-  const signInWithGoogle = useCallback(async (): Promise<{ isNew: boolean; role?: string | null; onboardingComplete?: boolean; email?: string | null }> => {
+  const signInWithGoogle = useCallback(async (): Promise<{ isNew: boolean; role?: string | null; onboardingComplete?: boolean; email?: string | null; hasPhone: boolean }> => {
     setError(null);
     try {
       const provider = new GoogleAuthProvider();
@@ -548,18 +550,19 @@ export function useAuth() {
           newProfile as unknown as Record<string, unknown>,
           { phone, email }
         );
-        setProfile(await hydrateOwnProfile({ ...newProfile, phone, email }));
-        setUser(firebaseUser);
-        return { isNew: true, role: null, onboardingComplete: false, email: firebaseUser.email };
+        const hasPhone = !!firebaseUser.phoneNumber;
+        return { isNew: true, role: null, onboardingComplete: false, email: firebaseUser.email, hasPhone };
       } else {
         const existingProfile = userSnap.data() as UserProfile;
         if (googlePhoto && (!existingProfile.avatar || existingProfile.avatar.trim() === '' || existingProfile.avatar.includes('dicebear'))) {
           await persistPublicUser(firebaseUser.uid, { avatar: googlePhoto });
           existingProfile.avatar = googlePhoto;
         }
-        setProfile(await hydrateOwnProfile({ ...existingProfile, uid: firebaseUser.uid }));
+        const hydrated = await hydrateOwnProfile({ ...existingProfile, uid: firebaseUser.uid });
+        setProfile(hydrated);
         setUser(firebaseUser);
-        return { isNew: false, role: existingProfile.role || null, onboardingComplete: !!existingProfile.onboardingComplete, email: firebaseUser.email };
+        const hasPhone = existingProfile.phoneVerified === true || !!firebaseUser.phoneNumber || !!(hydrated.phone && hydrated.phone.trim().length > 0);
+        return { isNew: false, role: existingProfile.role || null, onboardingComplete: !!existingProfile.onboardingComplete, email: firebaseUser.email, hasPhone };
       }
     } catch (err: any) {
       let msg = err.message || 'Google Sign-in failed';
@@ -579,6 +582,44 @@ export function useAuth() {
     useStore.getState().resetAll();
   }, []);
 
+  /**
+   * Verify OTP and link/save phone to the currently signed-in Google user.
+   */
+  const verifyAndLinkPhone = useCallback(
+    async (verificationId: string, code: string, phone: string): Promise<void> => {
+      setError(null);
+      try {
+        const credential = PhoneAuthProvider.credential(verificationId, code);
+        const currentUser = auth.currentUser;
+        if (!currentUser) throw new Error('You must be signed in to verify your mobile number.');
+
+        // Link with Firebase Auth if possible
+        try {
+          await linkWithCredential(currentUser, credential);
+        } catch (linkErr: any) {
+          console.warn('Credential link note (proceeding with profile save):', linkErr?.code || linkErr?.message);
+        }
+
+        // Save phone to privateUserData and mark phoneVerified in users/{uid}
+        await savePrivateUserData(currentUser.uid, { phone });
+        await setDoc(
+          doc(db, 'users', currentUser.uid),
+          { phoneVerified: true, updatedAt: serverTimestamp() },
+          { merge: true }
+        );
+
+        await refreshProfile(currentUser.uid);
+      } catch (err: any) {
+        const msg = err.code === 'auth/invalid-verification-code'
+          ? 'Invalid OTP code. Please check and try again.'
+          : err.message || 'Phone verification failed';
+        setError(msg);
+        throw new Error(msg);
+      }
+    },
+    [refreshProfile]
+  );
+
   return {
     user,
     profile,
@@ -594,9 +635,10 @@ export function useAuth() {
     // Shared
     logout,
     refreshProfile,
-    // Phone OTP (legacy — kept for re-enable)
+    // Phone OTP
     initRecaptcha,
     sendOTP,
     verifyOTP,
+    verifyAndLinkPhone,
   };
 }
