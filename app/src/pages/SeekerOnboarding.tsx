@@ -205,6 +205,7 @@ export default function SeekerOnboarding() {
         city,
         localities,
         budget,
+        housingIntent,
         moveInDate: moveIn,
         quizAnswers,
         onboardingComplete: true,
@@ -290,7 +291,7 @@ export default function SeekerOnboarding() {
             You're all set, {name.split(' ')[0]}!
           </h2>
           <p className="text-sm sm:text-base text-slate-600 mb-2">
-            We discovered <span className="font-bold text-[#E5501A] text-xl">{matchCount}</span> compatible flatmates in {city}.
+            We discovered <span className="font-bold text-[#E5501A] text-xl">{matchCount}</span> compatible roommates in {city}.
           </p>
           <p className="text-xs text-slate-400 max-w-xs mx-auto mb-8">
             Ranked by mutual budget overlap, lifestyle norms, and neighborhood proximity.
@@ -339,7 +340,7 @@ export default function SeekerOnboarding() {
             Set up your seeker profile
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-2 max-w-md mx-auto leading-relaxed">
-            Enter your living preferences and lifestyle habits to get verified and discover compatible flatmates.
+            Enter your living preferences and lifestyle habits to get verified and discover compatible roommates.
           </p>
         </div>
 
@@ -380,7 +381,7 @@ export default function SeekerOnboarding() {
                   <div>
                     <div className="text-sm font-semibold text-slate-900">Find an Existing Room</div>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      Move into an already occupied flat with available rooms and verified flatmates.
+                      Move into an already occupied flat with available rooms and verified roommates.
                     </p>
                   </div>
                 </div>
@@ -687,7 +688,7 @@ export default function SeekerOnboarding() {
               {/* Preferred Roommate Gender */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-slate-700">
-                  Preferred flatmate gender
+                  Preferred roommate gender
                 </label>
                 <div className="bg-slate-100/90 border border-slate-200/60 p-1.5 rounded-2xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] grid grid-cols-3 gap-1">
                   {[
@@ -965,7 +966,7 @@ export default function SeekerOnboarding() {
                 <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  <span>Find Compatible Flatmates</span>
+                  <span>Find Compatible Roommates</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

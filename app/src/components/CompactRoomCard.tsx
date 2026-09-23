@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Star, Phone, MessageSquare, CheckCircle2, Image as ImageIcon, Heart } from 'lucide-react';
+import { MapPin, Star, Phone, MessageSquare, CheckCircle2, Image as ImageIcon, Heart, Sparkles } from 'lucide-react';
 import type { Listing } from '@/hooks/useListings';
 import { getListingPhotos } from '@/lib/displayTruth';
+import { useStore } from '@/store/useStore';
 
 interface CompactRoomCardProps {
   room: Listing;
@@ -23,11 +24,12 @@ export default function CompactRoomCard({
   onChat,
   onToggleSave,
   isSaved = false,
-  compatibilityScore = 85,
+  compatibilityScore,
   distanceKm = 0,
   className = '',
 }: CompactRoomCardProps) {
   const navigate = useNavigate();
+  const openAuthModal = useStore(state => state.openAuthModal);
   const [imgFailed, setImgFailed] = useState(false);
 
   const { photos: images, hasRealPhotos } = getListingPhotos(room.images);
@@ -59,6 +61,10 @@ export default function CompactRoomCard({
   const partnersNeeded = room.partnersNeeded || 1;
   const flatmatesText = `${partnersNeeded} ${partnersNeeded === 1 ? 'Roommate' : 'Roommates'}`;
 
+  const prefetchRoomDetail = () => {
+    import('@/pages/RoomDetail');
+  };
+
   const handleCardClick = () => {
     if (onClick) {
       onClick();
@@ -70,6 +76,9 @@ export default function CompactRoomCard({
   return (
     <div
       onClick={handleCardClick}
+      onMouseEnter={prefetchRoomDetail}
+      onTouchStart={prefetchRoomDetail}
+      onPointerDown={prefetchRoomDetail}
       className={`bg-white rounded-2xl sm:rounded-3xl border border-gray-200/80 shadow-2xs hover:shadow-md transition-all duration-200 p-3.5 sm:p-4 flex flex-col justify-between cursor-pointer group ${className}`}
     >
       {/* Upper Section: Photo on Left, Details on Right */}
@@ -172,11 +181,34 @@ export default function CompactRoomCard({
 
         {/* Match Score & Action Buttons */}
         <div className="flex items-center gap-3 shrink-0">
-          {/* Match Score */}
-          <div className="flex items-center gap-1 text-xs font-semibold text-gray-600">
-            <Star className="w-3.5 h-3.5 text-gray-400 fill-gray-200" />
-            <span>{compatibilityScore}% Match</span>
-          </div>
+          {/* Match Score: Real dynamic score when computed; sign-in prompt when guest */}
+          {compatibilityScore !== undefined ? (
+            compatibilityScore > 0 ? (
+              <div className="flex items-center gap-1 text-xs font-semibold text-gray-600">
+                <Star className="w-3.5 h-3.5 text-gray-400 fill-gray-200" />
+                <span>{compatibilityScore}% Match</span>
+              </div>
+            ) : (
+              <span className="text-[11px] font-medium text-gray-400">Available</span>
+            )
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openAuthModal({
+                  title: 'Check Room Compatibility',
+                  subtitle: 'Sign in to see your personalized compatibility score with this room.',
+                  redirect: `/room/${room.id}`,
+                });
+              }}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 hover:text-[#E5501A] transition-colors cursor-pointer"
+              title="Sign in to calculate personalized compatibility"
+            >
+              <Sparkles className="w-3 h-3 text-[#E5501A]" />
+              <span>Sign in to match</span>
+            </button>
+          )}
 
           {/* Three Circular Buttons: [ ❤️ ], [ 📞 ] and [ 💬 ] */}
           <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>

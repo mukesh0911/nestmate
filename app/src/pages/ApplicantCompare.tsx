@@ -148,7 +148,7 @@ export default function ApplicantCompare() {
                 onClick={handleExecuteFill}
                 className="flex-1 py-3 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full text-xs font-semibold shadow-sm shadow-[#E5501A]/20 transition-all"
               >
-                Confirm Flatmate
+                Confirm Roommate
               </button>
             </div>
           </div>
@@ -377,7 +377,7 @@ export default function ApplicantCompare() {
                         onClick={() => handleSelectCandidate(c)}
                         className="flex-1 py-3.5 px-4 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full text-xs font-bold shadow-xs shadow-[#E5501A]/20 transition-all active:scale-[0.98]"
                       >
-                        Select {c.name.split(' ')[0]} as Flatmate
+                        Select {c.name.split(' ')[0]} as Roommate
                       </button>
                     </div>
                   </div>
@@ -506,7 +506,7 @@ export default function ApplicantCompare() {
                         onClick={() => handleSelectCandidate(c)}
                         className="flex-1 py-3 px-4 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full text-xs font-semibold shadow-xs shadow-[#E5501A]/20 transition-all active:scale-[0.98]"
                       >
-                        Select Flatmate
+                        Select Roommate
                       </button>
                     </div>
                   </div>

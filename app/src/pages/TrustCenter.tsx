@@ -26,7 +26,7 @@ export default function TrustCenter() {
     {
       tier: 'T1',
       title: 'Profile Complete',
-      who: 'Active Seekers & Flatmates',
+      who: 'Active Seekers & Roommates',
       description: '10-dimension lifestyle questionnaire completed, verified work/college affiliation, and clear bio.',
       badge: 'B-2 Profile Complete',
     },
@@ -51,7 +51,7 @@ export default function TrustCenter() {
     { name: 'Profile Complete', desc: '10 lifestyle dimensions answered honestly.', icon: UserCheck, color: 'text-purple-600 bg-purple-50 border-purple-200' },
     { name: 'ID Verified', desc: 'Govt photo ID verified by human moderation.', icon: ShieldCheck, color: 'text-teal bg-teal/10 border-teal/20' },
     { name: 'Owner Verified', desc: 'Proof of property ownership or rental lease validated.', icon: CheckCircle2, color: 'text-brand-orange bg-orange-50 border-orange-200' },
-    { name: 'Top Responder', desc: 'Responds to prospective flatmates within 2 hours.', icon: Clock, color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+    { name: 'Top Responder', desc: 'Responds to prospective roommates within 2 hours.', icon: Clock, color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
   ];
 
   const scamPatterns = [
@@ -89,10 +89,10 @@ export default function TrustCenter() {
             <Shield className="w-3.5 h-3.5" /> Trust & Safety Center
           </div>
           <h1 className="text-3xl sm:text-5xl font-bold tracking-tight mb-4">
-            How NestMate Protects Flatmate Seekers in Bangalore
+            How NestMate Protects Roommate Seekers in Bangalore
           </h1>
           <p className="text-sm sm:text-base text-white/70 max-w-2xl mx-auto leading-relaxed">
-            Finding a flatmate is a personal and financial decision. Here is how our graduated verification tiers,
+            Finding a roommate is a personal and financial decision. Here is how our graduated verification tiers,
             scam filters, and contact privacy guarantees keep you safe.
           </p>
         </div>
@@ -107,7 +107,7 @@ export default function TrustCenter() {
               Important Safety Notice: Verification ≠ Endorsement
             </h2>
             <p className="text-xs text-amber-800 leading-relaxed">
-              While NestMate verifies identity documents and property control, verification does not constitute a background guarantee or personal endorsement. Always meet prospective flatmates in person and physically inspect properties before making deposit payments.
+              While NestMate verifies identity documents and property control, verification does not constitute a background guarantee or personal endorsement. Always meet prospective roommates in person and physically inspect properties before making deposit payments.
             </p>
           </div>
         </div>
@@ -288,7 +288,7 @@ export default function TrustCenter() {
         {/* CTA Bottom Band */}
         <div className="bg-slate-900 text-white rounded-3xl p-8 text-center">
           <h2 className="text-xl sm:text-2xl font-bold mb-2">
-            Ready to find verified flatmates in Bangalore?
+            Ready to find verified roommates in Bangalore?
           </h2>
           <p className="text-xs sm:text-sm text-white/70 max-w-md mx-auto mb-6">
             Join NestMate for free. Verified profiles, explained lifestyle compatibility, and fresh listings only.

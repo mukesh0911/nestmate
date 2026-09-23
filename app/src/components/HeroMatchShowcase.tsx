@@ -42,7 +42,7 @@ const SAMPLE_PROFILES: ProfileCard[] = [
     ],
     yourShare: 12000,
     youSave: 8500,
-    bioQuote: 'Looking for a calm flatmate who respects personal space & keeps the kitchen clean!',
+    bioQuote: 'Looking for a calm roommate who respects personal space & keeps the kitchen clean!',
   },
   {
     id: '2',

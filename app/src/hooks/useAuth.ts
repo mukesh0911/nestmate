@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import {
   signInWithPhoneNumber,
   RecaptchaVerifier,
@@ -121,42 +121,88 @@ export interface UserProfile {
   updatedAt: any;
 }
 
-export function useAuth() {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+interface AuthSingletonState {
+  user: FirebaseUser | null;
+  profile: UserProfile | null;
+  isLoading: boolean;
+  error: string | null;
+}
 
-  // Auth state listener
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      if (firebaseUser) {
-        try {
-          const userRef = doc(db, 'users', firebaseUser.uid);
-          const profileSnap = await getDoc(userRef);
+let authSingleton: AuthSingletonState = {
+  user: auth.currentUser,
+  profile: null,
+  isLoading: true,
+  error: null,
+};
 
-          if (profileSnap.exists()) {
-            const data = profileSnap.data() as UserProfile;
-            const googlePhoto = extractGooglePhoto(firebaseUser);
-            if (googlePhoto && (!data.avatar || data.avatar.trim() === '' || data.avatar.includes('dicebear'))) {
-              data.avatar = googlePhoto;
-              await persistPublicUser(firebaseUser.uid, { avatar: googlePhoto });
-            }
-            setProfile(await hydrateOwnProfile({ ...data, uid: firebaseUser.uid }));
-          } else {
-            setProfile(null);
+const authListeners = new Set<() => void>();
+
+function getAuthSnapshot(): AuthSingletonState {
+  return authSingleton;
+}
+
+function subscribeAuth(cb: () => void) {
+  authListeners.add(cb);
+  return () => {
+    authListeners.delete(cb);
+  };
+}
+
+function setAuthSingleton(partial: Partial<AuthSingletonState>) {
+  authSingleton = { ...authSingleton, ...partial };
+  authListeners.forEach(cb => cb());
+}
+
+let authListenerInitialized = false;
+
+function initSharedAuthListener() {
+  if (authListenerInitialized) return;
+  authListenerInitialized = true;
+
+  onAuthStateChanged(auth, async (firebaseUser) => {
+    if (firebaseUser) {
+      setAuthSingleton({ user: firebaseUser });
+      try {
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        const profileSnap = await getDoc(userRef);
+
+        if (profileSnap.exists()) {
+          const data = profileSnap.data() as UserProfile;
+          const googlePhoto = extractGooglePhoto(firebaseUser);
+          if (googlePhoto && (!data.avatar || data.avatar.trim() === '' || data.avatar.includes('dicebear'))) {
+            data.avatar = googlePhoto;
+            await persistPublicUser(firebaseUser.uid, { avatar: googlePhoto });
           }
-        } catch (err: any) {
-          console.error('Unable to read user profile during auth load:', err);
-          setError('Unable to load profile data. Please refresh or contact support.');
+          const hydrated = await hydrateOwnProfile({ ...data, uid: firebaseUser.uid });
+          setAuthSingleton({ user: firebaseUser, profile: hydrated, isLoading: false, error: null });
+        } else {
+          setAuthSingleton({ user: firebaseUser, profile: null, isLoading: false, error: null });
         }
-      } else {
-        setProfile(null);
+      } catch (err: any) {
+        console.error('Unable to read user profile during auth load:', err);
+        setAuthSingleton({ user: firebaseUser, isLoading: false, error: 'Unable to load profile data. Please refresh or contact support.' });
       }
-      setIsLoading(false);
-    });
-    return unsubscribe;
+    } else {
+      setAuthSingleton({ user: null, profile: null, isLoading: false, error: null });
+    }
+  });
+}
+
+export function useAuth() {
+  initSharedAuthListener();
+  const state = useSyncExternalStore(subscribeAuth, getAuthSnapshot, getAuthSnapshot);
+  const { user, profile, isLoading, error } = state;
+
+  const setError = useCallback((err: string | null) => {
+    setAuthSingleton({ error: err });
+  }, []);
+
+  const setUser = useCallback((u: FirebaseUser | null) => {
+    setAuthSingleton({ user: u });
+  }, []);
+
+  const setProfile = useCallback((p: UserProfile | null) => {
+    setAuthSingleton({ profile: p });
   }, []);
 
   /**

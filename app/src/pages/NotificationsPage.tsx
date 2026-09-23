@@ -83,7 +83,7 @@ export default function NotificationsPage() {
             </div>
             <div>
               <p className="font-serif font-medium text-base text-[#1A1A2E]">Never miss an inquiry or match!</p>
-              <p className="text-xs text-gray-500 mt-0.5">Enable browser notifications to receive immediate alerts when a flatmate connects.</p>
+              <p className="text-xs text-gray-500 mt-0.5">Enable browser notifications to receive immediate alerts when a roommate connects.</p>
             </div>
           </div>
           <button 

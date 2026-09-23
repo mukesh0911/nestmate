@@ -239,7 +239,7 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
                       )}
                       <div>
                         <p className="font-semibold text-sm">{match.profile.name}</p>
-                        <p className="text-xs text-ink/50">{match.compatibilityScore}% Match</p>
+                        <p className="text-xs text-ink/50">{match.compatibilityScore > 0 ? `${match.compatibilityScore}% Match` : 'Active Member'}</p>
                       </div>
                     </div>
                     <button onClick={() => navigate(`/match/${match.profile.uid}`)} className="w-full py-2 bg-white border border-border rounded-lg text-xs font-semibold hover:border-fire transition-colors">
@@ -336,7 +336,7 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
                   }}
                 >
                   <Tooltip className="font-semibold bg-white border border-fire rounded-lg shadow-sm px-2 py-1">
-                    {p.name} • {match.compatibilityScore}% • {p.role}
+                    {p.name} {match.compatibilityScore > 0 ? `• ${match.compatibilityScore}%` : ''} • {p.role}
                   </Tooltip>
                   <Popup className="match-popup">
                     <div className="flex flex-col gap-2 min-w-[140px]">
@@ -354,7 +354,11 @@ export function MapPreview({ currentUser, topMatches }: MapPreviewProps) {
                         </div>
                       </div>
                       <div className="flex items-center justify-between mt-1">
-                        <span className="badge-teal text-[10px]">{match.compatibilityScore}%</span>
+                        {match.compatibilityScore > 0 ? (
+                          <span className="badge-teal text-[10px]">{match.compatibilityScore}%</span>
+                        ) : (
+                          <span className="text-[10px] text-ink/40 font-medium">Member</span>
+                        )}
                         <button onClick={() => navigate(`/match/${p.uid}`)} className="text-xs text-fire font-medium hover:underline">
                           View Profile
                         </button>

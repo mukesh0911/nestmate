@@ -143,7 +143,7 @@ export default function AdminNotifications() {
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { id: 'all', label: 'All Users', desc: 'Everyone with an account' },
-                    { id: 'seekers', label: 'Seekers', desc: 'Room & Flatmate seekers' },
+                    { id: 'seekers', label: 'Seekers', desc: 'Room & Roommate seekers' },
                     { id: 'owners', label: 'Owners', desc: 'Verified property owners' },
                   ].map(t => (
                     <button
@@ -178,7 +178,7 @@ export default function AdminNotifications() {
                   maxLength={80}
                   value={title}
                   onChange={e => setTitle(e.target.value)}
-                  placeholder="e.g. 📢 Diwali Safety Guidelines for Flatmates"
+                  placeholder="e.g. 📢 Diwali Safety Guidelines for Roommates"
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-fire/20 focus:border-fire transition-all"
                 />
               </div>

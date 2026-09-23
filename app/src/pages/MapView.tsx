@@ -665,7 +665,7 @@ export default function MapView() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <h4 className="font-bold text-sm text-ink truncate">{selectedItem.type === 'person' ? selectedItem.name : selectedItem.title}</h4>
-                    {selectedItem.type === 'person' && (
+                    {selectedItem.type === 'person' && selectedItem.compatibility > 0 && (
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${selectedItem.compatibility >= 80 ? 'bg-teal/10 text-teal' : 'bg-ink/5 text-ink/60'}`}>{selectedItem.compatibility}% Match</span>
                     )}
                   </div>
@@ -804,8 +804,15 @@ export default function MapView() {
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
-                      {item.type === 'person' ? <span className="badge-teal text-[10px]">{item.compatibility}% match</span> :
-                        <span className="text-xs font-bold text-fire">₹{item.rent?.toLocaleString()}/mo</span>}
+                      {item.type === 'person' ? (
+                        item.compatibility > 0 ? (
+                          <span className="badge-teal text-[10px]">{item.compatibility}% match</span>
+                        ) : (
+                          <span className="text-[10px] text-ink/40 font-medium">Seeker</span>
+                        )
+                      ) : (
+                        <span className="text-xs font-bold text-fire">₹{item.rent?.toLocaleString()}/mo</span>
+                      )}
                       {/* Marker → entity navigation uses canonical uid / listing id */}
                       <button
                         onClick={() => navigate(item.type === 'person' ? `/match/${item.uid}` : `/room/${item.id}`)}

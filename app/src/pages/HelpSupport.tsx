@@ -34,11 +34,11 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: 'Deposits & Payments',
     question: 'Does NestMate collect rental deposits or booking fees?',
-    answer: 'No. NestMate is 100% free with zero platform brokerage fees. Any landlord or flatmate demanding visiting pass fees or advance deposit transfers before a physical walkthrough is violating our safety rules and should be reported immediately.',
+    answer: 'No. NestMate is 100% free with zero platform brokerage fees. Any landlord or roommate demanding visiting pass fees or advance deposit transfers before a physical walkthrough is violating our safety rules and should be reported immediately.',
   },
   {
     category: 'Contact Reveal',
-    question: 'How do I get a flatmate or host’s phone number?',
+    question: 'How do I get a roommate or host’s phone number?',
     answer: 'Phone numbers remain masked until you connect inside NestMate. Inside your active chat thread, either party can tap "Share Phone". Once both sides consent, verified phone numbers appear securely in the thread.',
   },
   {
@@ -49,7 +49,7 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: 'Account',
     question: 'Can I both search for a room and list my current spare room?',
-    answer: 'Yes! NestMate supports dual roles. You can switch between Seeker mode (finding flatmates) and Host mode (managing listings) anytime using Account Settings.',
+    answer: 'Yes! NestMate supports dual roles. You can switch between Seeker mode (finding roommates) and Host mode (managing listings) anytime using Account Settings.',
   },
 ];
 

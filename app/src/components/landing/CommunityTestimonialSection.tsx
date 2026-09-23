@@ -13,7 +13,7 @@ export default function CommunityTestimonialSection() {
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
     },
     {
-      quote: '“Moving across cities was intimidating until NestMate connected me with the most wonderful flatmates.”',
+      quote: '“Moving across cities was intimidating until NestMate connected me with the most wonderful roommates.”',
       author: 'Arjun K.',
       location: 'Moved to Mumbai',
       avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',

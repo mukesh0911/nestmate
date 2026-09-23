@@ -37,8 +37,8 @@ export function useActiveTracking() {
       }
     };
 
-    // Update on initial load
-    trackActivity();
+    // Defer initial update by 5 seconds so critical startup queries take priority
+    const timer = setTimeout(trackActivity, 5000);
 
     // Attach listeners
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
@@ -49,6 +49,7 @@ export function useActiveTracking() {
     });
 
     return () => {
+      clearTimeout(timer);
       events.forEach(event => {
         window.removeEventListener(event, handleEvent);
       });

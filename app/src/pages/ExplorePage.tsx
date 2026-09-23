@@ -289,8 +289,8 @@ export default function ExplorePage() {
   const handleToggleSaveProfile = async (uid: string) => {
     if (!user?.uid) {
       openAuthModal({
-        title: 'Sign in to Save Flatmates',
-        subtitle: 'Save profiles of compatible flatmates and connect anytime.',
+        title: 'Sign in to Save Roommates',
+        subtitle: 'Save profiles of compatible roommates and connect anytime.',
         redirect: `/explore?tab=roommates`,
       });
       return;
@@ -301,9 +301,9 @@ export default function ExplorePage() {
     try {
       await toggleSavedProfile(user.uid, uid, isSaved);
       await refreshProfile();
-      toast.success(isSaved ? 'Flatmate removed from saved' : 'Flatmate saved to your favorites');
+      toast.success(isSaved ? 'Roommate removed from saved' : 'Roommate saved to your favorites');
     } catch {
-      toast.error('Failed to update saved flatmate');
+      toast.error('Failed to update saved roommate');
     } finally {
       setSavingId(null);
     }
@@ -336,7 +336,7 @@ export default function ExplorePage() {
     if (!user?.uid) {
       openAuthModal({
         title: 'Sign in to Message',
-        subtitle: 'Sign in to start conversations with verified flatmates.',
+        subtitle: 'Sign in to start conversations with verified roommates.',
         redirect: `/match/${targetUid}`,
       });
       return;
@@ -387,8 +387,8 @@ export default function ExplorePage() {
   const handleCallFlatmate = (p: UserProfile) => {
     if (!user?.uid) {
       openAuthModal({
-        title: 'Sign in to Call Flatmate',
-        subtitle: 'Sign in to view contact details of verified flatmates.',
+        title: 'Sign in to Call Roommate',
+        subtitle: 'Sign in to view contact details of verified roommates.',
         redirect: `/match/${p.uid}`,
       });
       return;
@@ -666,19 +666,6 @@ export default function ExplorePage() {
               <span>All</span>
             </button>
           </div>
-
-          {/* 3. TEAM BANNER (Mobile) */}
-          <div className="flex items-center justify-between py-1 px-1 mb-2 text-xs text-gray-700">
-            <span className="truncate">You can make team &amp; find flat together</span>
-            <button
-              type="button"
-              onClick={() => setShowTeamModal(true)}
-              className="font-bold text-[#E5501A] hover:underline shrink-0 flex items-center gap-0.5 ml-1 cursor-pointer"
-            >
-              <span>Create Team</span>
-              <ChevronRight className="w-3.5 h-3.5 inline" />
-            </button>
-          </div>
         </div>
 
         {/* ======================================================== */}
@@ -914,21 +901,6 @@ export default function ExplorePage() {
                   <span>All Listings</span>
                 </button>
               </div>
-
-              {/* Right: Team Banner */}
-              <div className="hidden 2xl:flex items-center gap-3 bg-[#FFF2EB] border border-[#E5501A]/20 px-3.5 py-1.5 rounded-xl shrink-0">
-                <span className="text-xs font-medium text-gray-700">
-                  Looking with friends? Make team &amp; find flat together
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowTeamModal(true)}
-                  className="text-xs font-bold text-[#E5501A] hover:text-[#D0400B] flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <span>Create Team</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
             </div>
 
             {/* Sub-Tabs: Shown when Saved or Connections is selected */}
@@ -937,15 +909,17 @@ export default function ExplorePage() {
                 <button
                   type="button"
                   onClick={() => setSavedSubTab('rooms')}
-                  className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  className={`flex-1 h-9 py-2 px-2.5 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap min-w-0 cursor-pointer ${
                     savedSubTab === 'rooms'
                       ? 'bg-[#E5501A] text-white shadow-xs'
                       : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  <Bed className="w-4 h-4" />
-                  <span>Saved Rooms</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+                  <Bed className="w-4 h-4 shrink-0" />
+                  <span className="truncate whitespace-nowrap">
+                    <span className="hidden sm:inline">Saved </span>Rooms
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] shrink-0 font-bold ${
                     savedSubTab === 'rooms' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
                   }`}>
                     {savedRooms.length}
@@ -955,15 +929,17 @@ export default function ExplorePage() {
                 <button
                   type="button"
                   onClick={() => setSavedSubTab('flatmates')}
-                  className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  className={`flex-1 h-9 py-2 px-2.5 sm:px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap min-w-0 cursor-pointer ${
                     savedSubTab === 'flatmates'
                       ? 'bg-[#E5501A] text-white shadow-xs'
                       : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  <Users className="w-4 h-4" />
-                  <span>Saved Flatmates</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+                  <Users className="w-4 h-4 shrink-0" />
+                  <span className="truncate whitespace-nowrap">
+                    <span className="hidden sm:inline">Saved </span>Roommates
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] shrink-0 font-bold ${
                     savedSubTab === 'flatmates' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
                   }`}>
                     {savedProfiles.length}
@@ -977,15 +953,15 @@ export default function ExplorePage() {
                 <button
                   type="button"
                   onClick={() => setConnectionSubTab('connected')}
-                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`flex-1 h-9 py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-0 ${
                     connectionSubTab === 'connected'
                       ? 'bg-emerald-600 text-white shadow-xs'
                       : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  <UserCheck className="w-4 h-4" />
-                  <span>Connected</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+                  <UserCheck className="w-4 h-4 shrink-0" />
+                  <span className="truncate whitespace-nowrap">Connected</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] shrink-0 font-bold ${
                     connectionSubTab === 'connected' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
                   }`}>
                     {acceptedConnections.length}
@@ -995,15 +971,15 @@ export default function ExplorePage() {
                 <button
                   type="button"
                   onClick={() => setConnectionSubTab('received')}
-                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`flex-1 h-9 py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-0 ${
                     connectionSubTab === 'received'
                       ? 'bg-emerald-600 text-white shadow-xs'
                       : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  <span>Requests Received</span>
+                  <span className="truncate whitespace-nowrap">Received</span>
                   {receivedRequests.length > 0 && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-white text-emerald-700 font-extrabold">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-white text-emerald-700 font-extrabold shrink-0">
                       {receivedRequests.length}
                     </span>
                   )}
@@ -1012,14 +988,14 @@ export default function ExplorePage() {
                 <button
                   type="button"
                   onClick={() => setConnectionSubTab('sent')}
-                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`flex-1 h-9 py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-0 ${
                     connectionSubTab === 'sent'
                       ? 'bg-emerald-600 text-white shadow-xs'
                       : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  <span>Requests Sent</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+                  <span className="truncate whitespace-nowrap">Sent</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] shrink-0 font-bold ${
                     connectionSubTab === 'sent' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
                   }`}>
                     {sentRequests.length}
@@ -1069,7 +1045,7 @@ export default function ExplorePage() {
                             room={room}
                             isSaved={true}
                             onToggleSave={() => handleToggleSaveRoom(room.id)}
-                            compatibilityScore={currentUser ? calculateRoomCompatibility(currentUser, room) : 90}
+                            compatibilityScore={currentUser ? calculateRoomCompatibility(currentUser, room) : undefined}
                             distanceKm={0}
                             onClick={() => navigate(`/room/${room.id}`)}
                             onCall={() => handleCallOwner(room)}
@@ -1118,7 +1094,7 @@ export default function ExplorePage() {
                     ) : (
                       <StateEmpty
                         icon={Users}
-                        title="No saved flatmates yet"
+                        title="No saved roommates yet"
                         description="Explore compatible roommates and save profiles to connect, compare habits, and team up."
                         action={
                           <button
@@ -1126,7 +1102,7 @@ export default function ExplorePage() {
                             onClick={() => handleTabChange('roommates')}
                             className="px-6 py-2.5 bg-[#E5501A] hover:bg-[#D0400B] text-white font-bold text-xs rounded-full shadow-xs cursor-pointer transition-colors"
                           >
-                            Browse Flatmates
+                            Browse Roommates
                           </button>
                         }
                         className="bg-white rounded-3xl border border-gray-100 py-14 shadow-xs max-w-xl mx-auto"
@@ -1156,7 +1132,7 @@ export default function ExplorePage() {
                     ) : (
                       <StateEmpty
                         icon={UserCheck}
-                        title="No connected flatmates yet"
+                        title="No connected roommates yet"
                         description="When a roommate request is accepted by both parties, your mutual connections and verified contact numbers appear right here."
                         action={
                           <button
@@ -1164,7 +1140,7 @@ export default function ExplorePage() {
                             onClick={() => handleTabChange('roommates')}
                             className="px-6 py-2.5 bg-[#E5501A] hover:bg-[#D0400B] text-white font-bold text-xs rounded-full shadow-xs cursor-pointer transition-colors"
                           >
-                            Find Compatible Flatmates
+                            Find Compatible Roommates
                           </button>
                         }
                         className="bg-white rounded-3xl border border-gray-100 py-14 shadow-xs max-w-xl mx-auto"
@@ -1176,7 +1152,7 @@ export default function ExplorePage() {
                         {receivedRequests.map(req => {
                           const m = connectedProfiles.find(p => p.profile.uid === req.fromUserId) || {
                             profile: { uid: req.fromUserId, name: 'Prospective Roommate', city: selectedCity, budget: 10000 } as any,
-                            compatibilityScore: 85,
+                            compatibilityScore: currentUser ? calculateProfileCompatibility(currentUser, { uid: req.fromUserId, city: selectedCity } as any).score : 0,
                             matchReasons: ['Shared interest in connecting']
                           };
                           return (
@@ -1206,7 +1182,7 @@ export default function ExplorePage() {
                         {sentRequests.map(req => {
                           const m = connectedProfiles.find(p => p.profile.uid === req.toUserId) || {
                             profile: { uid: req.toUserId, name: 'Prospective Roommate', city: selectedCity, budget: 10000 } as any,
-                            compatibilityScore: 85,
+                            compatibilityScore: currentUser ? calculateProfileCompatibility(currentUser, { uid: req.toUserId, city: selectedCity } as any).score : 0,
                             matchReasons: ['Request sent']
                           };
                           return (
@@ -1224,14 +1200,14 @@ export default function ExplorePage() {
                       <StateEmpty
                         icon={Users}
                         title="No outgoing requests pending"
-                        description="You haven't sent any pending connection requests. Browse flatmates and connect with genuine roommates."
+                        description="You haven't sent any pending connection requests. Browse roommates and connect with genuine people."
                         action={
                           <button
                             type="button"
                             onClick={() => handleTabChange('roommates')}
                             className="px-6 py-2.5 bg-[#E5501A] hover:bg-[#D0400B] text-white font-bold text-xs rounded-full shadow-xs cursor-pointer transition-colors"
                           >
-                            Explore Flatmates
+                            Explore Roommates
                           </button>
                         }
                         className="bg-white rounded-3xl border border-gray-100 py-14 shadow-xs max-w-xl mx-auto"

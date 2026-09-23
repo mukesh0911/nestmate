@@ -296,7 +296,7 @@ export default function EditProfile() {
         <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-5 sm:p-6 space-y-4">
           <div>
             <h2 className="font-serif font-medium text-base text-[#1A1A2E]">Profile Photo</h2>
-            <p className="text-xs text-gray-500 mt-0.5">A clear photo helps potential flatmates recognize and trust you</p>
+            <p className="text-xs text-gray-500 mt-0.5">A clear photo helps potential roommates recognize and trust you</p>
           </div>
 
           <div className="flex items-center gap-5 pt-1">

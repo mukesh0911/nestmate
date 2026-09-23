@@ -7,7 +7,8 @@ import {
   CheckCircle2, Circle, Calendar, MessageSquare, ChevronRight, ChevronLeft, Zap,
   ExternalLink, Flag, Ban, SlidersHorizontal, Bed, Compass, Coffee,
   Cigarette, Flame, Eye, Target, Share2, Copy, Bus, Train, ShoppingBag,
-  Hospital, Shield, Send, Phone, Dumbbell, Activity, BookOpen, Leaf
+  Hospital, Shield, Send, Phone, Dumbbell, Activity, BookOpen, Leaf,
+  Building2, ArrowRight
 } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -15,7 +16,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useChat } from '@/hooks/useChat';
 import { useConnections, getRelationshipState } from '@/hooks/useConnections';
-import { useReviews } from '@/hooks/useReviews';
 import type { Connection } from '@/hooks/useConnections';
 import { useNotifications } from '@/hooks/useNotifications';
 import { calculateCompatibility, calculateProfileCompatibility, getActiveStatus } from '@/hooks/useMatches';
@@ -49,23 +49,23 @@ function getQuizLabel(questionId: string, optionId?: string): string {
   return opt ? opt.label : optionId;
 }
 
-function getMemberDuration(createdAt: any): { value: string; label: string } {
-  if (!createdAt) return { value: '< 1', label: 'Month on NestMate' };
+function getMemberDuration(createdAt: any): string {
+  if (!createdAt) return '< 1 Month';
   try {
     const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
     const now = new Date();
     const diffDays = Math.max(0, Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)));
     if (diffDays < 30) {
-      return { value: `${Math.max(1, diffDays)}`, label: diffDays <= 1 ? 'Day on NestMate' : 'Days on NestMate' };
+      return `${Math.max(1, diffDays)} ${diffDays <= 1 ? 'day' : 'days'}`;
     }
     const diffMonths = Math.floor(diffDays / 30);
     if (diffMonths < 12) {
-      return { value: `${diffMonths}`, label: diffMonths === 1 ? 'Month on NestMate' : 'Months on NestMate' };
+      return `${diffMonths} ${diffMonths === 1 ? 'month' : 'months'}`;
     }
     const diffYears = Math.floor(diffMonths / 12);
-    return { value: `${diffYears}`, label: diffYears === 1 ? 'Year on NestMate' : 'Years on NestMate' };
+    return `${diffYears} ${diffYears === 1 ? 'year' : 'years'}`;
   } catch {
-    return { value: '1', label: 'Month on NestMate' };
+    return '1 month';
   }
 }
 
@@ -80,6 +80,7 @@ export default function MatchDetail() {
 
   const [matchedUser, setMatchedUser] = useState<MatchedUser | null>(null);
   const [listing, setListing] = useState<any | null>(null);
+  const [ownerListings, setOwnerListings] = useState<any[]>([]);
   const [activeRoomImgIdx, setActiveRoomImgIdx] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
@@ -96,24 +97,17 @@ export default function MatchDetail() {
   const [reportDescription, setReportDescription] = useState('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
-  // Review State
-  const { reviews, getReviewsForUser, addReview } = useReviews();
-  const [reviewModalOpen, setReviewModalOpen] = useState(false);
-  const [reviewRating, setReviewRating] = useState(5);
-  const [reviewText, setReviewText] = useState('');
-  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  // Reviews removed as requested
 
   // Fetch match details
   useEffect(() => {
     if (!id) return;
     setIsLoading(true);
 
-    Promise.all([
-      getProfile(id).catch(() => null),
-      getReviewsForUser(id).catch(() => [])
-    ]).then(async ([targetProfileResult]) => {
+    getProfile(id).catch(() => null).then(async (targetProfileResult) => {
       let targetProfile = targetProfileResult;
       let targetListing: any = null;
+      let allListings: any[] = [];
 
       // Fallback: If user doc is not found directly by ID, check if ID is an ownerId from real listings in Firestore
       if (!targetProfile) {
@@ -121,8 +115,9 @@ export default function MatchDetail() {
           const lq = query(collection(db, 'listings'), where('ownerId', '==', id));
           const lsnap = await getDocs(lq);
           if (!lsnap.empty) {
-            const ldata = lsnap.docs[0].data();
-            targetListing = { id: lsnap.docs[0].id, ...ldata };
+            allListings = lsnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const ldata = allListings[0];
+            targetListing = ldata;
             targetProfile = {
               uid: id,
               name: ldata.ownerName || 'Property Host',
@@ -140,8 +135,8 @@ export default function MatchDetail() {
       }
 
       if (targetProfile) {
-        // Query active room belonging to this user if not already found
-        if (!targetListing) {
+        // Query active rooms belonging to this user if not already found
+        if (allListings.length === 0) {
           try {
             const lq = query(
               collection(db, 'listings'),
@@ -149,13 +144,14 @@ export default function MatchDetail() {
             );
             const lsnap = await getDocs(lq);
             if (!lsnap.empty) {
-              const ldata = lsnap.docs[0].data();
-              targetListing = { id: lsnap.docs[0].id, ...ldata };
+              allListings = lsnap.docs.map(d => ({ id: d.id, ...d.data() }));
+              targetListing = allListings[0];
             }
           } catch (e) {
-            console.error("Failed to fetch match listing", e);
+            console.error("Failed to fetch match listings", e);
           }
         }
+        setOwnerListings(allListings);
         setListing(targetListing);
 
         // Compute multi-factor dynamic compatibility
@@ -170,7 +166,7 @@ export default function MatchDetail() {
       }
       setIsLoading(false);
     });
-  }, [id, profile, getProfile, getReviewsForUser]);
+  }, [id, profile, getProfile]);
 
   // Real-time connection listener
   useEffect(() => {
@@ -237,43 +233,6 @@ export default function MatchDetail() {
     }
   };
 
-  const handleSubmitReview = async () => {
-    if (!user?.uid) {
-      useStore.getState().openAuthModal({
-        title: 'Vouch for user',
-        subtitle: 'Sign in to submit a vouch or review.',
-        redirect: `/match/${id}`,
-      });
-      return;
-    }
-    if (!id || reviewRating === 0) {
-      toast.error('Please select a star rating.');
-      return;
-    }
-    if (user.uid === id) {
-      toast.error('You cannot review your own profile.');
-      return;
-    }
-    setIsSubmittingReview(true);
-    try {
-      await addReview(
-        id,
-        user.uid,
-        profile?.name || 'Anonymous',
-        profile?.avatar || '',
-        reviewRating,
-        reviewText
-      );
-      toast.success('Vouch submitted successfully!');
-      setReviewModalOpen(false);
-      setReviewRating(5);
-      setReviewText('');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to submit review.');
-    } finally {
-      setIsSubmittingReview(false);
-    }
-  };
 
   const handleToggleSave = async () => {
     if (!user?.uid) {
@@ -299,7 +258,7 @@ export default function MatchDetail() {
   const handleCallUser = () => {
     if (!user?.uid) {
       useStore.getState().openAuthModal({
-        title: `Contact ${matchedUser?.profile.name || 'Flatmate'}`,
+        title: `Contact ${matchedUser?.profile.name || 'Roommate'}`,
         subtitle: 'Sign in to view verified contact details.',
         redirect: `/match/${id}`,
       });
@@ -311,7 +270,7 @@ export default function MatchDetail() {
   const handleConnectOrChat = async () => {
     if (!user?.uid) {
       useStore.getState().openAuthModal({
-        title: `Connect with ${matchedUser?.profile.name || 'Flatmate'}`,
+        title: `Connect with ${matchedUser?.profile.name || 'Roommate'}`,
         subtitle: 'Sign in to send a connection request or chat.',
         redirect: `/match/${id}`,
       });
@@ -404,7 +363,7 @@ export default function MatchDetail() {
               onClick={() => navigate('/explore?tab=roommates')}
               className="px-5 py-2.5 rounded-full font-bold text-xs bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-xs cursor-pointer"
             >
-              Browse Flatmates
+              Browse Roommates
             </button>
             <button
               onClick={() => navigate('/explore?tab=rooms')}
@@ -440,10 +399,7 @@ export default function MatchDetail() {
     c => (c.fromUserId === targetUid || c.toUserId === targetUid) && c.status === 'accepted'
   ).length;
 
-  // Real review stats from Firestore
-  const totalReviews = reviews.length;
-  const positiveReviews = reviews.filter(r => r.rating >= 4).length;
-  const positivePercentage = totalReviews > 0 ? Math.round((positiveReviews / totalReviews) * 100) : 100;
+
 
   // Real trust metrics
   const isIdentityVerified = !!p.isVerified;
@@ -509,9 +465,10 @@ export default function MatchDetail() {
   const highlightsList = getUserHighlights(p, isIdentityVerified, resolvedPreferences);
 
   const hasLifestylePreferences = Object.keys(resolvedPreferences).length > 0;
+  const isOwner = p.role === 'owner' || ownerListings.length > 0 || Boolean(listing);
 
   return (
-    <div className="min-h-screen bg-[#FBF9F6] pb-24 lg:pb-16 text-[#1A1A2E] font-sans">
+    <div className="min-h-screen bg-[#FBF9F6] pb-32 sm:pb-36 lg:pb-20 text-[#1A1A2E] font-sans">
 
       {/* ── Toast Notification ──────────────────────────────────────── */}
       {copyToast && (
@@ -524,343 +481,392 @@ export default function MatchDetail() {
         </div>
       )}
 
-      {/* ── Main Container ───────────────────────────────────────────── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-5 sm:pt-6">
+      {/* ── Main Container (Centered, Clean, Minimalist FlatMate-style sheet) ── */}
+      <div className="max-w-2xl sm:max-w-3xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6">
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 mb-12">
+        {/* ── Top Navigation Bar (Always at the very top on mobile & desktop) ── */}
+        <div className="flex items-center justify-between bg-white rounded-2xl px-4 sm:px-5 h-12 border border-gray-200/80 shadow-2xs text-xs mb-5 sm:mb-6">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-1.5 text-gray-700 hover:text-[#1A1A2E] font-bold transition-colors cursor-pointer shrink-0 py-1.5 px-2.5 rounded-xl hover:bg-gray-100"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
+            </button>
+            <span className="text-gray-300 hidden sm:inline">/</span>
+            <span
+              onClick={() => navigate('/')}
+              className="text-gray-400 hover:text-gray-600 cursor-pointer transition-colors truncate hidden sm:inline font-medium"
+            >
+              Home
+            </span>
+            <span className="text-gray-300 hidden sm:inline">/</span>
+            <span
+              onClick={() => navigate(isOwner ? '/explore?tab=rooms' : '/explore?tab=roommates')}
+              className="text-gray-400 hover:text-gray-600 cursor-pointer transition-colors truncate hidden sm:inline font-medium"
+            >
+              {isOwner ? 'Rooms & Hosts' : 'Roommates'}
+            </span>
+            <span className="text-gray-300">/</span>
+            <span className="font-extrabold text-[#1A1A2E] truncate">
+              {p.name}
+            </span>
+          </div>
 
-          {/* ═════════════════════════════════════════════════════════════ */}
-          {/* ── LEFT COLUMN (Profile & Direct Action Sticky Sidebar) ──── */}
-          {/* ═════════════════════════════════════════════════════════════ */}
-          <div className="lg:col-span-4 space-y-5 lg:sticky lg:top-24 self-start">
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleShare}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200/80 text-gray-700 font-bold transition-all cursor-pointer text-xs shadow-2xs"
+            >
+              <Share2 className="w-3.5 h-3.5 text-gray-500" />
+              <span className="hidden sm:inline">Share</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleToggleSave}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold transition-all cursor-pointer text-xs shadow-2xs ${
+                isSaved
+                  ? 'bg-rose-50 text-rose-600 border-rose-200'
+                  : 'bg-gray-50 hover:bg-gray-100 border-gray-200/80 text-gray-700'
+              }`}
+            >
+              <Heart className={`w-3.5 h-3.5 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-gray-500'}`} />
+              <span className="hidden sm:inline">{isSaved ? 'Saved' : 'Save'}</span>
+            </button>
+          </div>
+        </div>
 
-            {/* Card 1: User Profile Card (Matching Approved Left Sidebar) */}
-            <div className="bg-white rounded-3xl border border-gray-200/80 shadow-2xs p-6 flex flex-col items-center text-center">
+        {/* ── UNIFIED WHITE PROFILE CARD (FlatMate Reference Design) ── */}
+        <div className="bg-white rounded-3xl border border-gray-200/80 shadow-2xs p-6 sm:p-10 mb-8 sm:mb-12">
 
-              {/* Large Stylized / Photo Avatar */}
-              <div className="mb-3.5">
-                <FlatmateAvatar
-                  avatar={p.avatar}
-                  name={p.name}
-                  gender={p.gender}
-                  isVerified={isIdentityVerified}
-                  illustrationType={p.name?.toLowerCase().includes('arun') ? 'arun' : undefined}
-                  className="w-28 h-32 sm:w-32 sm:h-36 rounded-2xl shadow-xs"
-                />
+          {/* 1. Hero Profile Header */}
+          <div className="flex flex-col items-center text-center">
+            {/* Centered Circular Avatar */}
+            <div className="mb-4 relative">
+              <FlatmateAvatar
+                avatar={p.avatar}
+                name={p.name}
+                gender={p.gender}
+                isVerified={isIdentityVerified}
+                illustrationType={p.name?.toLowerCase().includes('arun') ? 'arun' : undefined}
+                className="w-24 h-24 sm:w-28 sm:h-28 rounded-full shadow-xs ring-4 ring-gray-50 object-cover"
+              />
+            </div>
+
+            {/* Name & Verification Badge */}
+            <h1 className="text-xl sm:text-2xl font-bold text-[#1A1A2E] mb-1 flex items-center justify-center gap-1.5">
+              <span>{p.name}</span>
+              {isIdentityVerified && (
+                <span title={isOwner ? "Verified Host" : "Verified User"} className="text-emerald-500">
+                  <CheckCircle2 className="w-5 h-5 fill-emerald-500 text-white" />
+                </span>
+              )}
+            </h1>
+
+            {/* Profession & City Subtitle */}
+            <p className="text-xs font-semibold text-gray-500 mb-1.5">
+              {isOwner
+                ? (p.profession ? `${p.profession} · Property Host` : 'Property Host / Room Provider')
+                : (p.profession || 'Room Seeker')}
+              {userCity ? ` · ${userCity}` : ''}
+            </p>
+
+            {/* Room Provider Pill Badge */}
+            {isOwner && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#FFF2EB] text-[#E5501A] border border-[#E5501A]/20 text-[11px] font-bold mb-2 shadow-2xs">
+                <Building2 className="w-3.5 h-3.5 text-[#E5501A]" />
+                <span>Room Provider · {ownerListings.length > 0 ? `${ownerListings.length} Available Space${ownerListings.length > 1 ? 's' : ''}` : 'Verified Property'}</span>
               </div>
+            )}
 
-              {/* User Name & Verification Shield */}
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <h2 className="text-xl font-extrabold text-[#1A1A2E] tracking-tight">
-                  {p.name}
-                </h2>
-                {isIdentityVerified && (
-                  <span title="Verified User" className="text-emerald-500">
-                    <CheckCircle2 className="w-4 h-4 fill-emerald-500 text-white" />
-                  </span>
-                )}
-              </div>
+            {/* Active Status Badge */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100/80 text-[11px] font-bold mb-4">
+              <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-500'}`} />
+              <span>{activeLabel}</span>
+            </div>
 
-              {/* Subtitle & Status */}
-              <p className="text-xs font-semibold text-gray-500 mb-2">
-                {p.profession || (p.role === 'owner' ? 'Property Host' : 'Flatmate Seeker')}{userCity ? ` · ${userCity}` : ''}
-              </p>
-
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100/80 text-[11px] font-bold mb-5">
-                <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-500'}`} />
-                <span>{activeLabel}</span>
-              </div>
-
-              {/* Action Buttons: Chat & Call */}
-              <div className="grid grid-cols-2 gap-2.5 w-full mb-3">
-                {/* 1. Chat Button */}
-                <button
-                  type="button"
-                  onClick={handleConnectOrChat}
-                  disabled={connecting}
-                  className="w-full py-2.5 px-3 rounded-xl font-bold text-xs bg-[#0F9D58] hover:bg-[#0B8043] text-white shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
-                >
-                  {connecting ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <>
-                      <MessageCircle className="w-3.5 h-3.5" />
-                      <span>Chat</span>
-                    </>
-                  )}
-                </button>
-
-                {/* 2. Call Button */}
-                <button
-                  type="button"
-                  onClick={handleCallUser}
-                  className="w-full py-2.5 px-3 rounded-xl font-bold text-xs bg-[#0F9D58] hover:bg-[#0B8043] text-white shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
-                >
-                  <Phone className="w-3.5 h-3.5" />
-                  <span>Call</span>
-                </button>
-              </div>
-
-              {/* Primary Connect Button */}
+            {/* Two Equal Orange Pill Action Buttons (Chat & Call) */}
+            <div className="flex items-center justify-center gap-3 w-full max-w-xs mb-3.5">
               <button
                 type="button"
                 onClick={handleConnectOrChat}
                 disabled={connecting || connectState === 'pending_sent'}
-                className="w-full py-2.5 px-4 rounded-xl font-bold text-xs bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-85 mb-2.5"
+                className="flex-1 py-2.5 px-5 rounded-full font-bold text-xs sm:text-sm bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-85"
               >
                 {connecting ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : connectState === 'pending_sent' ? (
-                  <>
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Request Sent</span>
-                  </>
-                ) : connectState === 'pending_received' ? (
-                  <>
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Accept Request</span>
-                  </>
-                ) : connectState === 'connected' ? (
-                  <>
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    <span>Message {p.name}</span>
-                  </>
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <>
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Connect with {p.name}</span>
+                    <MessageCircle className="w-4 h-4" />
+                    <span>
+                      {connectState === 'pending_sent' ? 'Requested' :
+                        connectState === 'pending_received' ? 'Accept' :
+                          connectState === 'connected' ? 'Message' : (isOwner ? 'Chat with Host' : 'Chat')}
+                    </span>
                   </>
                 )}
               </button>
 
-              {/* Toggle Save Profile */}
               <button
                 type="button"
-                onClick={handleToggleSave}
-                disabled={saving}
-                className={`w-full py-2 px-3 rounded-xl font-semibold text-xs border transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
-                  isSaved
-                    ? 'bg-rose-50 text-rose-600 border-rose-200'
-                    : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-200'
-                }`}
+                onClick={handleCallUser}
+                className="flex-1 py-2.5 px-5 rounded-full font-bold text-xs sm:text-sm bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
               >
-                <Heart className={`w-3.5 h-3.5 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-gray-400'}`} />
-                <span>{isSaved ? 'Saved Profile' : 'Save Profile'}</span>
+                <Phone className="w-4 h-4" />
+                <span>{isOwner ? 'Call Host' : 'Call'}</span>
               </button>
-
-              {/* Report & Block links */}
-              <div className="pt-3.5 mt-3 border-t border-gray-100 flex items-center justify-around w-full text-xs text-gray-400 font-medium">
-                <button
-                  onClick={() => setReportModalOpen(true)}
-                  className="hover:text-amber-600 flex items-center gap-1.5 cursor-pointer transition-colors"
-                >
-                  <Flag className="w-3.5 h-3.5" />
-                  <span>Report</span>
-                </button>
-                <span className="text-gray-200">|</span>
-                <button
-                  onClick={handleBlock}
-                  className="hover:text-rose-600 flex items-center gap-1.5 cursor-pointer transition-colors"
-                >
-                  <Ban className="w-3.5 h-3.5" />
-                  <span>Block</span>
-                </button>
-              </div>
-
             </div>
 
-            {/* Card 2: Match Compatibility Card */}
-            <div className="bg-white rounded-3xl border border-gray-200/80 shadow-2xs p-5 space-y-3.5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                  <Target className="w-4 h-4 text-[#E5501A]" />
-                  <span className="text-xs font-bold text-[#1A1A2E]">Match with you</span>
-                </div>
-                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200/70 font-bold px-2.5 py-0.5 rounded-full text-xs">
-                  <Zap className="w-3 h-3 text-emerald-600 fill-emerald-500" />
-                  <span>{compatibilityScore > 0 ? `${compatibilityScore}% match` : 'New Match'}</span>
-                </span>
-              </div>
-
-              {compatibilityScore > 0 && matchReasons.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {matchReasons.slice(0, 3).map((reason, i) => (
-                    <span key={i} className="inline-flex items-center gap-1 bg-[#E6F9EE] text-[#129B52] border border-emerald-200/80 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                      <CheckCircle2 className="w-3 h-3 text-[#129B52] shrink-0" />
-                      <span className="truncate max-w-[130px]">{reason}</span>
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <p className="text-[11px] text-gray-500 leading-relaxed">
-                {compatibilityScore > 0
-                  ? `Dynamic lifestyle & habit compatibility calculated from your preferences.`
-                  : `Connect and share your preferences to calculate your real-time compatibility score.`}
-              </p>
+            {/* Centered Location with Pin */}
+            <div className="flex items-center justify-center gap-1 text-xs sm:text-sm font-medium text-gray-500">
+              <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+              <span>{userLocationText || 'Chennai, Tamil Nadu, India'}</span>
             </div>
-
-            {/* Card 3: Verified & Trusted Card */}
-            <div className="bg-white rounded-3xl p-5 border border-gray-200/80 shadow-2xs space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <h4 className="text-xs font-bold text-[#1A1A2E]">Verified &amp; Trusted</h4>
-              </div>
-
-              <div className="space-y-2 text-xs font-medium">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${isIdentityVerified ? 'text-emerald-500' : 'text-gray-300'}`} />
-                  <span className={isIdentityVerified ? 'text-gray-700' : 'text-gray-400'}>
-                    Identity Verified {isIdentityVerified ? '' : '(Pending)'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${isActiveRecently ? 'text-emerald-500' : 'text-gray-300'}`} />
-                  <span className={isActiveRecently ? 'text-gray-700' : 'text-gray-400'}>
-                    Active on NestMate
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${isPhoneVerified ? 'text-emerald-500' : 'text-gray-300'}`} />
-                  <span className={isPhoneVerified ? 'text-gray-700' : 'text-gray-400'}>
-                    Phone Number Verified
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${isEmailVerified ? 'text-emerald-500' : 'text-gray-300'}`} />
-                  <span className={isEmailVerified ? 'text-gray-700' : 'text-gray-400'}>
-                    Email Verified
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-emerald-50/70 border border-emerald-150/70 rounded-xl p-2.5 flex items-center gap-2 text-[11px] text-emerald-800 font-medium">
-                <Shield className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>A safer community for better living together.</span>
-              </div>
-            </div>
-
-            {/* Card 4: Direct Connection Guarantee Card */}
-            <div className="bg-white rounded-3xl p-5 border border-gray-200/80 shadow-2xs space-y-2.5">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <h4 className="text-xs font-bold text-[#1A1A2E]">Direct &amp; Verified Connection</h4>
-              </div>
-              <ul className="text-[11px] text-gray-600 font-medium space-y-1.5 pl-1">
-                <li className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span>Real community members and authentic profiles</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span>Zero brokerage and transparent living standards</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span>Safe in-app messaging before sharing contact info</span>
-                </li>
-              </ul>
-            </div>
-
           </div>
 
-          {/* ═════════════════════════════════════════════════════════════ */}
-          {/* ── RIGHT COLUMN (Main Content Showcase) ──────────────────── */}
-          {/* ═════════════════════════════════════════════════════════════ */}
-          <div className="lg:col-span-8 space-y-6">
+          <hr className="border-gray-150 my-6 sm:my-7" />
 
-            {/* 1. Breadcrumbs Bar */}
-            <div className="flex items-center justify-between bg-white rounded-2xl px-4 sm:px-5 py-3 border border-gray-200/80 shadow-2xs text-xs">
-              <div className="flex items-center gap-2 min-w-0">
-                <button
-                  type="button"
-                  onClick={() => navigate(-1)}
-                  className="flex items-center gap-1 text-gray-500 hover:text-[#1A1A2E] font-bold transition-colors cursor-pointer shrink-0"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Back</span>
-                </button>
-                <span className="text-gray-300">/</span>
-                <span
-                  onClick={() => navigate('/')}
-                  className="text-gray-400 hover:text-gray-600 cursor-pointer transition-colors truncate hidden sm:inline"
-                >
-                  Home
+          {/* 2. Match Compatibility (Original Engine & Reasons) */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base sm:text-lg font-bold text-[#1A1A2E]">
+                {isOwner ? 'Compatibility with Host & Space' : 'Match Compatibility'}
+              </h2>
+              {user && compatibilityScore > 0 && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#E5501A] bg-[#FFF2EB] px-2.5 py-0.5 rounded-full border border-[#E5501A]/20">
+                  <Sparkles className="w-3 h-3 text-[#E5501A]" />
+                  <span>{compatibilityScore}% Match</span>
                 </span>
-                <span className="text-gray-300 hidden sm:inline">/</span>
-                <span
-                  onClick={() => navigate('/explore?tab=roommates')}
-                  className="text-gray-400 hover:text-gray-600 cursor-pointer transition-colors truncate"
-                >
-                  Flatmates
-                </span>
-                <span className="text-gray-300">/</span>
-                <span className="font-bold text-[#1A1A2E] truncate">
-                  {p.name}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleShare}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 font-bold transition-all cursor-pointer text-xs"
-                >
-                  <Share2 className="w-3 h-3" />
-                  <span>Share</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleToggleSave}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold transition-all cursor-pointer text-xs ${
-                    isSaved
-                      ? 'bg-rose-50 text-rose-600 border-rose-200'
-                      : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-700'
-                  }`}
-                >
-                  <Heart className={`w-3 h-3 ${isSaved ? 'fill-rose-500 text-rose-500' : ''}`} />
-                  <span>{isSaved ? 'Saved' : 'Save'}</span>
-                </button>
-              </div>
+              )}
             </div>
 
-            {/* 2. Location Title Section */}
-            <div className="space-y-1">
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
-                Location
-              </span>
-              <div className="flex items-center gap-1.5 text-base sm:text-lg font-bold text-[#1A1A2E]">
-                <MapPin className="w-4 h-4 text-[#E5501A] shrink-0" />
-                <span>{userLocationText}</span>
-              </div>
-            </div>
-
-            {/* 3. Basic Info 4-Stat Grid (Matching Reference Design) */}
-            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs p-4 sm:p-5">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-3">
-                Basic Info
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-left">
-                {/* Stat 1: Gender */}
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Gender</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-gray-600 font-bold text-xs sm:text-sm">
-                      {p.gender ? (p.gender.toLowerCase() === 'female' ? '♀ Female' : '♂ Male') : 'Any'}
-                    </span>
-                  </div>
+            {user && compatibilityScore > 0 ? (
+              <div className="space-y-3">
+                <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-[#E5501A] to-[#F26428] h-full rounded-full transition-all duration-500 shadow-xs"
+                    style={{ width: `${Math.min(100, compatibilityScore)}%` }}
+                  />
                 </div>
 
-                {/* Stat 2: Approx Rent / Budget */}
+                {matchReasons.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {matchReasons.map((reason, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-2.5 rounded-xl bg-[#FFF9F6] border border-[#E5501A]/15 text-xs text-gray-700">
+                        <Check className="w-3.5 h-3.5 text-[#E5501A] shrink-0 font-bold" />
+                        <span>{reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-2xl bg-[#FFF9F6] border border-[#E5501A]/15 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                <p className="text-xs text-gray-600">
+                  {!user
+                    ? "Sign in to calculate personalized compatibility across lifestyle, budget, and habits."
+                    : !hasUserQuiz
+                      ? "Complete your lifestyle quiz to unlock deep multi-factor compatibility."
+                      : "Compatibility score will appear as mutual preferences align."}
+                </p>
+                {!user ? (
+                  <button
+                    type="button"
+                    onClick={() => useStore.getState().openAuthModal({
+                      title: 'Match Compatibility',
+                      subtitle: 'Sign in to see how well your habits align.',
+                      redirect: `/match/${id}`
+                    })}
+                    className="shrink-0 text-xs font-bold text-[#E5501A] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-[#E5501A]" />
+                    <span>Sign in to match →</span>
+                  </button>
+                ) : !hasUserQuiz ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/preferences')}
+                    className="shrink-0 text-xs font-bold text-[#E5501A] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-[#E5501A]" />
+                    <span>Take quiz →</span>
+                  </button>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          {/* Available Rooms Offered by Room Provider */}
+          {isOwner && ownerListings.length > 0 && (
+            <>
+              <hr className="border-gray-150 my-6 sm:my-7" />
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-base sm:text-lg font-bold text-[#1A1A2E] flex items-center gap-2">
+                      <Building2 className="w-5 h-5 text-[#E5501A]" />
+                      <span>Available Rooms by {p.name}</span>
+                    </h2>
+                    <p className="text-xs text-gray-500 mt-0.5">Explore active spaces and rooms hosted by {p.name}</p>
+                  </div>
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[#FFF2EB] text-[#E5501A] border border-[#E5501A]/20">
+                    {ownerListings.length} {ownerListings.length === 1 ? 'Space' : 'Spaces'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {ownerListings.map((item: any) => {
+                    const itemImg = (item.images && item.images.length > 0 && item.images[0]) ||
+                      'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=600&q=80';
+                    const rentVal = item.partnerShare || item.rent || item.totalRent || 0;
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => navigate(`/room/${item.id}`)}
+                        className="group bg-white rounded-2xl border border-gray-200/90 hover:border-[#E5501A]/50 p-3.5 shadow-2xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="relative aspect-video rounded-xl overflow-hidden mb-3 bg-gray-100">
+                            <img
+                              src={itemImg}
+                              alt={item.title || 'Room'}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                            <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                              <span className="bg-black/75 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                                {item.flatType || 'Room'}
+                              </span>
+                              {item.furnishing && (
+                                <span className="bg-white/90 backdrop-blur-xs text-gray-800 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-2xs">
+                                  {item.furnishing}
+                                </span>
+                              )}
+                            </div>
+                            {item.genderPreference && (
+                              <div className="absolute bottom-2 left-2">
+                                <span className="bg-white/95 backdrop-blur-xs text-[#1A1A2E] text-[10px] font-bold px-2 py-0.5 rounded-full shadow-2xs">
+                                  {item.genderPreference} preferred
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          <h3 className="text-sm font-bold text-[#1A1A2E] group-hover:text-[#E5501A] transition-colors line-clamp-1 mb-1">
+                            {item.title || `${item.flatType || 'Room'} in ${item.locality || item.city}`}
+                          </h3>
+                          <p className="text-xs text-gray-500 flex items-center gap-1 mb-3 line-clamp-1">
+                            <MapPin className="w-3.5 h-3.5 text-[#E5501A] shrink-0" />
+                            <span>{item.locality ? `${item.locality}, ${item.city}` : item.city || 'Bangalore'}</span>
+                          </p>
+                        </div>
+
+                        <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between">
+                          <div>
+                            <span className="text-sm font-extrabold text-[#E5501A]">
+                              ₹{rentVal.toLocaleString('en-IN')}
+                            </span>
+                            <span className="text-[11px] text-gray-400 font-medium"> / month</span>
+                          </div>
+                          <span className="text-xs font-bold text-[#E5501A] group-hover:underline flex items-center gap-1">
+                            <span>View Details</span>
+                            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+
+          <hr className="border-gray-150 my-6 sm:my-7" />
+
+          {/* 3. Basic Info (Owner Hosting Overview vs Seeker Roommate Overview) */}
+          <div className="space-y-4">
+            <h2 className="text-base sm:text-lg font-bold text-[#1A1A2E]">
+              {isOwner ? 'Hosting & Property Overview' : 'Basic Info'}
+            </h2>
+            {isOwner ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6 text-left">
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">
+                  <span className="text-xs text-gray-400 font-medium block mb-1">Host Role</span>
+                  <span className="text-sm font-bold text-[#1A1A2E]">
+                    Room Provider
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-xs text-gray-400 font-medium block mb-1">Monthly Rent</span>
+                  <span className="text-sm font-bold text-[#E5501A]">
+                    {listing
+                      ? `₹ ${rentShare.toLocaleString('en-IN')}/mo`
+                      : 'Contact Host'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-xs text-gray-400 font-medium block mb-1">Security Deposit</span>
+                  <span className="text-sm font-bold text-[#1A1A2E]">
+                    {listing?.deposit
+                      ? `₹ ${listing.deposit.toLocaleString('en-IN')}`
+                      : '2 Months Rent'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-xs text-gray-400 font-medium block mb-1">Property Type</span>
+                  <span className="text-sm font-bold text-[#1A1A2E]">
+                    {listing?.flatType || listing?.propertyType || 'Apartment'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-xs text-gray-400 font-medium block mb-1">Preferred Tenant</span>
+                  <span className="text-sm font-bold text-[#1A1A2E]">
+                    {listing?.genderPreference ? `${listing.genderPreference} preferred` : 'Any (Male / Female)'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-xs text-gray-400 font-medium block mb-1">Furnishing</span>
+                  <span className="text-sm font-bold text-[#1A1A2E]">
+                    {listing?.furnishing || 'Furnished'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-xs text-gray-400 font-medium block mb-1">Available From</span>
+                  <span className="text-sm font-bold text-[#1A1A2E]">
+                    {listing?.availableFrom || 'Immediately'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-xs text-gray-400 font-medium block mb-1">Host on NestMate</span>
+                  <span className="text-sm font-bold text-[#1A1A2E]">
+                    {memberDuration}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6 text-left">
+                <div>
+                  <span className="text-xs text-gray-400 font-medium block mb-1">Gender</span>
+                  <span className="text-sm font-bold text-[#1A1A2E]">
+                    {p.gender ? (p.gender.toLowerCase() === 'female' ? '♀ Female' : '♂ Male') : 'Any'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-xs text-gray-400 font-medium block mb-1">
                     {listing ? 'Approx Rent' : 'Budget'}
                   </span>
-                  <span className="font-extrabold text-sm sm:text-base text-[#1A1A2E]">
+                  <span className="text-sm font-bold text-[#1A1A2E]">
                     {listing
                       ? `₹ ${rentShare.toLocaleString('en-IN')}`
                       : p.budget
@@ -869,52 +875,62 @@ export default function MatchDetail() {
                   </span>
                 </div>
 
-                {/* Stat 3: Occupancy / Looking For */}
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Looking For</span>
-                  <span className="font-bold text-xs sm:text-sm text-[#1A1A2E] truncate block">
-                    {listing
-                      ? (listing.flatType || listing.propertyType || 'Shared Room')
-                      : (p.preferredRoomType || 'Flatmate')}
+                  <span className="text-xs text-gray-400 font-medium block mb-1">Occupancy</span>
+                  <span className="text-sm font-bold text-[#1A1A2E]">
+                    {listing?.flatType || p.preferredRoomType || 'Single'}
                   </span>
                 </div>
 
-                {/* Stat 4: Profession / Role */}
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Occupation</span>
-                  <span className="font-bold text-xs sm:text-sm text-[#1A1A2E] truncate block">
-                    {p.profession || (p.role === 'owner' ? 'Property Host' : 'Working Professional')}
+                  <span className="text-xs text-gray-400 font-medium block mb-1">Looking For</span>
+                  <span className="text-sm font-bold text-[#1A1A2E]">
+                    {listing ? (listing.propertyType || 'Roommate') : 'Any'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-xs text-gray-400 font-medium block mb-1">Occupation</span>
+                  <span className="text-sm font-bold text-[#1A1A2E] truncate block">
+                    {p.profession || 'Working Professional'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-xs text-gray-400 font-medium block mb-1">Member Since</span>
+                  <span className="text-sm font-bold text-[#1A1A2E]">
+                    {memberDuration}
                   </span>
                 </div>
               </div>
-            </div>
+            )}
+          </div>
 
-            {/* 4. Pictures Carousel Showcase (If active room exists or profile photos) */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
-                  {listing ? 'Active Room & Living Space' : 'Profile Showcase'}
-                </span>
-                {listing && (
-                  <button
-                    onClick={() => navigate(`/room/${listing.id}`)}
-                    className="text-xs font-bold text-[#E5501A] hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>View full listing</span>
-                    <span>→</span>
-                  </button>
-                )}
-              </div>
+          <hr className="border-gray-150 my-6 sm:my-7" />
 
-              {roomPhotos.length > 0 ? (
-                <div className="relative rounded-3xl overflow-hidden bg-gray-900 border border-gray-200/80 shadow-2xs group aspect-[16/9] max-h-[390px]">
+          {/* 4. Pictures (Carousel - only if photos exist) */}
+          {roomPhotos.length > 0 && (
+            <>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base sm:text-lg font-bold text-[#1A1A2E]">Pictures</h2>
+                  {listing && (
+                    <button
+                      onClick={() => navigate(`/room/${listing.id}`)}
+                      className="text-xs font-bold text-[#E5501A] hover:underline cursor-pointer"
+                    >
+                      View listing →
+                    </button>
+                  )}
+                </div>
+
+                <div className="relative rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 aspect-[16/10] max-h-[380px] flex items-center justify-center">
                   <img
                     src={roomPhotos[activeRoomImgIdx] || roomPhotos[0]}
-                    alt="Space preview"
+                    alt="Space"
                     className="w-full h-full object-cover select-none"
                   />
 
-                  {/* Left / Right Chevron Controls */}
                   {roomPhotos.length > 1 && (
                     <>
                       <button
@@ -923,10 +939,10 @@ export default function MatchDetail() {
                           e.stopPropagation();
                           setActiveRoomImgIdx(idx => (idx === 0 ? roomPhotos.length - 1 : idx - 1));
                         }}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 hover:bg-white text-[#1A1A2E] shadow-md flex items-center justify-center transition-all opacity-90 hover:opacity-100 hover:scale-105 cursor-pointer z-10"
-                        aria-label="Previous photo"
+                        className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-gray-700 shadow-md flex items-center justify-center cursor-pointer transition-transform hover:scale-105"
+                        aria-label="Previous image"
                       >
-                        <ChevronLeft className="w-5 h-5" />
+                        <ChevronLeft className="w-4 h-4" />
                       </button>
                       <button
                         type="button"
@@ -934,562 +950,347 @@ export default function MatchDetail() {
                           e.stopPropagation();
                           setActiveRoomImgIdx(idx => (idx === roomPhotos.length - 1 ? 0 : idx + 1));
                         }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 hover:bg-white text-[#1A1A2E] shadow-md flex items-center justify-center transition-all opacity-90 hover:opacity-100 hover:scale-105 cursor-pointer z-10"
-                        aria-label="Next photo"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-gray-700 shadow-md flex items-center justify-center cursor-pointer transition-transform hover:scale-105"
+                        aria-label="Next image"
                       >
-                        <ChevronRight className="w-5 h-5" />
+                        <ChevronRight className="w-4 h-4" />
                       </button>
+
+                      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-black/40 px-2.5 py-1 rounded-full">
+                        {roomPhotos.map((_, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setActiveRoomImgIdx(i)}
+                            className={`rounded-full transition-all ${
+                              i === activeRoomImgIdx ? 'w-3.5 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/60'
+                            }`}
+                            aria-label={`Slide ${i + 1}`}
+                          />
+                        ))}
+                      </div>
                     </>
                   )}
-
-                  {/* Top Badge: Room Title & Locality */}
-                  <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md text-white text-xs font-bold px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>{listing?.title || `${p.name}'s Room`}{userLocality ? ` · ${userLocality}` : ''}</span>
-                  </div>
-
-                  {/* Bottom Counter Pill */}
-                  <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full">
-                    {activeRoomImgIdx + 1} / {roomPhotos.length}
-                  </div>
-
-                  {/* Bottom Dot Indicators */}
-                  {roomPhotos.length > 1 && (
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-black/40 backdrop-blur-xs px-3 py-1.5 rounded-full">
-                      {roomPhotos.map((_, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => setActiveRoomImgIdx(i)}
-                          className={`rounded-full transition-all cursor-pointer ${
-                            i === activeRoomImgIdx
-                              ? 'w-4 h-1.5 bg-white'
-                              : 'w-1.5 h-1.5 bg-white/50 hover:bg-white/80'
-                          }`}
-                          aria-label={`Go to slide ${i + 1}`}
-                        />
-                      ))}
-                    </div>
-                  )}
                 </div>
-              ) : (
-                /* Warm Seeker Hero Banner */
-                <div className="rounded-3xl p-6 sm:p-8 bg-gradient-to-r from-orange-50 via-amber-50/50 to-indigo-50/40 border border-gray-200/80 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-6">
-                  <div className="space-y-2 text-center sm:text-left">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-gray-200 text-xs font-bold text-gray-700 shadow-2xs">
-                      <Sparkles className="w-3.5 h-3.5 text-[#E5501A]" />
-                      <span>Actively Looking for Roommates</span>
+              </div>
+
+              <hr className="border-gray-150 my-6 sm:my-7" />
+            </>
+          )}
+
+          {/* 5. Trust & Verification (Original Trust Signals) */}
+          <div className="space-y-4">
+            <h2 className="text-base sm:text-lg font-bold text-[#1A1A2E]">Trust &amp; Verification</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-left">
+              <div className={`p-3 rounded-2xl border flex items-center gap-2.5 text-xs font-bold ${
+                isIdentityVerified ? 'bg-emerald-50/70 border-emerald-200 text-emerald-800' : 'bg-[#FAF8F5] border-gray-150 text-gray-500'
+              }`}>
+                <CheckCircle2 className={`w-4 h-4 shrink-0 ${isIdentityVerified ? 'text-emerald-600' : 'text-gray-400'}`} />
+                <span>{isOwner ? 'Host ID' : 'ID'} {isIdentityVerified ? 'Verified' : 'Pending'}</span>
+              </div>
+
+              <div className={`p-3 rounded-2xl border flex items-center gap-2.5 text-xs font-bold ${
+                isPhoneVerified ? 'bg-emerald-50/70 border-emerald-200 text-emerald-800' : 'bg-[#FAF8F5] border-gray-150 text-gray-500'
+              }`}>
+                <CheckCircle2 className={`w-4 h-4 shrink-0 ${isPhoneVerified ? 'text-emerald-600' : 'text-gray-400'}`} />
+                <span>Phone Verified</span>
+              </div>
+
+              <div className="p-3 rounded-2xl border bg-[#FAF8F5] border-gray-150 text-gray-700 flex items-center gap-2.5 text-xs font-bold">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{isOwner ? 'Verified Host' : 'Active Member'}</span>
+              </div>
+
+              <div className="p-3 rounded-2xl border bg-[#FAF8F5] border-gray-150 text-gray-700 flex items-center gap-2.5 text-xs font-bold">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{isOwner ? 'Direct Owner (0 Brokerage)' : 'Zero Brokerage'}</span>
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-gray-150 my-6 sm:my-7" />
+
+          {/* 6. Preferences (Original Illustrated Badges) */}
+          <div className="space-y-4">
+            <h2 className="text-base sm:text-lg font-bold text-[#1A1A2E]">Preferences</h2>
+            {preferencesList.length > 0 ? (
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-4 text-center">
+                {preferencesList.map((pref, idx) => (
+                  <div key={idx} className="flex flex-col items-center">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#F5F8F6] border border-gray-150 flex items-center justify-center text-gray-700 shadow-2xs mb-2 hover:scale-105 transition-transform">
+                      <pref.icon className="w-6 h-6 stroke-[1.75]" />
+                    </div>
+                    <span className="text-xs font-medium text-gray-700 leading-tight">
+                      {pref.label}
                     </span>
-                    <h3 className="text-xl font-extrabold text-[#1A1A2E]">
-                      {p.name} is seeking a friendly home in {userCity}
-                    </h3>
-                    <p className="text-xs text-gray-600 max-w-md">
-                      {p.bio && p.bio.trim().length > 0
-                        ? `"${p.bio.length > 120 ? p.bio.slice(0, 117) + '...' : p.bio}"`
-                        : "Looking for like-minded flatmates to share a clean, peaceful living space and good vibes."}
-                    </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleConnectOrChat}
-                    className="shrink-0 px-5 py-3 rounded-2xl font-bold text-xs bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-xs flex items-center gap-2 cursor-pointer transition-transform active:scale-95"
-                  >
-                    <Send className="w-4 h-4" />
-                    <span>Connect with {p.name}</span>
-                  </button>
-                </div>
-              )}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 italic">No specific preferences recorded yet.</p>
+            )}
+          </div>
 
-            {/* 5. Preferences Section (Circular Illustrated Badges) */}
-            <div className="space-y-3 pt-2">
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
-                Preferences
-              </span>
-              {preferencesList.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-5 sm:gap-6">
-                  {preferencesList.map((pref, idx) => (
-                    <div key={idx} className="flex flex-col items-center gap-1.5 group cursor-default">
-                      <div className={`w-14 h-14 rounded-full border flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform ${pref.bg}`}>
-                        <pref.icon className="w-6 h-6 stroke-[1.8]" />
-                      </div>
-                      <span className="text-[11px] font-bold text-gray-700 tracking-tight">
-                        {pref.label}
+          <hr className="border-gray-150 my-6 sm:my-7" />
+
+          {/* 7. Living Habits & Schedule (Original Detailed Breakdown) */}
+          {hasLifestylePreferences && (
+            <>
+              <div className="space-y-4">
+                <h2 className="text-base sm:text-lg font-bold text-[#1A1A2E]">Living Habits &amp; Schedule</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+                  {resolvedPreferences.sleep_schedule && (
+                    <div className="p-3 rounded-2xl bg-[#F5F8F6] border border-gray-150">
+                      <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Sleep Schedule</span>
+                      <span className="font-bold text-xs text-[#1A1A2E]">
+                        {resolvedPreferences.sleep_schedule === 'early_bird' ? 'Early Bird (10 PM)' : 'Night Owl (1 AM+)'}
                       </span>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-gray-400 italic">No specific lifestyle preferences recorded yet.</p>
-              )}
-            </div>
+                  )}
 
-            {/* 6. Highlights Section (Checkmark Pills) */}
-            <div className="space-y-3 pt-2">
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
-                Highlights
-              </span>
-              {highlightsList.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-                  {highlightsList.map((highlight, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-emerald-50/70 border border-emerald-200/80 text-emerald-800 text-xs font-bold shadow-2xs"
-                    >
-                      <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
-                      <span>{highlight}</span>
+                  {resolvedPreferences.cleanliness && (
+                    <div className="p-3 rounded-2xl bg-[#F5F8F6] border border-gray-150">
+                      <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Cleanliness</span>
+                      <span className="font-bold text-xs text-[#1A1A2E]">
+                        {resolvedPreferences.cleanliness === 'very' ? 'Very Clean' : 'Moderate'}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-gray-400 italic">No specific highlights listed yet.</p>
-              )}
-            </div>
+                  )}
 
-            {/* 7. Detailed Lifestyle & Habits Grid */}
-            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200/80 shadow-2xs space-y-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center shrink-0">
-                  <SlidersHorizontal className="w-4 h-4" />
-                </div>
-                <h3 className="text-base font-bold text-[#1A1A2E]">
-                  Lifestyle &amp; Living Habits
-                </h3>
-              </div>
+                  {resolvedPreferences.smoking && (
+                    <div className="p-3 rounded-2xl bg-[#F5F8F6] border border-gray-150">
+                      <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Smoking</span>
+                      <span className="font-bold text-xs text-[#1A1A2E]">
+                        {resolvedPreferences.smoking === 'never' ? 'Non-Smoker' : 'Occasional'}
+                      </span>
+                    </div>
+                  )}
 
-              {hasLifestylePreferences ? (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-                  {/* Sleep Time */}
-                  <div className="bg-[#FBF9F6]/90 border border-gray-200/80 rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-white border border-gray-200/70 flex items-center justify-center text-indigo-500 shrink-0 shadow-2xs">
-                      <Moon className="w-4 h-4" />
+                  {resolvedPreferences.food_pref && (
+                    <div className="p-3 rounded-2xl bg-[#F5F8F6] border border-gray-150">
+                      <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Diet</span>
+                      <span className="font-bold text-xs text-[#1A1A2E]">
+                        {resolvedPreferences.food_pref === 'veg' ? 'Pure Vegetarian' : 'Non-Vegetarian'}
+                      </span>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Sleep Time</p>
-                      <p className="text-xs font-bold text-[#1A1A2E] truncate">
-                        {getQuizLabel('sleep_time', resolvedPreferences.sleep_time)}
-                      </p>
-                    </div>
-                  </div>
+                  )}
 
-                  {/* Wake Up Time */}
-                  <div className="bg-[#FBF9F6]/90 border border-gray-200/80 rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-white border border-gray-200/70 flex items-center justify-center text-amber-500 shrink-0 shadow-2xs">
-                      <Sun className="w-4 h-4" />
+                  {resolvedPreferences.guests && (
+                    <div className="p-3 rounded-2xl bg-[#F5F8F6] border border-gray-150">
+                      <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Guests</span>
+                      <span className="font-bold text-xs text-[#1A1A2E]">
+                        {resolvedPreferences.guests === 'rarely' ? 'Rare Guests' : 'Guests Welcome'}
+                      </span>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Wake Up Time</p>
-                      <p className="text-xs font-bold text-[#1A1A2E] truncate">
-                        {getQuizLabel('wake_time', resolvedPreferences.wake_time)}
-                      </p>
-                    </div>
-                  </div>
+                  )}
 
-                  {/* Food Preference */}
-                  <div className="bg-[#FBF9F6]/90 border border-gray-200/80 rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-white border border-gray-200/70 flex items-center justify-center text-emerald-500 shrink-0 shadow-2xs">
-                      <Utensils className="w-4 h-4" />
+                  {resolvedPreferences.pets && (
+                    <div className="p-3 rounded-2xl bg-[#F5F8F6] border border-gray-150">
+                      <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Pets</span>
+                      <span className="font-bold text-xs text-[#1A1A2E]">
+                        {resolvedPreferences.pets === 'yes' ? 'Pet Friendly' : 'No Pets'}
+                      </span>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Food Preference</p>
-                      <p className="text-xs font-bold text-[#1A1A2E] truncate">
-                        {getQuizLabel('food_pref', resolvedPreferences.food_pref)}
-                      </p>
+                  )}
+
+                  {resolvedPreferences.work_schedule && (
+                    <div className="p-3 rounded-2xl bg-[#F5F8F6] border border-gray-150">
+                      <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Work Style</span>
+                      <span className="font-bold text-xs text-[#1A1A2E]">
+                        {resolvedPreferences.work_schedule === 'wfh' ? 'Work From Home' : 'Office Going'}
+                      </span>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Smoking */}
-                  <div className="bg-[#FBF9F6]/90 border border-gray-200/80 rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-white border border-gray-200/70 flex items-center justify-center text-rose-500 shrink-0 shadow-2xs">
-                      <Wind className="w-4 h-4" />
+                  {resolvedPreferences.social_vibe && (
+                    <div className="p-3 rounded-2xl bg-[#F5F8F6] border border-gray-150">
+                      <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Social Vibe</span>
+                      <span className="font-bold text-xs text-[#1A1A2E]">
+                        {resolvedPreferences.social_vibe === 'quiet' ? 'Quiet & Chill' : 'Social & Outgoing'}
+                      </span>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Smoking</p>
-                      <p className="text-xs font-bold text-[#1A1A2E] truncate">
-                        {getQuizLabel('smoking', resolvedPreferences.smoking)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Drinking */}
-                  <div className="bg-[#FBF9F6]/90 border border-gray-200/80 rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-white border border-gray-200/70 flex items-center justify-center text-purple-500 shrink-0 shadow-2xs">
-                      <Wine className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Drinking</p>
-                      <p className="text-xs font-bold text-[#1A1A2E] truncate">
-                        {getQuizLabel('drinking', resolvedPreferences.drinking)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Guests */}
-                  <div className="bg-[#FBF9F6]/90 border border-gray-200/80 rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-white border border-gray-200/70 flex items-center justify-center text-sky-500 shrink-0 shadow-2xs">
-                      <Users className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Guests</p>
-                      <p className="text-xs font-bold text-[#1A1A2E] truncate">
-                        {getQuizLabel('guests', resolvedPreferences.guests)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Cleanliness */}
-                  <div className="bg-[#FBF9F6]/90 border border-gray-200/80 rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-white border border-gray-200/70 flex items-center justify-center text-teal-500 shrink-0 shadow-2xs">
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Cleanliness</p>
-                      <p className="text-xs font-bold text-[#1A1A2E] truncate">
-                        {getQuizLabel('cleanliness', resolvedPreferences.cleanliness)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Work Mode */}
-                  <div className="bg-[#FBF9F6]/90 border border-gray-200/80 rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-white border border-gray-200/70 flex items-center justify-center text-blue-500 shrink-0 shadow-2xs">
-                      <Briefcase className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Work Mode</p>
-                      <p className="text-xs font-bold text-[#1A1A2E] truncate">
-                        {getQuizLabel('work_mode', resolvedPreferences.work_mode)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs text-gray-500 font-medium italic">
-                  {p.name} has not filled out detailed lifestyle preferences yet.
-                </p>
-              )}
-            </div>
-
-            {/* 8. About [Name] Section */}
-            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200/80 shadow-2xs space-y-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center shrink-0">
-                  <User className="w-4 h-4" />
-                </div>
-                <h3 className="text-base font-bold text-[#1A1A2E]">
-                  About {p.name}
-                </h3>
-              </div>
-
-              <p className="text-xs sm:text-sm text-gray-600 leading-relaxed font-normal">
-                {p.bio && p.bio.trim().length > 0
-                  ? p.bio
-                  : `${p.name} is a member of the NestMate community looking to connect with friendly and responsible flatmates.`}
-              </p>
-
-              {/* 3-Metric Statistics Bar */}
-              <div className="grid grid-cols-3 pt-4 text-center divide-x divide-gray-150 border-t border-gray-100">
-                <div className="px-2 flex items-center justify-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center shrink-0">
-                    <Calendar className="w-4 h-4" />
-                  </div>
-                  <div className="text-left min-w-0">
-                    <p className="text-sm sm:text-base font-bold text-[#1A1A2E] leading-tight truncate">{memberDuration.value}</p>
-                    <p className="text-[10px] text-gray-400 font-medium truncate">{memberDuration.label}</p>
-                  </div>
-                </div>
-
-                <div className="px-2 flex items-center justify-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center shrink-0">
-                    <Users className="w-4 h-4" />
-                  </div>
-                  <div className="text-left min-w-0">
-                    <p className="text-sm sm:text-base font-bold text-[#1A1A2E] leading-tight truncate">{acceptedMatches}</p>
-                    <p className="text-[10px] text-gray-400 font-medium truncate">{acceptedMatches === 1 ? 'Connected' : 'Matches'}</p>
-                  </div>
-                </div>
-
-                <div className="px-2 flex items-center justify-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center shrink-0">
-                    <Star className="w-4 h-4 fill-[#E5501A]" />
-                  </div>
-                  <div className="text-left min-w-0">
-                    <p className="text-sm sm:text-base font-bold text-[#1A1A2E] leading-tight truncate">
-                      {totalReviews > 0 ? `${positivePercentage}%` : (isIdentityVerified ? 'Verified' : 'Active')}
-                    </p>
-                    <p className="text-[10px] text-gray-400 font-medium truncate">
-                      {totalReviews > 0 ? 'Positive Reviews' : 'Community Member'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 9. House Rules & Living Standards (If host or room rules exist) */}
-            {(listing?.houseRules?.length > 0 || p.householdExpectations) && (
-              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200/80 shadow-2xs space-y-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center shrink-0">
-                    <Shield className="w-4 h-4" />
-                  </div>
-                  <h3 className="text-base font-bold text-[#1A1A2E]">
-                    House Rules &amp; Guidelines
-                  </h3>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-medium text-gray-700">
-                  {listing?.houseRules && listing.houseRules.length > 0 ? (
-                    listing.houseRules.map((rule: string, i: number) => (
-                      <div key={i} className="flex items-center gap-2 p-3 rounded-2xl bg-gray-50/90 border border-gray-200/80">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                        <span>{rule}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-2 p-3 rounded-2xl bg-gray-50/90 border border-gray-200/80">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                        <span>Smoking: {p.householdExpectations?.smokingPolicy === 'no_smoking' ? 'No smoking inside' : 'Smoking allowed'}</span>
-                      </div>
-                      <div className="flex items-center gap-2 p-3 rounded-2xl bg-gray-50/90 border border-gray-200/80">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                        <span>Pets: {p.householdExpectations?.petPolicy === 'no_pets' ? 'No pets allowed' : 'Pet friendly'}</span>
-                      </div>
-                    </>
                   )}
                 </div>
               </div>
-            )}
 
-            {/* 10. Neighborhood & Transit Explorer */}
-            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200/80 shadow-2xs space-y-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center shrink-0">
-                  <MapPin className="w-4 h-4" />
-                </div>
-                <h3 className="text-base font-bold text-[#1A1A2E]">
-                  Neighborhood &amp; Transit
-                </h3>
-              </div>
+              <hr className="border-gray-150 my-6 sm:my-7" />
+            </>
+          )}
 
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-                {/* Visual Map preview card */}
-                <div className="md:col-span-7 h-52 sm:h-56 rounded-2xl bg-[#EBF3FA] border border-[#D5E5F5] relative overflow-hidden flex items-center justify-center p-3 select-none">
-                  {/* Subtle map pattern */}
-                  <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                      <pattern id="match-street-grid-clean" width="48" height="48" patternUnits="userSpaceOnUse">
-                        <path d="M 0 24 L 48 24 M 24 0 L 24 48" fill="none" stroke="#D3E2F2" strokeWidth="1.2" />
-                        <circle cx="24" cy="24" r="1.5" fill="#BFDBFE" />
-                      </pattern>
-                    </defs>
-                    <rect width="100%" height="100%" fill="url(#match-street-grid-clean)" />
-                    {/* Primary Highway Curves */}
-                    <path d="M -20 140 Q 140 80 420 110" fill="none" stroke="#FEE2C5" strokeWidth="12" />
-                    <path d="M -20 140 Q 140 80 420 110" fill="none" stroke="#FDBA74" strokeWidth="3" />
-                    {/* Secondary Cross Streets */}
-                    <path d="M 90 -20 Q 140 100 180 240" fill="none" stroke="#CBD5E1" strokeWidth="5" />
-                    <path d="M 260 -20 Q 230 110 320 240" fill="none" stroke="#CBD5E1" strokeWidth="4" />
-                  </svg>
-
-                  {/* Main Selected Pin */}
-                  <div className="relative z-10 flex items-center gap-2 bg-white/95 backdrop-blur-xs border border-gray-200/90 rounded-2xl px-3.5 py-2 shadow-md">
-                    <div className="w-7 h-7 rounded-full bg-[#E5501A] text-white flex items-center justify-center shrink-0 shadow-xs">
-                      <MapPin className="w-4 h-4 fill-white" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-[#1A1A2E] leading-tight">
-                        {userLocality || userCity || 'Location'}
-                      </p>
-                      <p className="text-[10px] text-gray-500 font-medium">
-                        {userCity || 'India'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Column: Quick Transit Exploration Links */}
-                <div className="md:col-span-5 flex flex-col justify-between h-full space-y-3">
-                  <div>
-                    <h4 className="text-sm font-bold text-[#1A1A2E]">
-                      {userLocality ? `${userLocality}, ` : ''}{userCity || 'Neighborhood'}
-                    </h4>
-                    <p className="text-xs text-gray-500 leading-relaxed mt-0.5">
-                      {userCity ? `Popular residential area in ${userCity} with local amenities and transit connectivity.` : 'Local area with nearby amenities and transit connectivity.'}
-                    </p>
-                  </div>
-
-                  <div className="space-y-1.5 text-xs">
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Bus Stop near ${userLocality}, ${userCity}`)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-between p-2 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-100 transition-colors group"
-                    >
-                      <div className="flex items-center gap-2 text-gray-700 font-medium truncate">
-                        <Bus className="w-3.5 h-3.5 text-sky-500 shrink-0" />
-                        <span className="truncate">Public Transit &amp; Bus Stops</span>
-                      </div>
-                      <span className="font-bold text-[11px] text-[#E5501A] group-hover:underline shrink-0 flex items-center gap-0.5">
-                        <span>Explore</span>
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </span>
-                    </a>
-
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Supermarket near ${userLocality}, ${userCity}`)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-between p-2 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-100 transition-colors group"
-                    >
-                      <div className="flex items-center gap-2 text-gray-700 font-medium truncate">
-                        <ShoppingBag className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-                        <span className="truncate">Markets &amp; Groceries</span>
-                      </div>
-                      <span className="font-bold text-[11px] text-[#E5501A] group-hover:underline shrink-0 flex items-center gap-0.5">
-                        <span>Explore</span>
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </span>
-                    </a>
-
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Metro Station near ${userLocality}, ${userCity}`)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-between p-2 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-100 transition-colors group"
-                    >
-                      <div className="flex items-center gap-2 text-gray-700 font-medium truncate">
-                        <Compass className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                        <span className="truncate">Metro &amp; Rapid Rail</span>
-                      </div>
-                      <span className="font-bold text-[11px] text-[#E5501A] group-hover:underline shrink-0 flex items-center gap-0.5">
-                        <span>Explore</span>
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </span>
-                    </a>
-
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Hospital near ${userLocality}, ${userCity}`)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-between p-2 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-100 transition-colors group"
-                    >
-                      <div className="flex items-center gap-2 text-gray-700 font-medium truncate">
-                        <Hospital className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                        <span className="truncate">Healthcare &amp; Clinics</span>
-                      </div>
-                      <span className="font-bold text-[11px] text-[#E5501A] group-hover:underline shrink-0 flex items-center gap-0.5">
-                        <span>Explore</span>
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </span>
-                    </a>
-                  </div>
-
-                  <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${userLocality}, ${userCity}`)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-2 rounded-xl font-bold text-xs text-[#1A1A2E] bg-white hover:bg-gray-50 border border-gray-200/90 transition-colors flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+          {/* 8. Highlights (Pill Badges with Checkmark) */}
+          <div className="space-y-4">
+            <h2 className="text-base sm:text-lg font-bold text-[#1A1A2E]">Highlights</h2>
+            {highlightsList.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                {highlightsList.map((highlight, idx) => (
+                  <div
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#EBF6FF] text-[#1E70B8] border border-blue-100 text-xs font-medium shadow-2xs"
                   >
-                    <ExternalLink className="w-3 h-3 text-gray-500" />
-                    <span>View on Google Maps</span>
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            {/* 11. Community Reviews & Vouches Card */}
-            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200/80 shadow-2xs relative overflow-hidden">
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center shrink-0">
-                    <Star className="w-4 h-4 fill-[#E5501A]" />
+                    <Check className="w-3.5 h-3.5 text-[#1E70B8] stroke-[2.5]" />
+                    <span>{highlight}</span>
                   </div>
-                  <h3 className="text-base font-bold text-[#1A1A2E]">
-                    Community Reviews &amp; Vouches
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setReviewModalOpen(true)}
-                  className="px-4 py-2 rounded-xl font-bold text-xs bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-xs cursor-pointer"
-                >
-                  Write a Vouch
-                </button>
+                ))}
               </div>
+            ) : (
+              <p className="text-xs text-gray-400 italic">No specific highlights listed yet.</p>
+            )}
+          </div>
 
-              {reviews.length > 0 ? (
-                <div className="space-y-3">
-                  {reviews.map((rev) => (
-                    <div key={rev.id} className="p-3.5 rounded-2xl bg-[#FBF9F6] border border-gray-150">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-bold text-[#1A1A2E]">{rev.reviewerName}</span>
-                        <div className="flex items-center gap-0.5">
-                          {[...Array(5)].map((_, i) => (
-                            <Star
-                              key={i}
-                              className={`w-3.5 h-3.5 ${i < rev.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}`}
-                            />
-                          ))}
-                        </div>
+          <hr className="border-gray-150 my-6 sm:my-7" />
+
+          {/* 9. Amenities (Clean Circular Icons) */}
+          {listing?.amenities && listing.amenities.length > 0 && (
+            <>
+              <div className="space-y-4">
+                <h2 className="text-base sm:text-lg font-bold text-[#1A1A2E]">Amenities</h2>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-4 text-center">
+                  {listing.amenities.map((amenity: string, idx: number) => (
+                    <div key={idx} className="flex flex-col items-center">
+                      <div className="w-13 h-13 rounded-full bg-gray-50 border border-gray-150 flex items-center justify-center text-gray-700 shadow-2xs mb-1.5">
+                        <Sparkles className="w-5 h-5 text-gray-600" />
                       </div>
-                      <p className="text-xs text-gray-600">{rev.text}</p>
+                      <span className="text-xs font-medium text-gray-700 leading-tight">
+                        {amenity}
+                      </span>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="py-8 px-4 flex flex-col items-center justify-center text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center mb-3">
-                    <MessageSquare className="w-6 h-6" />
-                  </div>
-                  <h4 className="text-sm font-bold text-[#1A1A2E] mb-1">No reviews yet</h4>
-                  <p className="text-xs text-gray-500 max-w-sm mb-4">
-                    Be the first person to share your experience or vouch for {p.name}'s character.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setReviewModalOpen(true)}
-                    className="px-5 py-2.5 rounded-full font-bold text-xs bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-xs cursor-pointer"
-                  >
-                    Write a Vouch
-                  </button>
+              </div>
+
+              <hr className="border-gray-150 my-6 sm:my-7" />
+            </>
+          )}
+
+          {/* 10. House Rules & Guidelines (Only if Listing Associated) */}
+          {listing?.houseRules && listing.houseRules.length > 0 && (
+            <>
+              <div className="space-y-4">
+                <h2 className="text-base sm:text-lg font-bold text-[#1A1A2E]">House Rules &amp; Guidelines</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {listing.houseRules.map((rule: string, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2 p-2.5 rounded-xl bg-[#F5F8F6] border border-gray-150 text-xs text-gray-700">
+                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 stroke-[2.5]" />
+                      <span>{rule}</span>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
+
+              <hr className="border-gray-150 my-6 sm:my-7" />
+            </>
+          )}
+
+          {/* 11. Description / About */}
+          <div className="space-y-3">
+            <h2 className="text-base sm:text-lg font-bold text-[#1A1A2E]">
+              {isOwner ? `About Host ${p.name}` : `About ${p.name}`}
+            </h2>
+            <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
+              {p.bio && p.bio.trim().length > 0
+                ? p.bio
+                : isOwner
+                  ? `Property Host offering clean, safe, and comfortable living spaces in ${userCity || 'the city'}. Direct owner, zero brokerage, transparent house terms.`
+                  : "Looking for friendly, peaceful flatmates to share a clean living space and good vibes."}
+            </p>
+          </div>
+
+          <hr className="border-gray-150 my-6 sm:my-7" />
+
+          {/* 12. Neighborhood & Transit (Original Locality & Commute Details) */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base sm:text-lg font-bold text-[#1A1A2E]">Neighborhood &amp; Transit</h2>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${userLocality}, ${userCity}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-bold text-[#E5501A] hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>Google Maps</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className="p-3 rounded-2xl bg-[#F5F8F6] border border-gray-150 flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                  <Train className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-gray-400 block">Metro Connectivity</span>
+                  <span className="text-xs font-bold text-[#1A1A2E]">Close to Station</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-[#F5F8F6] border border-gray-150 flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <Bus className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-gray-400 block">Public Transport</span>
+                  <span className="text-xs font-bold text-[#1A1A2E]">Frequent Busses</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-[#F5F8F6] border border-gray-150 flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                  <ShoppingBag className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-gray-400 block">Local Market</span>
+                  <span className="text-xs font-bold text-[#1A1A2E]">Groceries Nearby</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-gray-150 my-6 sm:my-7" />
+
+          {/* 13. Safety & Report Host / User */}
+          <div className="flex items-center justify-between py-1 text-xs text-gray-500">
+            <span>{isOwner ? 'Incorrect listing details or suspicious host?' : 'Not looking good or fake?'}</span>
+            <button
+              type="button"
+              onClick={() => setReportModalOpen(true)}
+              className="px-4 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:text-amber-600 hover:border-amber-200 text-xs font-semibold cursor-pointer transition-colors"
+            >
+              {isOwner ? 'Report Host / Space' : 'Report User'}
+            </button>
           </div>
 
         </div>
 
       </div>
 
-      {/* ── Mobile Floating Bottom Action Bar ──────────────────────────── */}
-      <div className="fixed bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-gray-200 z-40 lg:hidden flex gap-2 shadow-lg">
+      {/* ── Mobile Floating Action Bar (NestMate Orange Pills) ── */}
+      <div className="fixed bottom-0 left-0 right-0 px-4 py-3 bg-white/95 backdrop-blur-xl border-t border-gray-200/80 z-40 lg:hidden flex items-center justify-center gap-3 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <button
-          onClick={handleToggleSave}
-          aria-label={isSaved ? 'Remove from saved' : 'Save profile'}
-          className={`p-3 rounded-2xl border flex items-center justify-center shrink-0 min-h-[44px] cursor-pointer ${isSaved ? 'bg-rose-50 border-rose-200 text-rose-600' : 'border-gray-200 text-gray-700 bg-white'}`}
-        >
-          <Heart className={`w-5 h-5 ${isSaved ? 'fill-rose-500 text-rose-500' : ''}`} />
-        </button>
-        <button
-          onClick={handleCallUser}
-          className="p-3 rounded-2xl bg-[#0F9D58] hover:bg-[#0B8043] text-white flex items-center justify-center shrink-0 min-h-[44px] cursor-pointer shadow-xs"
-          title="Call"
-        >
-          <Phone className="w-5 h-5" />
-        </button>
-        <button
+          type="button"
           onClick={handleConnectOrChat}
           disabled={connecting || connectState === 'pending_sent'}
-          className="flex-1 min-h-[44px] py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer bg-[#E5501A] hover:bg-[#D0400B] text-white"
+          className="flex-1 max-w-[200px] h-11 px-5 rounded-full font-bold text-xs sm:text-sm bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-85"
         >
-          <MessageCircle className="w-4 h-4" />
-          <span>
-            {connectState === 'pending_sent' ? 'Request Sent' :
-              connectState === 'pending_received' ? 'Accept Request' :
-                connectState === 'connected' ? 'Message' : 'Connect & Chat'}
-          </span>
+          {connecting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <>
+              <MessageCircle className="w-4 h-4" />
+              <span>
+                {connectState === 'pending_sent' ? 'Requested' :
+                  connectState === 'pending_received' ? 'Accept' :
+                    connectState === 'connected' ? 'Message' : (isOwner ? 'Chat with Host' : 'Chat')}
+              </span>
+            </>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleCallUser}
+          className="flex-1 max-w-[200px] h-11 px-5 rounded-full font-bold text-xs sm:text-sm bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+        >
+          <Phone className="w-4 h-4" />
+          <span>{isOwner ? 'Call Host' : 'Call'}</span>
         </button>
       </div>
 
@@ -1544,51 +1345,7 @@ export default function MatchDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Leave Review Modal ────────────────────────────────────────── */}
-      <Dialog open={reviewModalOpen} onOpenChange={setReviewModalOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Vouch for {p.name}</DialogTitle>
-            <DialogDescription>
-              Share your experience or vouch for {p.name}'s reliability and character.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-500 block mb-2 text-center">Rating</label>
-              <div className="flex justify-center gap-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() => setReviewRating(star)}
-                    className="p-1.5 focus:outline-none hover:scale-110 transition-transform cursor-pointer"
-                  >
-                    <Star
-                      className={`w-8 h-8 ${star <= reviewRating ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}`}
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-500 block mb-1.5">Your Vouch / Review</label>
-              <Textarea
-                placeholder="Write a few words about your experience..."
-                value={reviewText}
-                onChange={(e) => setReviewText(e.target.value)}
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReviewModalOpen(false)}>Cancel</Button>
-            <Button className="bg-[#E5501A] hover:bg-[#D0400B] text-white font-bold" onClick={handleSubmitReview} disabled={isSubmittingReview}>
-              {isSubmittingReview ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit Vouch'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
     </div>
   );
 }

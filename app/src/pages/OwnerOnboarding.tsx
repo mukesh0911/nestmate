@@ -252,7 +252,7 @@ export default function OwnerOnboarding() {
             Add your room details
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-2 max-w-md mx-auto leading-relaxed">
-            Set up your property basics and household expectations to get verified and discover flatmates.
+            Set up your property basics and household expectations to get verified and discover roommates.
           </p>
         </div>
 
@@ -291,7 +291,7 @@ export default function OwnerOnboarding() {
                     <Home className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">Live-in Flatmate</div>
+                    <div className="text-sm font-semibold text-slate-900">Live-in Roommate / Host</div>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                       I live here & have a spare room. Seekers match with your lifestyle compatibility.
                     </p>
@@ -591,10 +591,10 @@ export default function OwnerOnboarding() {
                 </h2>
               </div>
 
-              {/* Looking for Flatmate Gender */}
+              {/* Looking for Roommate Gender */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-slate-700">
-                  Looking for flatmate gender
+                  Looking for roommate gender
                 </label>
                 <div className="bg-slate-100/90 border border-slate-200/60 p-1.5 rounded-2xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] grid grid-cols-3 gap-1">
                   {[
@@ -873,7 +873,7 @@ export default function OwnerOnboarding() {
             {/* Bottom Role Switch Link */}
             <div className="pt-2 text-center">
               <p className="text-xs text-slate-400">
-                Looking for a room or flatmates instead?{' '}
+                Looking for a room or roommates instead?{' '}
                 <button
                   type="button"
                   onClick={() => navigate('/onboarding/seeker')}

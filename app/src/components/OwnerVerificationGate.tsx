@@ -331,7 +331,7 @@ export default function OwnerVerificationGate({
             <div className="bg-[#FFF2EB]/60 border border-[#E5501A]/15 rounded-2xl p-4 flex items-start gap-3">
               <Info className="w-5 h-5 text-[#E5501A] shrink-0 mt-0.5" />
               <p className="text-xs text-[#1A1A2E]/80 leading-relaxed font-sans">
-                <strong className="text-[#1A1A2E] font-semibold">Privacy Guarantee:</strong> We verify your legal identity to protect prospective flatmates from scammers. We do not claim or verify real estate deed ownership. Documents are encrypted and handled exclusively by authorized NestMate safety reviewers.
+                <strong className="text-[#1A1A2E] font-semibold">Privacy Guarantee:</strong> We verify your legal identity to protect prospective roommates from scammers. We do not claim or verify real estate deed ownership. Documents are encrypted and handled exclusively by authorized NestMate safety reviewers.
               </p>
             </div>
 

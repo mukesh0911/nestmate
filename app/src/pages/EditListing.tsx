@@ -617,7 +617,7 @@ export default function EditListing() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="text-xs font-semibold text-[#1A1A2E] uppercase tracking-wider block mb-2">
-                  Flatmates Needed
+                  Roommates Needed
                 </label>
                 <input
                   type="number"
@@ -659,7 +659,7 @@ export default function EditListing() {
           {/* Amenities Section */}
           <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-6 md:p-8 space-y-4">
             <h3 className="font-serif font-medium text-xl text-[#1A1A2E]">Amenities & Inclusions</h3>
-            <p className="text-xs text-gray-500">Tap to select all facilities available to prospective flatmates.</p>
+            <p className="text-xs text-gray-500">Tap to select all facilities available to prospective roommates.</p>
             <div className="flex flex-wrap gap-2.5 pt-1">
               {amenitiesList.map(a => {
                 const isSelected = form.amenities.includes(a);

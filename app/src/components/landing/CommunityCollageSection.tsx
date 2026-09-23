@@ -25,7 +25,7 @@ export default function CommunityCollageSection() {
           <p className="text-sm sm:text-base text-slate-600 mb-8 leading-relaxed">
             Meet people from different cities, backgrounds and walks of life — all under one roof.
             Whether you are relocating for your career or starting university, NestMate helps you
-            find flatmates who share your values and lifestyle rhythm.
+            find roommates who share your values and lifestyle rhythm.
           </p>
 
           {/* Happy Members Avatar Stack */}

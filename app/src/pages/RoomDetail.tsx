@@ -7,7 +7,7 @@ import {
   Sun, BookOpen, Dumbbell, Activity, Compass, Utensils,
   ChevronRight, ChevronLeft, X, Loader2, Send, MessageCircle,
   Copy, Bus, Train, ShoppingBag, Hospital, Check, Sofa, Tv,
-  Phone, Flag, AlertCircle, ExternalLink
+  Phone, Flag, AlertCircle, ExternalLink, ArrowRight
 } from 'lucide-react';
 import { useListings } from '@/hooks/useListings';
 import { useAuth } from '@/hooks/useAuth';
@@ -20,7 +20,7 @@ import { useStore } from '@/store/useStore';
 import { getRoomMatchReasons, getActiveStatus, calculateRoomCompatibility } from '@/lib/matching';
 import type { Listing } from '@/hooks/useListings';
 import type { UserProfile } from '@/hooks/useAuth';
-import { getAvailabilityState, isDiscoverable } from '@/lib/listingFreshness';
+import { getAvailabilityState } from '@/lib/listingFreshness';
 import { formatLocationString, getDynamicPreferences, getRoomHighlights } from '@/lib/dynamicTraits';
 import StateLoading from '@/components/StateLoading';
 import StateEmpty from '@/components/StateEmpty';
@@ -30,6 +30,7 @@ import FlatmateAvatar from '@/components/FlatmateAvatar';
 import ScreeningQuestionnaireModal from '@/components/ScreeningQuestionnaireModal';
 import { CURATED_SCREENING_QUESTIONS } from '@/lib/screeningQuestions';
 import { toast } from 'sonner';
+import { startTrace, endTrace } from '@/lib/perfTrace';
 import {
   Dialog,
   DialogContent,
@@ -100,7 +101,7 @@ export default function RoomDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, profile, refreshProfile } = useAuth();
-  const { getListingById, recordView, getListings } = useListings();
+  const { getListingById, recordView, getSimilarListings } = useListings();
   const { sendRequest, subscribeToMyConnections } = useConnections();
   const { createNotification } = useNotifications();
   const { toggleSavedRoom, getProfile, reportUser } = useUserProfile();
@@ -155,46 +156,34 @@ export default function RoomDetail() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showLightbox, room?.images]);
 
-  // Load active listing
+  // Load active listing + owner profile in a single fetch (no duplicate owner read)
   useEffect(() => {
     if (!id) return;
     setIsLoading(true);
-    getListingById(id).then(data => {
-      setRoom(data);
-      setIsLoading(false);
-      if (data?.id) {
-        recordView(data.id, data.ownerId).catch(() => {});
+    startTrace(`RoomDetail_load_${id}`);
+    getListingById(id).then(result => {
+      endTrace(`RoomDetail_load_${id}`);
+      if (result) {
+        setRoom(result.listing);
+        if (result.ownerProfile) {
+          setOwnerProfile(result.ownerProfile as UserProfile);
+        }
+        // Fire-and-forget view recording (non-blocking)
+        recordView(result.listing.id, result.listing.ownerId).catch(() => {});
+      } else {
+        setRoom(null);
       }
+      setIsLoading(false);
     });
   }, [id, getListingById, recordView]);
 
-  // Fetch real owner profile from Firestore
+  // Load similar listings (deferred, lightweight query — no N+1 owner reads)
   useEffect(() => {
-    if (!room?.ownerId) return;
-    getProfile(room.ownerId).then(p => {
-      if (p) setOwnerProfile(p);
-    }).catch(() => {});
-  }, [room?.ownerId, getProfile]);
-
-  // Load real similar listings from Firestore
-  useEffect(() => {
-    if (!room) return;
-    getListings({ city: room.city }).then(allRooms => {
-      const filtered = allRooms.filter(r => r.id !== room.id && isDiscoverable(r)).slice(0, 4);
-      if (filtered.length >= 4) {
-        setSimilarRooms(filtered);
-      } else {
-        getListings({}).then(generalRooms => {
-          const additional = generalRooms.filter(r => r.id !== room.id && !filtered.some(f => f.id === r.id) && isDiscoverable(r));
-          setSimilarRooms([...filtered, ...additional].slice(0, 4));
-        }).catch(() => {
-          setSimilarRooms(filtered);
-        });
-      }
-    }).catch(() => {
+    if (!room?.id || !room?.city) return;
+    getSimilarListings(room.city, room.id, 4).then(setSimilarRooms).catch(() => {
       setSimilarRooms([]);
     });
-  }, [room?.id, room?.city, getListings]);
+  }, [room?.id, room?.city, getSimilarListings]);
 
   // Handle Express Interest - opens screening questionnaire modal
   const handleConnect = () => {
@@ -429,8 +418,8 @@ export default function RoomDetail() {
     : (room.flatType?.toLowerCase().includes('shared') ? 'Shared' : 'Single');
 
   const lookingForLabel = room.preferredGender
-    ? (room.preferredGender.toLowerCase() === 'female' ? 'Female Flatmate' : room.preferredGender.toLowerCase() === 'male' ? 'Male Flatmate' : 'Any Gender')
-    : (room.partnersNeeded ? `${room.partnersNeeded} ${room.partnersNeeded === 1 ? 'Flatmate' : 'Flatmates'}` : 'Flatmate');
+    ? (room.preferredGender.toLowerCase() === 'female' ? 'Female Roommate' : room.preferredGender.toLowerCase() === 'male' ? 'Male Roommate' : 'Any Gender')
+    : (room.partnersNeeded ? `${room.partnersNeeded} ${room.partnersNeeded === 1 ? 'Roommate' : 'Roommates'}` : 'Roommate');
 
   const genderLabel = room.preferredGender
     ? (room.preferredGender.toLowerCase() === 'female' ? '♀ Female' : room.preferredGender.toLowerCase() === 'male' ? '♂ Male' : '⚥ Any')
@@ -537,18 +526,24 @@ export default function RoomDetail() {
             <div className="bg-white rounded-3xl border border-gray-200/80 shadow-2xs p-6 flex flex-col items-center text-center">
               
               {/* Large Stylized / Photo Avatar */}
-              <div className="mb-3.5">
+              <div
+                onClick={() => room.ownerId && navigate(`/match/${room.ownerId}`)}
+                className={`mb-3.5 ${room.ownerId ? 'cursor-pointer group' : ''}`}
+              >
                 <FlatmateAvatar
                   avatar={ownerAvatarUrl}
                   name={ownerDisplayName}
                   isVerified={isVerifiedListing}
                   illustrationType={ownerDisplayName.toLowerCase().includes('arun') ? 'arun' : undefined}
-                  className="w-28 h-32 sm:w-32 sm:h-36 rounded-2xl shadow-xs"
+                  className="w-28 h-32 sm:w-32 sm:h-36 rounded-2xl shadow-xs group-hover:opacity-90 transition-opacity"
                 />
               </div>
 
               {/* Host Name & Verification Shield */}
-              <div className="flex items-center justify-center gap-1.5 mb-1">
+              <div
+                onClick={() => room.ownerId && navigate(`/match/${room.ownerId}`)}
+                className={`flex items-center justify-center gap-1.5 mb-1 ${room.ownerId ? 'cursor-pointer hover:text-[#E5501A] transition-colors' : ''}`}
+              >
                 <h2 className="text-xl font-extrabold text-[#1A1A2E] tracking-tight">
                   {ownerDisplayName}
                 </h2>
@@ -564,19 +559,31 @@ export default function RoomDetail() {
                 {ownerProfile?.profession || (isVerifiedListing ? 'Verified Owner' : 'Property Host')} · {room.city || ownerProfile?.city || 'Location not specified'}
               </p>
 
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100/80 text-[11px] font-bold mb-5">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100/80 text-[11px] font-bold mb-3">
                 <span className={`w-2 h-2 rounded-full ${isOwnerOnline ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-500'}`} />
                 <span>{ownerActiveLabel}</span>
               </div>
 
-              {/* Action Buttons: Chat & Call */}
+              {/* Host Profile Link */}
+              {room.ownerId && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/match/${room.ownerId}`)}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-[#E5501A] hover:underline mb-4 cursor-pointer"
+                >
+                  <span>View Host Profile & Listings</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {/* Action Buttons: Chat & Call (NestMate Orange) */}
               <div className="grid grid-cols-2 gap-2.5 w-full mb-3">
                 {/* 1. Chat Button */}
                 <button
                   type="button"
                   onClick={handleMessageOwner}
                   disabled={messagingOwner}
-                  className="w-full py-2.5 px-3 rounded-xl font-bold text-xs bg-[#0F9D58] hover:bg-[#0B8043] text-white shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                  className="w-full py-2.5 px-3 rounded-xl font-bold text-xs bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
                 >
                   {messagingOwner ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -592,7 +599,7 @@ export default function RoomDetail() {
                 <button
                   type="button"
                   onClick={handleCallOwner}
-                  className="w-full py-2.5 px-3 rounded-xl font-bold text-xs bg-[#0F9D58] hover:bg-[#0B8043] text-white shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                  className="w-full py-2.5 px-3 rounded-xl font-bold text-xs bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
                 >
                   <Phone className="w-3.5 h-3.5" />
                   <span>Call</span>
@@ -994,7 +1001,7 @@ export default function RoomDetail() {
                         {flatTypeNormalized} Living &amp; Kitchen
                       </p>
                       <p className="text-[11px] text-gray-500 line-clamp-2">
-                        {room.partnersNeeded ? `Shared with ${room.partnersNeeded} flatmates` : 'Common areas'}
+                        {room.partnersNeeded ? `Shared with ${room.partnersNeeded} roommates` : 'Common areas'}
                       </p>
                     </div>
                     <div
@@ -1300,7 +1307,7 @@ export default function RoomDetail() {
           <button
             type="button"
             onClick={handleCallOwner}
-            className="px-3.5 py-2.5 rounded-full font-bold text-xs bg-[#0F9D58] hover:bg-[#0B8043] text-white shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+            className="px-3.5 py-2.5 rounded-full font-bold text-xs bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
           >
             <Phone className="w-3.5 h-3.5" />
             <span>Call</span>

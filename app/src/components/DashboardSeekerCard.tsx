@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { MatchedUser } from '@/hooks/useMatches';
 import type { UserProfile } from '@/hooks/useAuth';
+import { getUserIntent, getPreferredRoommateGender, getUserInitials } from '@/lib/userIntent';
 
 export interface DashboardSeekerCardProps {
   match: MatchedUser;
@@ -59,7 +60,7 @@ export default function DashboardSeekerCard({
   const p = match.profile;
   const activeStatus = getActiveStatus(p.lastActiveAt);
 
-  const initial = (p.name?.trim()?.charAt(0) || 'M').toUpperCase();
+  const initial = getUserInitials(p.name);
 
   const localityText = p.locality
     ? (p.city ? `${p.locality}, ${p.city}` : p.locality)
@@ -69,15 +70,16 @@ export default function DashboardSeekerCard({
     ? `₹ ${p.budget.toLocaleString('en-IN')}`
     : '₹ 3,750';
 
-  const lookingGender = p.preferredGender
-    ? (p.preferredGender.toLowerCase() === 'female' ? 'Female' : p.preferredGender.toLowerCase() === 'male' ? 'Male' : 'Any')
-    : p.gender
-      ? (p.gender.toLowerCase() === 'female' ? 'Female' : p.gender.toLowerCase() === 'male' ? 'Male' : 'Any')
-      : 'Any';
+  const intent = getUserIntent(p, (p as any)._listing);
+  const preferredGender = getPreferredRoommateGender(p, (p as any)._listing);
 
-  const lookingRoomType = p.preferredRoomType || p.profession || 'Roommate';
-
-  const hasPhoto = Boolean(p.avatar && !imgFailed && (p.avatar.startsWith('http') || p.avatar.startsWith('data:image')));
+  const hasPhoto = Boolean(
+    p.avatar &&
+    !imgFailed &&
+    typeof p.avatar === 'string' &&
+    p.avatar.trim() !== '' &&
+    (p.avatar.startsWith('http') || p.avatar.startsWith('data:image'))
+  );
 
   return (
     <div
@@ -93,7 +95,7 @@ export default function DashboardSeekerCard({
           {hasPhoto ? (
             <img
               src={p.avatar}
-              alt={p.name || 'Flatmate'}
+              alt={p.name || 'Roommate'}
               onError={() => setImgFailed(true)}
               className="w-full h-full object-cover rounded-2xl"
               loading="lazy"
@@ -127,11 +129,24 @@ export default function DashboardSeekerCard({
         {/* Right Details Column */}
         <div className="flex-1 min-w-0 flex flex-col justify-between self-stretch py-0.5">
           <div>
+            {/* Semantic Intent Badge */}
+            <div className="flex items-center gap-1.5 mb-1">
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide ${
+                  intent.badgeVariant === 'room_available'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
+                    : 'bg-orange-50 text-[#E5501A] border border-orange-200/80'
+                }`}
+              >
+                {intent.badgeText}
+              </span>
+            </div>
+
             <div className="flex items-start justify-between gap-1">
               {/* Name */}
               <div className="flex items-center gap-1.5 min-w-0">
                 <h3 className="font-bold text-xl sm:text-2xl text-[#1A1A2E] group-hover:text-[#E5501A] transition-colors truncate">
-                  {p.name || 'Flatmate'}
+                  {p.name || 'Roommate'}
                 </h3>
                 {p.workEmailVerified && (
                   <CheckCircle2 className="w-4 h-4 text-blue-500 shrink-0" title="Corporate Verified" />
@@ -170,27 +185,36 @@ export default function DashboardSeekerCard({
               <span className="truncate">{localityText}</span>
             </div>
 
-            {/* Rent */}
+            {/* Financial: Truthful Budget vs Rent */}
             <div className="mt-2.5 flex items-baseline gap-1.5">
               <span className="text-xl sm:text-2xl font-black text-[#1A1A2E] tracking-tight">
                 {budgetText}
               </span>
-              <span className="text-xs sm:text-sm font-normal text-gray-400">Rent</span>
+              <span className="text-xs sm:text-sm font-semibold text-gray-500">
+                {intent.priceLabel}
+              </span>
+              <span className="text-[10px] font-normal text-gray-400">
+                /{intent.priceSubtext}
+              </span>
             </div>
           </div>
 
-          {/* 2-Column Info Grid: Looking for Gender | Looking for Roommate */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-3 pt-0.5">
-            <div>
-              <span className="text-xs text-gray-400 font-normal block mb-0.5">Looking for</span>
-              <span className="text-sm sm:text-base font-bold text-[#1A1A2E] capitalize truncate block">
-                {lookingGender}
+          {/* 2-Column Info Grid: Requirement | Preferred Roommate Gender */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-3 pt-0.5 border-t border-gray-100">
+            <div className="min-w-0">
+              <span className="text-xs text-gray-400 font-normal block mb-0.5 truncate whitespace-nowrap">
+                {intent.requirementLabel}
+              </span>
+              <span className="text-sm sm:text-base font-bold text-[#1A1A2E] truncate block">
+                {intent.requirementValue}
               </span>
             </div>
-            <div>
-              <span className="text-xs text-gray-400 font-normal block mb-0.5">Looking for</span>
+            <div className="min-w-0">
+              <span className="text-xs text-gray-400 font-normal block mb-0.5 truncate whitespace-nowrap" title="Roommate Preference">
+                {intent.preferenceLabel}
+              </span>
               <span className="text-sm sm:text-base font-bold text-[#1A1A2E] truncate block">
-                {lookingRoomType}
+                {preferredGender.label}
               </span>
             </div>
           </div>

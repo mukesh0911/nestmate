@@ -134,7 +134,7 @@ export default function PreferencesPage() {
               Hard Exclusion Filters
             </span>
             <h2 className="text-base font-bold text-slate-900 mt-2">Must-Have Dealbreakers</h2>
-            <p className="text-xs text-slate-500">We will never show you listings or flatmates violating these rules.</p>
+            <p className="text-xs text-slate-500">We will never show you listings or roommates violating these rules.</p>
           </div>
 
           <div className="space-y-4 divide-y divide-slate-100">

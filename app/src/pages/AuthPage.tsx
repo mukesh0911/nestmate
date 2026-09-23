@@ -168,20 +168,6 @@ export default function AuthPage() {
       {/* DESKTOP VIEW (>= 1024px) - CENTERED AUTH CARD                             */}
       {/* ========================================================================= */}
       <div className="hidden lg:flex min-h-screen flex-col items-center justify-center p-6 xl:p-8 relative overflow-hidden">
-        {/* Top Right Tagline from reference */}
-        <img
-          src="/assets/auth/ref-desktop-tagline.png"
-          alt="A kinder way to live"
-          className="absolute top-8 right-10 h-9 w-auto pointer-events-none select-none z-20"
-        />
-
-        {/* Bottom Right Bangalore Skyline from reference */}
-        <img
-          src="/assets/auth/ref-desktop-skyline.png"
-          alt="Bangalore Belongs to Good People"
-          className="absolute bottom-2 right-4 w-72 xl:w-84 h-auto pointer-events-none select-none z-0 opacity-80"
-        />
-
         {/* Centered Auth Card Container */}
         <div className="w-full max-w-[430px] relative z-10 my-auto">
           {/* Brand Logo Header */}
@@ -551,22 +537,39 @@ export default function AuthPage() {
       </div>
 
       {/* ========================================================================= */}
-      {/* MOBILE VIEW (< 1024px) - EXACT SAME AS REFERENCE IMAGE 2                  */}
+      {/* MOBILE VIEW (< 1024px)                                                    */}
       {/* ========================================================================= */}
-      <div className="lg:hidden min-h-screen flex flex-col relative z-10">
-        {/* Top Hero Section cropped exactly from reference */}
-        <div className="relative w-full">
-          <Link to="/" className="absolute top-4 left-4 w-40 h-10 z-30 cursor-pointer" aria-label="Go to Home" />
-          <img
-            src="/assets/auth/ref-mobile-hero.png"
-            alt="NestMate - Better People Brighter Days"
-            className="w-full h-auto block select-none"
-          />
+      <div className="lg:hidden min-h-screen flex flex-col justify-center px-4 py-8 relative z-10">
+        {/* Mobile Brand Logo Header */}
+        <div className="flex justify-center mb-6">
+          <Link to="/" className="inline-flex items-center gap-2.5 group">
+            <div className="w-10 h-10 rounded-2xl bg-[#E5501A] flex items-center justify-center text-white shadow-xs transition-transform group-hover:scale-105">
+              <svg
+                viewBox="0 0 24 24"
+                className="w-5 h-5 text-white"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 10.5L12 3l9 7.5" />
+                <path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5" />
+                <path d="M9 21v-6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v6" />
+              </svg>
+            </div>
+            <div>
+              <span className="text-2xl font-bold tracking-tight text-[#1A1A2E] leading-none block">NestMate</span>
+              <span className="text-[9px] font-extrabold tracking-[0.22em] text-[#8C8CA1] uppercase block mt-1">
+                PEOPLE · PLACES · POSSIBILITIES
+              </span>
+            </div>
+          </Link>
         </div>
 
-        {/* Mobile Floating Card */}
-        <div className="px-4 -mt-6 relative z-20">
-          <div className="bg-white rounded-[32px] shadow-xl border border-stone-200/80 p-6 relative">
+        {/* Mobile Auth Card */}
+        <div className="w-full max-w-[420px] mx-auto">
+          <div className="bg-white rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-stone-200/80 p-6 sm:p-7 relative">
             {/* Phone Icon / Header */}
             <div className="w-12 h-12 rounded-2xl bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center mx-auto mb-3 border border-[#E5501A]/20 shadow-xs">
               <Smartphone className="w-6 h-6 text-[#E5501A]" />
@@ -752,15 +755,6 @@ export default function AuthPage() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Mobile Bottom Footer Skyline from reference */}
-        <div className="w-full mt-3">
-          <img
-            src="/assets/auth/ref-mobile-footer.png"
-            alt="Bangalore Belongs to Good People"
-            className="w-full h-auto block select-none"
-          />
         </div>
 
         {/* Discreet mobile dev helper */}

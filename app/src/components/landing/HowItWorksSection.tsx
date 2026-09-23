@@ -11,7 +11,7 @@ export default function HowItWorksSection() {
     {
       num: '2',
       title: 'Explore Options',
-      desc: 'Browse rooms, PGs or flatmates.',
+      desc: 'Browse rooms, PGs or roommates.',
       illustration: LANDING_ASSETS.illustrations.exploreOptions,
     },
     {

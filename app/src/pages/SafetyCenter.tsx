@@ -199,7 +199,7 @@ export default function SafetyCenter() {
                 Emergency Information & Helplines
               </h2>
               <p className="text-xs text-red-900 leading-relaxed mb-3">
-                NestMate is a flatmate marketplace and <strong>is not an emergency service</strong>. If you are in immediate physical danger, please contact local law enforcement right away.
+                NestMate is a roommate marketplace and <strong>is not an emergency service</strong>. If you are in immediate physical danger, please contact local law enforcement right away.
               </p>
               <div className="flex flex-wrap gap-2 text-xs">
                 <a
@@ -230,7 +230,7 @@ export default function SafetyCenter() {
             Meet-Safe Guidelines for Bangalore Visits
           </h2>
           <p className="text-xs text-slate-500 mb-4">
-            Follow these precautions before inspecting flats or meeting prospective flatmates.
+            Follow these precautions before inspecting flats or meeting prospective roommates.
           </p>
 
           <div className="space-y-3">

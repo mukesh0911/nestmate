@@ -251,7 +251,7 @@ export function getRoomMatchReasons(
     } else if (seekerGender === 'male') {
       genderScore = 0;
       isExplicitGenderMismatch = true;
-      caveats.push('Listing specifies Female-only flatmates');
+      caveats.push('Listing specifies Female-only roommates');
     } else {
       genderScore = 10;
       caveats.push('Gender not specified on profile');
@@ -263,7 +263,7 @@ export function getRoomMatchReasons(
     } else if (seekerGender === 'female') {
       genderScore = 0;
       isExplicitGenderMismatch = true;
-      caveats.push('Listing specifies Male-only flatmates');
+      caveats.push('Listing specifies Male-only roommates');
     } else {
       genderScore = 10;
       caveats.push('Gender not specified on profile');
@@ -272,7 +272,7 @@ export function getRoomMatchReasons(
     // Open to any gender
     genderScore = 20;
     if (seekerGender) {
-      reasons.push('Gender open (Any flatmate welcome)');
+      reasons.push('Gender open (Any roommate welcome)');
     }
   }
 

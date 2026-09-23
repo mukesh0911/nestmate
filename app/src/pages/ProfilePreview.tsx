@@ -70,7 +70,7 @@ export default function ProfilePreview() {
                 Exact Stranger View
               </h2>
               <p className="text-[11px] text-gray-600 leading-relaxed font-medium">
-                This shows precisely how other flatmate seekers in your city see your profile before connecting. Phone numbers and private verification documents are strictly hidden.
+                This shows precisely how other roommate seekers in your city see your profile before connecting. Phone numbers and private verification documents are strictly hidden.
               </p>
             </div>
           </div>

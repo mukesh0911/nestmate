@@ -20,10 +20,11 @@ import { areSameCityAlias } from '@/lib/cityNormalization';
 import { filterFlatmateProfiles } from '@/lib/roleFiltering';
 import FlatmateAvatar from '@/components/FlatmateAvatar';
 import ContactModal from '@/components/ContactModal';
+import { getUserIntent, getPreferredRoommateGender } from '@/lib/userIntent';
 
 interface SeekerWithScore {
   profile: UserProfile;
-  score: number;
+  score: number | null;
   distanceKm?: number;
 }
 
@@ -159,25 +160,23 @@ export default function BrowseSeekers({
           const targetListing = ownerListing || uListing;
           const calculatedScore = currentUser
             ? calculateProfileCompatibility(currentUser, effectiveProfile, targetListing).score
-            : 0;
+            : null;
 
-          // If score is 0 and profile has defaultScore, use defaultScore (like 60% or 48% in reference)
-          const finalScore = calculatedScore > 0 ? calculatedScore : ((u as any).defaultScore || 60);
           const distanceKm = (u as any).distanceKm !== undefined ? (u as any).distanceKm : 0;
 
           return {
             profile: effectiveProfile,
-            score: finalScore,
+            score: calculatedScore,
             distanceKm
           };
         });
 
-        // Sort by verified first, then score
+        // Sort by verified first, then real calculated score
         scored.sort((a, b) => {
           const aVer = a.profile.isVerified ? 1 : 0;
           const bVer = b.profile.isVerified ? 1 : 0;
           if (bVer !== aVer) return bVer - aVer;
-          return b.score - a.score;
+          return (b.score ?? 0) - (a.score ?? 0);
         });
 
         setSeekers(scored);
@@ -195,7 +194,7 @@ export default function BrowseSeekers({
     if (!user?.uid) {
       openAuthModal({
         title: 'Sign in to Connect',
-        subtitle: 'Create an account to send connect requests and chat with flatmates.',
+        subtitle: 'Create an account to send connect requests and chat with roommates.',
         redirect: `/match/${seekerId}`,
       });
       return;
@@ -229,7 +228,7 @@ export default function BrowseSeekers({
     if (!user?.uid) {
       openAuthModal({
         title: 'Sign in to Contact',
-        subtitle: 'Sign in to view verified contact numbers and reach out to flatmates.',
+        subtitle: 'Sign in to view verified contact numbers and reach out to roommates.',
         redirect: `/match/${profile.uid}`,
       });
       return;
@@ -240,7 +239,7 @@ export default function BrowseSeekers({
   if (loading) {
     return (
       <div className="py-20 flex justify-center">
-        <StateLoading label="Finding compatible flatmates..." />
+        <StateLoading label="Finding compatible roommates..." />
       </div>
     );
   }
@@ -249,8 +248,8 @@ export default function BrowseSeekers({
     return (
       <StateEmpty
         icon={Users}
-        title="Unable to load flatmates"
-        description="We couldn't load flatmate profiles right now. Please check your connection and try again."
+        title="Unable to load roommates"
+        description="We couldn't load roommate profiles right now. Please check your connection and try again."
         className="bg-white rounded-3xl border border-gray-100 py-12 shadow-xs"
       />
     );
@@ -260,11 +259,11 @@ export default function BrowseSeekers({
     return (
       <StateEmpty
         icon={Users}
-        title={propSearchQuery ? `No flatmates match "${propSearchQuery}" in ${activeCity}` : `No flatmates looking in ${activeCity} yet`}
+        title={propSearchQuery ? `No roommates match "${propSearchQuery}" in ${activeCity}` : `No roommates looking in ${activeCity} yet`}
         description={
           propSearchQuery
             ? "Try broadening your search or exploring nearby localities."
-            : `Be the first to find a flatmate in ${activeCity}! Create your roommate profile to get discovered.`
+            : `Be the first to find a roommate in ${activeCity}! Create your roommate profile to get discovered.`
         }
         action={
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
@@ -310,11 +309,9 @@ export default function BrowseSeekers({
           ? `₹ ${profile.budget.toLocaleString('en-IN')}`
           : '₹ 5,000';
 
-        const lookingGender = profile.preferredGender
-          ? profile.preferredGender
-          : profile.gender
-            ? profile.gender === 'female' ? 'Female' : profile.gender === 'male' ? 'Male' : 'Any'
-            : 'Any';
+        // Truthful Intent and Preferred Roommate Resolution
+        const intent = getUserIntent(profile, (profile as any)._listing);
+        const preferredGender = getPreferredRoommateGender(profile, (profile as any)._listing);
 
         const distanceDisplay = distanceKm !== undefined
           ? `${distanceKm} km`
@@ -341,9 +338,24 @@ export default function BrowseSeekers({
               {/* Right Details Column */}
               <div className="flex-1 min-w-0 flex flex-col justify-between self-stretch py-0.5">
                 <div>
+                  {/* Semantic Intent Badge */}
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide ${
+                        intent.badgeVariant === 'room_available'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
+                          : intent.badgeVariant === 'owner'
+                            ? 'bg-purple-50 text-purple-700 border border-purple-200/80'
+                            : 'bg-orange-50 text-[#E5501A] border border-orange-200/80'
+                      }`}
+                    >
+                      {intent.badgeText}
+                    </span>
+                  </div>
+
                   {/* Name */}
                   <h3 className="font-bold text-base sm:text-lg text-[#1A1A2E] group-hover:text-[#E5501A] transition-colors truncate">
-                    {profile.name || 'Flatmate'}
+                    {profile.name || 'Roommate'}
                   </h3>
 
                   {/* Location with Pin */}
@@ -352,31 +364,36 @@ export default function BrowseSeekers({
                     <span className="truncate">{localityText}</span>
                   </div>
 
-                  {/* Rent */}
-                  <div className="mt-1.5 flex items-baseline gap-1">
+                  {/* Financial: Truthful Budget vs Rent */}
+                  <div className="mt-1.5 flex items-baseline gap-1.5">
                     <span className="text-base sm:text-lg font-extrabold text-[#1A1A2E]">
                       {budgetText}
                     </span>
-                    <span className="text-xs text-gray-400 font-medium">Rent</span>
+                    <span className="text-xs font-semibold text-gray-500">
+                      {intent.priceLabel}
+                    </span>
+                    <span className="text-[10px] text-gray-400 font-normal">
+                      /{intent.priceSubtext}
+                    </span>
                   </div>
                 </div>
 
-                {/* 2-Column Info Grid: Looking for Any | Looking for Roommate */}
+                {/* 2-Column Info Grid: Requirement (A Room / Roommate) | Preferred Roommate Gender */}
                 <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-gray-100">
-                  <div>
-                    <span className="text-[10px] text-gray-400 font-medium block">
-                      Looking for
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-gray-400 font-medium block truncate whitespace-nowrap">
+                      {intent.requirementLabel}
                     </span>
-                    <span className="text-xs sm:text-sm font-semibold text-[#1A1A2E] capitalize truncate block">
-                      {lookingGender}
+                    <span className="text-xs sm:text-sm font-semibold text-[#1A1A2E] truncate block mt-0.5">
+                      {intent.requirementValue}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-gray-400 font-medium block">
-                      Looking for
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-gray-400 font-medium block truncate whitespace-nowrap" title="Roommate Preference">
+                      {intent.preferenceLabel}
                     </span>
-                    <span className="text-xs sm:text-sm font-semibold text-[#1A1A2E] truncate block">
-                      Roommate
+                    <span className="text-xs sm:text-sm font-semibold text-[#1A1A2E] truncate block mt-0.5">
+                      {preferredGender.label}
                     </span>
                   </div>
                 </div>
@@ -392,11 +409,34 @@ export default function BrowseSeekers({
 
               {/* Match Score & Action Buttons */}
               <div className="flex items-center gap-3 shrink-0">
-                {/* Match Score */}
-                <div className="flex items-center gap-1 text-xs font-semibold text-gray-600">
-                  <Star className="w-3.5 h-3.5 text-gray-400 fill-gray-200" />
-                  <span>{score}% Match</span>
-                </div>
+                {/* Match Score: Real dynamic score when logged in; sign-in prompt when guest */}
+                {currentUser ? (
+                  score !== null && score > 0 ? (
+                    <div className="flex items-center gap-1 text-xs font-semibold text-gray-700">
+                      <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+                      <span>{score}% Match</span>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] font-medium text-gray-400">New Profile</span>
+                  )
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openAuthModal({
+                        title: 'Check Compatibility',
+                        subtitle: 'Sign in to see your personalized compatibility score with this profile.',
+                        redirect: `/match/${profile.uid}`,
+                      });
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 hover:text-[#E5501A] transition-colors cursor-pointer"
+                    title="Sign in to calculate personalized compatibility"
+                  >
+                    <Sparkles className="w-3 h-3 text-[#E5501A]" />
+                    <span>Sign in to match</span>
+                  </button>
+                )}
 
                 {/* Two Circular Buttons: [ 📞 ] and [ 💬 ] */}
                 <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>

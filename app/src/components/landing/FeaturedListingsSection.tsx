@@ -51,6 +51,10 @@ export default function FeaturedListingsSection() {
     return () => { mounted = false; };
   }, []);
 
+  const prefetchRoomDetail = () => {
+    import('@/pages/RoomDetail');
+  };
+
   const DEFAULT_FEATURED = [
     {
       id: 'f1',
@@ -145,6 +149,9 @@ export default function FeaturedListingsSection() {
                   }
                 }}
                 className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-xs cursor-pointer flex flex-col"
+                onMouseEnter={prefetchRoomDetail}
+                onTouchStart={prefetchRoomDetail}
+                onPointerDown={prefetchRoomDetail}
               >
                 {/* Photo container */}
                 <div className="relative aspect-[16/10] overflow-hidden bg-slate-100">
@@ -301,6 +308,9 @@ export default function FeaturedListingsSection() {
                     }
                   }}
                   className="group/card min-w-[270px] sm:min-w-[290px] md:min-w-0 flex-1 bg-white rounded-2xl sm:rounded-3xl overflow-hidden border border-border/60 shadow-xs hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col snap-start"
+                  onMouseEnter={prefetchRoomDetail}
+                  onTouchStart={prefetchRoomDetail}
+                  onPointerDown={prefetchRoomDetail}
                 >
                   {/* Image Container (4:3 aspect ratio) */}
                   <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">

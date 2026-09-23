@@ -17,7 +17,7 @@ export default function CreateTeamModal({ isOpen, onClose, cityName = '' }: Crea
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success(`Team "${teamName || 'Flat Hunters'}" created! You can now invite flatmates.`);
+    toast.success(`Team "${teamName || 'Room Hunters'}" created! You can now invite roommates.`);
     onClose();
   };
 
@@ -61,7 +61,7 @@ export default function CreateTeamModal({ isOpen, onClose, cityName = '' }: Crea
             <label className="block text-xs font-semibold text-gray-700 mb-1.5">Team Name</label>
             <input
               type="text"
-              placeholder={`e.g. ${cityName ? `${cityName} Tech Flatmates` : 'Urban Flat Hunters'}`}
+              placeholder={`e.g. ${cityName ? `${cityName} Tech Roommates` : 'Urban Room Hunters'}`}
               value={teamName}
               onChange={e => setTeamName(e.target.value)}
               className="w-full px-4 py-2.5 bg-gray-50 rounded-xl text-xs sm:text-sm border border-gray-200 outline-none focus:border-[#E5501A] focus:bg-white transition-all font-medium"

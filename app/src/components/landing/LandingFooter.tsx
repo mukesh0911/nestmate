@@ -126,7 +126,7 @@ export default function LandingFooter({ onListSpace }: LandingFooterProps) {
                     <Link to="/explore?tab=rooms" className="hover:text-[#E5501A] py-0.5 inline-block">Find a Room</Link>
                   </li>
                   <li>
-                    <Link to="/explore?tab=roommates" className="hover:text-[#E5501A] py-0.5 inline-block">Find Flatmates</Link>
+                    <Link to="/explore?tab=roommates" className="hover:text-[#E5501A] py-0.5 inline-block">Find Roommates</Link>
                   </li>
                   <li>
                     <button type="button" onClick={onListSpace} className="hover:text-[#E5501A] cursor-pointer text-left py-0.5 inline-block">
@@ -326,7 +326,7 @@ export default function LandingFooter({ onListSpace }: LandingFooterProps) {
               </li>
               <li>
                 <Link to="/explore?tab=roommates" className="hover:text-[#E5501A] transition-colors">
-                  Find Flatmates
+                  Find Roommates
                 </Link>
               </li>
               <li>

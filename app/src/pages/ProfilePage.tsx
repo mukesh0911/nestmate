@@ -88,7 +88,7 @@ export default function ProfilePage() {
         icon: Users,
         iconBg: 'bg-emerald-50 text-emerald-600 border border-emerald-200/70',
         title: `Connected with ${otherName}`,
-        subtitle: 'Mutual flatmate connection established · Chat unlocked',
+        subtitle: 'Mutual roommate connection established · Chat unlocked',
         time: conn.connection?.createdAt?.toDate
           ? conn.connection.createdAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
           : 'Recent',
@@ -466,7 +466,7 @@ export default function ProfilePage() {
                 compact
                 icon={Users}
                 title="No connections yet"
-                description="Connect with flatmates or property owners on NestMate"
+                description="Connect with roommates or property owners on NestMate"
               />
             )}
           </div>

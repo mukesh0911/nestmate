@@ -77,7 +77,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/owner-dashboard': 'Owner Dashboard | NestMate',
   '/explore': 'Explore Rooms & Roommates | NestMate',
   '/browse-rooms': 'Find Rooms | NestMate',
-  '/browse-seekers': 'Find Flatmates | NestMate',
+  '/browse-seekers': 'Find Roommates | NestMate',
   '/chat': 'Messages | NestMate',
   '/profile': 'My Profile | NestMate',
   '/edit-profile': 'Edit Profile | NestMate',

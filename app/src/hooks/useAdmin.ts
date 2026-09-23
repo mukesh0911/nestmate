@@ -19,6 +19,8 @@ import {
 // (see docs/security/ADMIN_BOOTSTRAP.md).
 // ─────────────────────────────────────────────────────────────────────────────
 
+const adminCache = new Map<string, boolean>();
+
 export function useAdmin() {
   const { user, profile, isLoading: authLoading } = useAuth();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null); // null = loading
@@ -41,8 +43,16 @@ export function useAdmin() {
           setChecking(false);
           return;
         }
+
+        if (adminCache.has(email)) {
+          setIsAdmin(adminCache.get(email)!);
+          setChecking(false);
+          return;
+        }
+
         // Fallback fast check for known admins
         if (email === 'admin@nestmate-test.com' || email === 'admin@nestmate.in' || email === 'mukvr46@gmail.com') {
+          adminCache.set(email, true);
           setIsAdmin(true);
           setChecking(false);
           // Ensure admin document exists in Firestore for rules and listing queries
@@ -66,7 +76,9 @@ export function useAdmin() {
           const inConfig = (configSnap?.data()?.adminEmails || []).some(
             (e: string) => (e || '').trim().toLowerCase() === email
           );
-          setIsAdmin(!!(adminDoc?.exists() || inConfig));
+          const result = !!(adminDoc?.exists() || inConfig);
+          adminCache.set(email, result);
+          setIsAdmin(result);
         } catch {
           setIsAdmin(false);
         }

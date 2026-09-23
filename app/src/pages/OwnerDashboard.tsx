@@ -282,10 +282,9 @@ export default function OwnerDashboard() {
         const filtered = filterFlatmateProfiles(list, user?.uid, 'owner');
 
         const scored = filtered.map(seeker => {
-          let score = 85;
-          if (myListing && seeker.quizAnswers) {
-            score = calculateRoomCompatibility(seeker, myListing);
-          }
+          const score = myListing
+            ? calculateRoomCompatibility(seeker, myListing)
+            : 0;
           return { profile: seeker, score };
         });
 
@@ -564,10 +563,10 @@ export default function OwnerDashboard() {
             {activeTab === 'listings'
               ? 'Manage room availability, pricing, photos, and live seeker engagement.'
               : activeTab === 'applicants'
-                ? 'Review verified flatmate applicants, assess lifestyle compatibility, and start chats.'
+                ? 'Review verified roommate applicants, assess lifestyle compatibility, and start chats.'
                 : activeTab === 'seekers'
                   ? 'Discover and connect with verified people actively seeking rental rooms.'
-                  : `Welcome back${profile?.name ? `, ${profile.name}` : ''}! Manage your spaces, track views, and accept verified flatmates.`}
+                  : `Welcome back${profile?.name ? `, ${profile.name}` : ''}! Manage your spaces, track views, and accept verified roommates.`}
           </p>
         </div>
 
@@ -1311,7 +1310,7 @@ export default function OwnerDashboard() {
                       <h2 className="font-serif text-xl font-medium text-[#1A1A2E]">
                         Pending Inquiries ({pendingApplicants.length})
                       </h2>
-                      <p className="text-xs text-gray-400">Prospective verified flatmates awaiting your response</p>
+                      <p className="text-xs text-gray-400">Prospective verified roommates awaiting your response</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1691,7 +1690,7 @@ export default function OwnerDashboard() {
                       </h4>
                     </div>
                     <p className="text-[11px] text-gray-300 truncate mt-0.5 font-medium">
-                      Prospective flatmates are waiting for your response.
+                      Prospective roommates are waiting for your response.
                     </p>
                   </div>
                 </div>
@@ -1973,7 +1972,7 @@ export default function OwnerDashboard() {
                     <Users className="w-5 h-5" />
                   </div>
                   <h4 className="font-bold text-xs text-[#1A1A2E] mb-1">Browse verified room seekers</h4>
-                  <p className="text-[11px] text-gray-400 mb-3.5">Discover flatmate candidates looking for rooms in your area.</p>
+                  <p className="text-[11px] text-gray-400 mb-3.5">Discover roommate candidates looking for rooms in your area.</p>
                   <button
                     type="button"
                     onClick={() => navigate('/owner-dashboard?tab=seekers')}
@@ -2076,7 +2075,7 @@ export default function OwnerDashboard() {
                       {chatCount > 0 ? `${chatCount} Active Conversation${chatCount === 1 ? '' : 's'}` : 'No active chats'}
                     </h4>
                     <p className="text-[10px] text-gray-500 truncate mt-0.5">
-                      {chatCount > 0 ? 'Tap to view your ongoing flatmate discussions' : 'Chat with seekers or accepted applicants'}
+                      {chatCount > 0 ? 'Tap to view your ongoing roommate discussions' : 'Chat with seekers or accepted applicants'}
                     </p>
                   </div>
                 </div>
@@ -2085,7 +2084,7 @@ export default function OwnerDashboard() {
 
               {acceptedConnections.length > 0 && (
                 <div className="mt-2.5 pt-2.5 border-t border-gray-100">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2">Connected Flatmates</span>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2">Connected Roommates</span>
                   <div className="space-y-2">
                     {acceptedConnections.slice(0, 1).map(conn => {
                       const p = conn.profile;
@@ -2715,7 +2714,7 @@ export default function OwnerDashboard() {
                 Browse People Seeking Rooms
               </h2>
               <p className="text-xs text-gray-500 max-w-2xl leading-relaxed">
-                Discover verified candidates actively looking for flatmates and rental rooms. View their budget, location preferences, and lifestyle habits, then reach out or start a conversation directly.
+                Discover verified candidates actively looking for rooms and roommates. View their budget, location preferences, and lifestyle habits, then reach out or start a conversation directly.
               </p>
             </div>
 

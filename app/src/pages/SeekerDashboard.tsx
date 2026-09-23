@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { cities, localitiesByCity, flatTypes, furnishingTypes, amenitiesList } from '@/lib/staticData';
 import { useAuth } from '@/hooks/useAuth';
-import { useMatches, calculateCompatibility, getActiveStatus } from '@/hooks/useMatches';
+import { useMatches, calculateCompatibility, calculateRoomCompatibility, getActiveStatus } from '@/hooks/useMatches';
 import { getMatchReasons, getRoomMatchReasons } from '@/lib/matching';
 import { useChat } from '@/hooks/useChat';
 import { useConnections, FREE_CONNECT_LIMIT } from '@/hooks/useConnections';
@@ -140,7 +140,7 @@ export default function SeekerDashboard() {
       createNotification({
         userId: user.uid,
         title: '🚀 Boost your profile to the top list',
-        description: 'Complete identity verification to rank higher in searches, unlock verified flatmates, and receive 3x more replies.',
+        description: 'Complete identity verification to rank higher in searches, unlock verified roommates, and receive 3x more replies.',
         type: 'verification',
         actionUrl: '/edit-profile#verification',
         read: false
@@ -594,7 +594,7 @@ export default function SeekerDashboard() {
     if (found) return found;
     return {
       profile: { uid, name: 'NestMate Member', city: profile?.city || 'India' } as any,
-      compatibilityScore: 80,
+      compatibilityScore: 0,
       matchReasons: []
     };
   }, [allAvailableMatches, profile?.city]);
@@ -1023,9 +1023,9 @@ export default function SeekerDashboard() {
                     ? 'Loading matches…'
                     : `${filteredMatches.length} ${filteredMatches.length === 1 ? 'person' : 'people'} ${filters.city ? `in ${filters.city}` : 'across all cities'}`
                 ) : activeTab === 'saved' ? (
-                  `${savedSubTab === 'flatmates' ? savedFlatmates.length : filteredSavedRooms.length} saved ${savedSubTab === 'flatmates' ? (savedFlatmates.length === 1 ? 'flatmate' : 'flatmates') : (filteredSavedRooms.length === 1 ? 'room' : 'rooms')}`
+                  `${savedSubTab === 'flatmates' ? savedFlatmates.length : filteredSavedRooms.length} saved ${savedSubTab === 'flatmates' ? (savedFlatmates.length === 1 ? 'roommate' : 'roommates') : (filteredSavedRooms.length === 1 ? 'room' : 'rooms')}`
                 ) : (
-                  `${connectionSubTab === 'connected' ? connectedMatches.length : connectionSubTab === 'received' ? receivedRequests.length : sentRequests.length} ${connectionSubTab === 'connected' ? 'connected flatmates' : connectionSubTab === 'received' ? 'requests received' : 'requests sent'}`
+                  `${connectionSubTab === 'connected' ? connectedMatches.length : connectionSubTab === 'received' ? receivedRequests.length : sentRequests.length} ${connectionSubTab === 'connected' ? 'connected roommates' : connectionSubTab === 'received' ? 'requests received' : 'requests sent'}`
                 )}
               </p>
             </div>
@@ -1153,7 +1153,7 @@ export default function SeekerDashboard() {
                       : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  Saved Flatmates ({savedFlatmates.length})
+                  Saved Roommates ({savedFlatmates.length})
                 </button>
                 <button
                   type="button"
@@ -1309,11 +1309,11 @@ export default function SeekerDashboard() {
                     <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-8">
                       <StateEmpty
                         icon={Bookmark}
-                        title="No saved flatmates yet"
-                        description="Heart flatmate profiles while browsing to easily revisit and connect with them here."
+                        title="No saved roommates yet"
+                        description="Heart roommate profiles while browsing to easily revisit and connect with them here."
                         action={
                           <button onClick={() => setActiveTab('all')} className="rounded-full bg-[#E5501A] hover:bg-[#D0400B] text-white text-xs sm:text-sm font-semibold px-6 py-2.5 shadow-xs cursor-pointer">
-                            Browse Flatmates
+                            Browse Roommates
                           </button>
                         }
                       />
@@ -1331,6 +1331,7 @@ export default function SeekerDashboard() {
                           key={room.id}
                           room={room}
                           isSaved={true}
+                          compatibilityScore={profile ? calculateRoomCompatibility(profile, room) : undefined}
                           onToggleSave={handleToggleSaveRoom}
                           onCall={r => setContactModalProfile({ name: r.title || 'Property Owner', phone: (r as any).contactPhone || '', isOwner: true } as any)}
                           onChat={() => navigate('/chat')}
@@ -1384,10 +1385,10 @@ export default function SeekerDashboard() {
                       <StateEmpty
                         icon={Users}
                         title="No active connections yet"
-                        description="Once you and another flatmate connect, their contact details and direct chat will appear here."
+                        description="Once you and another roommate connect, their contact details and direct chat will appear here."
                         action={
                           <button onClick={() => setActiveTab('all')} className="rounded-full bg-[#E5501A] hover:bg-[#D0400B] text-white text-xs sm:text-sm font-semibold px-6 py-2.5 shadow-xs cursor-pointer">
-                            Find Flatmates
+                            Find Roommates
                           </button>
                         }
                       />
@@ -1405,8 +1406,8 @@ export default function SeekerDashboard() {
                             key={conn.id}
                             match={match}
                             isReceivedRequest={true}
-                            onAcceptRequest={() => handleAcceptRequest(conn.id, conn.fromUserId, match.profile.name || 'Flatmate')}
-                            onDeclineRequest={() => handleDeclineRequest(conn.id, match.profile.name || 'Flatmate')}
+                            onAcceptRequest={() => handleAcceptRequest(conn.id, conn.fromUserId, match.profile.name || 'Roommate')}
+                            onDeclineRequest={() => handleDeclineRequest(conn.id, match.profile.name || 'Roommate')}
                             connecting={connectingId === conn.fromUserId}
                             onCall={p => setContactModalProfile(p)}
                             onReport={setReportingUser}
@@ -1421,7 +1422,7 @@ export default function SeekerDashboard() {
                       <StateEmpty
                         icon={Bell}
                         title="No pending requests received"
-                        description="When other flatmates send you a connection request, they will show up here for you to accept or decline."
+                        description="When other roommates send you a connection request, they will show up here for you to accept or decline."
                       />
                     </div>
                   )
@@ -1437,7 +1438,7 @@ export default function SeekerDashboard() {
                             key={conn.id}
                             match={match}
                             isSentRequest={true}
-                            onCancelRequest={() => handleCancelRequest(conn.id, match.profile.name || 'Flatmate')}
+                            onCancelRequest={() => handleCancelRequest(conn.id, match.profile.name || 'Roommate')}
                             onCall={p => setContactModalProfile(p)}
                             onReport={setReportingUser}
                             onBlock={handleBlockUser}
@@ -1451,10 +1452,10 @@ export default function SeekerDashboard() {
                       <StateEmpty
                         icon={Send}
                         title="No pending requests sent"
-                        description="You haven't sent any connection requests yet. Send requests to connect with flatmates."
+                        description="You haven't sent any connection requests yet. Send requests to connect with roommates."
                         action={
                           <button onClick={() => setActiveTab('all')} className="rounded-full bg-[#E5501A] hover:bg-[#D0400B] text-white text-xs sm:text-sm font-semibold px-6 py-2.5 shadow-xs cursor-pointer">
-                            Browse Flatmates
+                            Browse Roommates
                           </button>
                         }
                       />

@@ -36,7 +36,7 @@ export default function SeekerTrustBanner({ onVerifyClick, isVerified }: SeekerT
                 TOP LIST VISIBILITY
               </span>
               <span className="text-[11px] text-ink/40 hidden md:inline">
-                Verified profiles rank #1 in flatmate searches
+                Verified profiles rank #1 in roommate searches
               </span>
             </div>
             <h3 className="text-sm font-bold text-ink tracking-tight font-sans">

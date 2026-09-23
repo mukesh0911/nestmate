@@ -63,6 +63,10 @@ export default function RoomCard({
     furnishing = 'Semi-Furnished';
   }
 
+  const prefetchRoomDetail = () => {
+    import('@/pages/RoomDetail');
+  };
+
   const handleCardClick = () => {
     if (onClick) {
       onClick();
@@ -84,8 +88,13 @@ export default function RoomCard({
   return (
     <div
       onClick={handleCardClick}
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={() => {
+        setIsHovered(true);
+        prefetchRoomDetail();
+      }}
       onMouseLeave={() => setIsHovered(false)}
+      onTouchStart={prefetchRoomDetail}
+      onPointerDown={prefetchRoomDetail}
       className={`group relative flex flex-col bg-white rounded-2xl shadow-xs hover:shadow-md border border-gray-200/80 overflow-hidden transition-all duration-300 cursor-pointer ${className}`}
     >
       {/* Top Image Container */}
@@ -200,7 +209,7 @@ export default function RoomCard({
                   <Users className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span>
                     {room.partnersNeeded || (room as any).flatmatesNeeded}{' '}
-                    {(room.partnersNeeded || (room as any).flatmatesNeeded) === 1 ? 'flatmate' : 'flatmates'} needed
+                    {(room.partnersNeeded || (room as any).flatmatesNeeded) === 1 ? 'roommate' : 'roommates'} needed
                   </span>
                 </div>
               ) : null}

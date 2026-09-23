@@ -374,7 +374,7 @@ export default function SettingsPage() {
             </div>
             {!profile?.isVerified && (
               <p className="text-xs text-gray-500 leading-relaxed pt-1">
-                Verified members gain priority in search results, receive authentic trust signals, and experience faster flatmate connections.
+                Verified members gain priority in search results, receive authentic trust signals, and experience faster roommate connections.
               </p>
             )}
           </div>
@@ -424,8 +424,8 @@ export default function SettingsPage() {
             <h3 className="font-serif font-medium text-xl text-[#1A1A2E]">Profile Visibility & Privacy</h3>
             <div className="space-y-4 divide-y divide-gray-100">
               {[
-                { key: 'profilePublic' as const, label: 'Public Profile Visibility', desc: 'Allow other verified flatmates and hosts to view your profile card' },
-                { key: 'showLastSeen' as const, label: 'Show Online Status', desc: 'Display when you were last active to prospective flatmates in chat' },
+                { key: 'profilePublic' as const, label: 'Public Profile Visibility', desc: 'Allow other verified roommates and hosts to view your profile card' },
+                { key: 'showLastSeen' as const, label: 'Show Online Status', desc: 'Display when you were last active to prospective roommates in chat' },
                 { key: 'discoverable' as const, label: 'Search Engine Indexing', desc: 'Show your listing in public search queries and browse results' },
               ].map((item, idx) => (
                 <div key={item.key} className={`flex items-center justify-between ${idx > 0 ? 'pt-4' : ''}`}>
@@ -449,7 +449,7 @@ export default function SettingsPage() {
             <div className="space-y-4 divide-y divide-gray-100">
               {[
                 { key: 'pushMatches' as const, label: 'High Compatibility Matches', desc: 'Notify me when a 85%+ lifestyle match publishes in my area' },
-                { key: 'pushMessages' as const, label: 'Direct Messages', desc: 'Notify me instantly when prospective flatmates message me' },
+                { key: 'pushMessages' as const, label: 'Direct Messages', desc: 'Notify me instantly when prospective roommates message me' },
                 { key: 'pushRequests' as const, label: 'Connection Invitations', desc: 'Notify me when a user sends or accepts a connect request' },
               ].map((item, idx) => (
                 <div key={item.key} className={`flex items-center justify-between ${idx > 0 ? 'pt-4' : ''}`}>

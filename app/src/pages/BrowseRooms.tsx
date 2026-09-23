@@ -311,7 +311,7 @@ export default function BrowseRooms({
                 room={listing}
                 isSaved={savedRoomIds.includes(listing.id)}
                 onToggleSave={(e) => handleToggleSave(e, listing.id)}
-                compatibilityScore={profile ? calculateRoomCompatibility(profile, listing) : 85}
+                compatibilityScore={profile ? calculateRoomCompatibility(profile, listing) : undefined}
                 distanceKm={0}
                 onClick={() => navigate(`/room/${listing.id}`)}
                 onCall={(r) => handleCallOwner(r)}
@@ -325,41 +325,16 @@ export default function BrowseRooms({
         {!isLoading && sortedListings.length === 0 && (
           <StateEmpty
             icon={Bed}
+            compact
             title={searchQuery ? `No rooms match "${searchQuery}" in ${currentCity}` : `No rooms available in ${currentCity} yet`}
+            titleClassName="text-sm sm:text-base font-semibold text-[#1A1A2E]"
             description={
               searchQuery
                 ? "Try clearing your search terms or adjusting budget filters."
                 : `Be the first to list a verified flat or private room in ${currentCity} and connect with genuine roommates.`
             }
-            action={
-              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => navigate('/post-room')}
-                  className="px-6 py-2.5 bg-[#E5501A] hover:bg-[#D0400B] text-white font-bold text-xs rounded-full shadow-xs cursor-pointer transition-colors"
-                >
-                  + Post a Room
-                </button>
-                {searchQuery ? (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-[#1A1A2E] font-semibold text-xs rounded-full cursor-pointer transition-colors"
-                  >
-                    Clear Search
-                  </button>
-                ) : currentCity && (
-                  <button
-                    type="button"
-                    onClick={() => handleCitySelect('')}
-                    className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-[#1A1A2E] font-semibold text-xs rounded-full cursor-pointer transition-colors"
-                  >
-                    Browse All Cities
-                  </button>
-                )}
-              </div>
-            }
-            className="bg-white rounded-3xl border border-gray-100 py-14 shadow-xs max-w-xl mx-auto"
+            descriptionClassName="text-xs text-gray-500 max-w-xs mx-auto mb-0"
+            className="bg-white rounded-2xl border border-gray-100 py-8 px-4 shadow-2xs max-w-sm mx-auto my-4"
           />
         )}
 

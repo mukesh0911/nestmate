@@ -68,7 +68,7 @@ export const CURATED_SCREENING_QUESTIONS: ScreeningQuestion[] = [
     type: 'SINGLE_CHOICE',
     category: 'schedule',
     title: 'What is your current work setup?',
-    description: 'Helps flatmates coordinate daytime bandwidth and quiet workspace hours.',
+    description: 'Helps roommates coordinate daytime bandwidth and quiet workspace hours.',
     options: [
       '100% Work from Office',
       'Hybrid (2–3 days WFH)',
@@ -82,7 +82,7 @@ export const CURATED_SCREENING_QUESTIONS: ScreeningQuestion[] = [
     type: 'MULTI_CHOICE',
     category: 'chores',
     title: 'Which shared responsibilities are you happy to take turns on?',
-    description: 'Select all household responsibilities you are willing to manage or split with flatmates.',
+    description: 'Select all household responsibilities you are willing to manage or split with roommates.',
     options: [
       'Kitchen & common area tidying',
       'Dishwasher / sink management',
@@ -163,7 +163,7 @@ export const CURATED_SCREENING_QUESTIONS: ScreeningQuestion[] = [
     id: 'sq_about_lifestyle',
     type: 'TEXT',
     category: 'general',
-    title: 'Tell the owner and flatmates about your daily routine and vibe',
+    title: 'Tell the owner and roommates about your daily routine and vibe',
     description: 'A brief 2–3 sentence introduction helps your application stand out.',
     placeholder: 'E.g., I work as a frontend dev at an Indiranagar startup. I like keeping things quiet on weeknights, enjoy cooking simple meals, and spend weekends cycling...',
     min: 20,

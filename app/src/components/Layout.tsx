@@ -107,7 +107,7 @@ export default function Layout() {
 
   const standardLinks = [
     { path: '/explore?tab=rooms', label: 'Rooms', icon: Building2 },
-    { path: '/explore?tab=roommates', label: 'Flatmates', icon: Users },
+    { path: '/explore?tab=roommates', label: 'Roommates', icon: Users },
     { path: '/chat', label: t('messages') || 'Messages', icon: MessageCircle, badge: unreadCount > 0 ? unreadCount : undefined },
     { path: '/profile', label: t('profile') || 'Profile', icon: User },
   ];
@@ -171,7 +171,7 @@ export default function Layout() {
     if (!isAuthenticated) {
       openAuthModal({
         title: 'Post Your Room Listing',
-        subtitle: 'Sign in or use a 1-click demo account to list your room and find compatible flatmates.',
+        subtitle: 'Sign in or use a 1-click demo account to list your room and find compatible roommates.',
         redirect: '/owner-dashboard',
       });
     } else if (effectiveRole === 'owner') {
@@ -513,7 +513,7 @@ export default function Layout() {
                 <div className="p-4 rounded-2xl bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200/60 shadow-2xs space-y-2.5">
                   <div>
                     <p className="text-xs font-bold text-[#1A1A2E]">Welcome to NestMate</p>
-                    <p className="text-[11px] text-gray-600 mt-0.5">Find verified rooms and compatible flatmates in Bangalore.</p>
+                    <p className="text-[11px] text-gray-600 mt-0.5">Find verified rooms and compatible roommates in Bangalore.</p>
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <button
