@@ -43,12 +43,12 @@ export default function CommunityTestimonialSection() {
           {/* Left Column: Quote, User & Rating */}
           <div className="lg:col-span-5 text-left flex flex-col justify-between">
             {/* Quote Icon */}
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center font-serif text-xl sm:text-2xl font-bold mb-4 sm:mb-6">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center font-serif text-xl sm:text-2xl font-bold mb-3 sm:mb-5 shrink-0">
               “
             </div>
 
             {/* Main Testimonial Quote */}
-            <blockquote className="text-xl sm:text-3xl lg:text-[32px] font-serif font-medium text-[#1A1A2E] leading-snug tracking-tight mb-6 sm:mb-8">
+            <blockquote className="text-xl sm:text-3xl lg:text-[32px] font-serif font-medium text-[#1A1A2E] leading-snug tracking-tight mb-5 sm:mb-8">
               {current.quote}
             </blockquote>
 

@@ -62,7 +62,7 @@ export default function LandingFooter({ onListSpace }: LandingFooterProps) {
           <p className="text-xs font-semibold text-[#1A1A2E] mb-1">
             People. Places. Possibilities.
           </p>
-          <p className="text-[11px] text-slate-500 mb-4 leading-relaxed max-w-xs">
+          <p className="text-xs text-slate-500 mb-4 leading-relaxed max-w-xs">
             A safer, smarter way to find your next home and connect with verified roommates across India.
           </p>
 
@@ -73,36 +73,36 @@ export default function LandingFooter({ onListSpace }: LandingFooterProps) {
               target="_blank"
               rel="noreferrer"
               aria-label="NestMate on X"
-              className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-slate-600 hover:text-black hover:border-black transition-colors"
+              className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-slate-600 hover:text-black hover:border-black transition-colors"
             >
-              <span className="text-[10px] font-bold">𝕏</span>
+              <span className="text-xs font-bold">𝕏</span>
             </a>
             <a
               href="https://instagram.com"
               target="_blank"
               rel="noreferrer"
               aria-label="NestMate on Instagram"
-              className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-slate-600 hover:text-[#E5501A] transition-colors"
+              className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-slate-600 hover:text-[#E5501A] transition-colors"
             >
-              <i className="fa-brands fa-instagram text-[10px]" />
+              <i className="fa-brands fa-instagram text-xs" />
             </a>
             <a
               href="https://linkedin.com"
               target="_blank"
               rel="noreferrer"
               aria-label="NestMate on LinkedIn"
-              className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-slate-600 hover:text-blue-700 transition-colors"
+              className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-slate-600 hover:text-blue-700 transition-colors"
             >
-              <i className="fa-brands fa-linkedin-in text-[10px]" />
+              <i className="fa-brands fa-linkedin-in text-xs" />
             </a>
             <a
               href="https://youtube.com"
               target="_blank"
               rel="noreferrer"
               aria-label="NestMate on YouTube"
-              className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-slate-600 hover:text-red-600 transition-colors"
+              className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-slate-600 hover:text-red-600 transition-colors"
             >
-              <i className="fa-brands fa-youtube text-[10px]" />
+              <i className="fa-brands fa-youtube text-xs" />
             </a>
           </div>
 
@@ -113,7 +113,7 @@ export default function LandingFooter({ onListSpace }: LandingFooterProps) {
               <button
                 type="button"
                 onClick={() => toggleSection('product')}
-                className="w-full py-3 flex items-center justify-between text-xs font-bold text-[#1A1A2E] cursor-pointer"
+                className="w-full py-3.5 flex items-center justify-between text-[13px] font-bold text-[#1A1A2E] cursor-pointer"
               >
                 <span>Product</span>
                 <span className="text-gray-400 text-sm font-light">
@@ -121,25 +121,25 @@ export default function LandingFooter({ onListSpace }: LandingFooterProps) {
                 </span>
               </button>
               {openSection === 'product' && (
-                <ul className="space-y-2 pb-3 text-xs text-slate-500 pl-1 font-medium">
+                <ul className="space-y-2.5 pb-3 text-xs text-slate-500 pl-1 font-medium">
                   <li>
-                    <Link to="/explore?tab=rooms" className="hover:text-[#E5501A]">Find a Room</Link>
+                    <Link to="/explore?tab=rooms" className="hover:text-[#E5501A] py-0.5 inline-block">Find a Room</Link>
                   </li>
                   <li>
-                    <Link to="/explore?tab=roommates" className="hover:text-[#E5501A]">Find Flatmates</Link>
+                    <Link to="/explore?tab=roommates" className="hover:text-[#E5501A] py-0.5 inline-block">Find Flatmates</Link>
                   </li>
                   <li>
-                    <button type="button" onClick={onListSpace} className="hover:text-[#E5501A] cursor-pointer text-left">
+                    <button type="button" onClick={onListSpace} className="hover:text-[#E5501A] cursor-pointer text-left py-0.5 inline-block">
                       List Your Space
                     </button>
                   </li>
                   <li>
-                    <button type="button" onClick={() => scrollToSection('how-it-works')} className="hover:text-[#E5501A] cursor-pointer text-left">
+                    <button type="button" onClick={() => scrollToSection('how-it-works')} className="hover:text-[#E5501A] cursor-pointer text-left py-0.5 inline-block">
                       How It Works
                     </button>
                   </li>
                   <li>
-                    <Link to="/safety" className="hover:text-[#E5501A]">Safety</Link>
+                    <Link to="/safety" className="hover:text-[#E5501A] py-0.5 inline-block">Safety</Link>
                   </li>
                 </ul>
               )}
@@ -150,7 +150,7 @@ export default function LandingFooter({ onListSpace }: LandingFooterProps) {
               <button
                 type="button"
                 onClick={() => toggleSection('company')}
-                className="w-full py-3 flex items-center justify-between text-xs font-bold text-[#1A1A2E] cursor-pointer"
+                className="w-full py-3.5 flex items-center justify-between text-[13px] font-bold text-[#1A1A2E] cursor-pointer"
               >
                 <span>Company</span>
                 <span className="text-gray-400 text-sm font-light">
@@ -158,12 +158,12 @@ export default function LandingFooter({ onListSpace }: LandingFooterProps) {
                 </span>
               </button>
               {openSection === 'company' && (
-                <ul className="space-y-2 pb-3 text-xs text-slate-500 pl-1 font-medium">
-                  <li><Link to="/about" className="hover:text-[#E5501A]">About Us</Link></li>
-                  <li><Link to="/about" className="hover:text-[#E5501A]">Careers</Link></li>
-                  <li><Link to="/about" className="hover:text-[#E5501A]">Blog</Link></li>
-                  <li><Link to="/about" className="hover:text-[#E5501A]">Press</Link></li>
-                  <li><Link to="/help" className="hover:text-[#E5501A]">Contact</Link></li>
+                <ul className="space-y-2.5 pb-3 text-xs text-slate-500 pl-1 font-medium">
+                  <li><Link to="/about" className="hover:text-[#E5501A] py-0.5 inline-block">About Us</Link></li>
+                  <li><Link to="/about" className="hover:text-[#E5501A] py-0.5 inline-block">Careers</Link></li>
+                  <li><Link to="/about" className="hover:text-[#E5501A] py-0.5 inline-block">Blog</Link></li>
+                  <li><Link to="/about" className="hover:text-[#E5501A] py-0.5 inline-block">Press</Link></li>
+                  <li><Link to="/help" className="hover:text-[#E5501A] py-0.5 inline-block">Contact</Link></li>
                 </ul>
               )}
             </div>
@@ -173,7 +173,7 @@ export default function LandingFooter({ onListSpace }: LandingFooterProps) {
               <button
                 type="button"
                 onClick={() => toggleSection('resources')}
-                className="w-full py-3 flex items-center justify-between text-xs font-bold text-[#1A1A2E] cursor-pointer"
+                className="w-full py-3.5 flex items-center justify-between text-[13px] font-bold text-[#1A1A2E] cursor-pointer"
               >
                 <span>Resources</span>
                 <span className="text-gray-400 text-sm font-light">
@@ -181,12 +181,12 @@ export default function LandingFooter({ onListSpace }: LandingFooterProps) {
                 </span>
               </button>
               {openSection === 'resources' && (
-                <ul className="space-y-2 pb-3 text-xs text-slate-500 pl-1 font-medium">
-                  <li><Link to="/help" className="hover:text-[#E5501A]">Help Center</Link></li>
-                  <li><Link to="/trust" className="hover:text-[#E5501A]">Community Guidelines</Link></li>
-                  <li><Link to="/safety" className="hover:text-[#E5501A]">Safety Tips</Link></li>
-                  <li><Link to="/how-it-works" className="hover:text-[#E5501A]">Living Guide</Link></li>
-                  <li><Link to="/explore" className="hover:text-[#E5501A]">Sitemap</Link></li>
+                <ul className="space-y-2.5 pb-3 text-xs text-slate-500 pl-1 font-medium">
+                  <li><Link to="/help" className="hover:text-[#E5501A] py-0.5 inline-block">Help Center</Link></li>
+                  <li><Link to="/trust" className="hover:text-[#E5501A] py-0.5 inline-block">Community Guidelines</Link></li>
+                  <li><Link to="/safety" className="hover:text-[#E5501A] py-0.5 inline-block">Safety Tips</Link></li>
+                  <li><Link to="/how-it-works" className="hover:text-[#E5501A] py-0.5 inline-block">Living Guide</Link></li>
+                  <li><Link to="/explore" className="hover:text-[#E5501A] py-0.5 inline-block">Sitemap</Link></li>
                 </ul>
               )}
             </div>
@@ -196,7 +196,7 @@ export default function LandingFooter({ onListSpace }: LandingFooterProps) {
               <button
                 type="button"
                 onClick={() => toggleSection('loop')}
-                className="w-full py-3 flex items-center justify-between text-xs font-bold text-[#1A1A2E] cursor-pointer"
+                className="w-full py-3.5 flex items-center justify-between text-[13px] font-bold text-[#1A1A2E] cursor-pointer"
               >
                 <span>Stay in the loop</span>
                 <span className="text-gray-400 text-sm font-light">
@@ -205,7 +205,7 @@ export default function LandingFooter({ onListSpace }: LandingFooterProps) {
               </button>
               {openSection === 'loop' && (
                 <div className="pb-4 pt-1">
-                  <p className="text-[11px] text-slate-500 mb-2.5 leading-relaxed">
+                  <p className="text-xs text-slate-500 mb-2.5 leading-relaxed">
                     Get tips, new listings and community stories.
                   </p>
                   <form onSubmit={handleSubscribe} className="relative">
@@ -214,7 +214,7 @@ export default function LandingFooter({ onListSpace }: LandingFooterProps) {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Enter your email"
-                      className="w-full bg-[#F5F2EC] rounded-xl pl-3 pr-10 py-2.5 text-xs text-[#1A1A2E] placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#E5501A]"
+                      className="w-full bg-[#F5F2EC] rounded-xl pl-3 pr-10 py-2.5 text-[13px] sm:text-xs text-[#1A1A2E] placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#E5501A] min-h-[42px]"
                     />
                     <button
                       type="submit"

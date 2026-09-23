@@ -39,14 +39,21 @@ export default function LivingOptionsSection() {
   };
 
   return (
-    <section className="pt-2 pb-8 sm:pb-16 px-4 sm:px-6 lg:px-8 max-w-[1280px] mx-auto">
+    <section className="py-8 sm:py-16 px-4 sm:px-6 lg:px-8 max-w-[1280px] mx-auto">
       {/* Mobile Section Header (matches reference mockup) */}
-      <div className="flex items-center justify-between mb-3 md:hidden">
-        <h2 className="text-lg font-bold text-[#1A1A2E] font-serif">Explore by category</h2>
+      <div className="flex items-end justify-between mb-3.5 md:hidden text-left">
+        <div>
+          <span className="text-[10px] font-bold tracking-[0.2em] text-[#E5501A] uppercase mb-1 block">
+            EXPLORE OPTIONS
+          </span>
+          <h2 className="text-xl font-serif font-medium text-[#1A1A2E] tracking-tight">
+            Explore by category
+          </h2>
+        </div>
         <button
           type="button"
           onClick={() => navigate('/explore?tab=rooms')}
-          className="text-xs font-semibold text-[#E5501A] hover:underline cursor-pointer"
+          className="text-xs font-semibold text-[#E5501A] hover:underline cursor-pointer pb-0.5 shrink-0"
         >
           See all →
         </button>

@@ -10,7 +10,7 @@ export default function HeroSection() {
   ];
 
   return (
-    <section className="relative min-h-[640px] lg:min-h-[720px] pt-24 sm:pt-28 lg:pt-32 pb-12 sm:pb-16 flex items-center overflow-hidden">
+    <section className="relative min-h-[640px] lg:min-h-[720px] pt-20 sm:pt-28 lg:pt-32 pb-10 sm:pb-16 flex items-center overflow-hidden">
 
       {/* ─── Premium Background System ────────────────────────────────── */}
 
@@ -95,38 +95,38 @@ export default function HeroSection() {
         {/* ─── MOBILE VIEW (< lg): Matches Reference Mockup Exactly ─── */}
         <div className="lg:hidden flex flex-col text-left">
           {/* Eyebrow */}
-          <div className="mb-2.5">
-            <span className="text-[10px] font-semibold tracking-[0.2em] text-gray-400 uppercase">
+          <div className="mb-2">
+            <span className="text-[10px] font-bold tracking-[0.2em] text-[#E5501A]/80 uppercase">
               A HOME FOR A BRIGHTER YOU
             </span>
           </div>
 
           {/* Heading + Script side-by-side row */}
-          <div className="flex items-start justify-between gap-3 mb-2.5">
-            <h1 className="text-3xl sm:text-4xl font-serif font-medium leading-[1.15] tracking-tight text-[#1A1A2E]">
+          <div className="flex items-start justify-between gap-2.5 mb-2.5">
+            <h1 className="text-[34px] sm:text-4xl font-serif font-medium leading-[1.12] tracking-tight text-[#1A1A2E]">
               <span className="block">Find your</span>
               <span className="block">people.</span>
-              <span className="italic font-normal text-[#E5501A] block">
+              <span className="italic font-normal text-[#E5501A] block mt-0.5">
                 Find your place.
               </span>
             </h1>
 
             {/* Handwritten script note aligned to right of heading */}
-            <div className="pt-1 text-right shrink-0 select-none pointer-events-none">
-              <span className="font-script text-sm sm:text-lg text-[#1A1A2E] leading-tight block transform -rotate-3">
+            <div className="pt-0.5 text-right shrink-0 select-none pointer-events-none">
+              <span className="font-script text-[13px] xs:text-sm sm:text-lg text-[#1A1A2E] leading-tight block transform -rotate-3">
                 Same city
               </span>
-              <span className="font-script text-sm sm:text-lg text-[#1A1A2E] leading-tight block transform -rotate-1">
+              <span className="font-script text-[13px] xs:text-sm sm:text-lg text-[#1A1A2E] leading-tight block transform -rotate-1">
                 New stories
               </span>
-              <span className="font-script text-sm sm:text-lg text-[#1A1A2E] leading-tight block transform rotate-2">
+              <span className="font-script text-[13px] xs:text-sm sm:text-lg text-[#1A1A2E] leading-tight block transform rotate-2">
                 Better you <span className="text-[#E5501A]">♡</span>
               </span>
             </div>
           </div>
 
           {/* Supporting Copy */}
-          <p className="text-xs sm:text-sm text-gray-600 mb-4 leading-relaxed max-w-sm">
+          <p className="text-[13px] sm:text-sm text-gray-600/90 mb-4 leading-[1.6] max-w-[340px]">
             Verified roommates, rooms and PGs in cities across India. Live safer, smarter and be part of a like-minded community.
           </p>
 

@@ -62,7 +62,7 @@ export default function StatsStrip() {
   ];
 
   return (
-    <section className="py-4 sm:py-12 border-y border-gray-100/80 bg-white/40 backdrop-blur-xs">
+    <section className="py-6 sm:py-12 border-y border-gray-100/80 bg-white/40 backdrop-blur-xs">
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col lg:flex-row items-center justify-between gap-5 sm:gap-6 lg:gap-8">
           {/* Stats Grid */}
@@ -72,7 +72,7 @@ export default function StatsStrip() {
               return (
                 <div
                   key={idx}
-                  className="flex items-center gap-2.5 sm:gap-3 p-3 sm:p-0 bg-white sm:bg-transparent rounded-2xl sm:rounded-none border border-gray-100/80 sm:border-none shadow-xs sm:shadow-none min-w-0"
+                  className="flex items-center gap-2.5 sm:gap-3 p-2.5 sm:p-0 bg-white sm:bg-transparent rounded-2xl sm:rounded-none border border-gray-100 sm:border-none shadow-xs sm:shadow-none min-w-0"
                 >
                   <div
                     className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full ${stat.iconBg} flex items-center justify-center shrink-0 shadow-xs`}

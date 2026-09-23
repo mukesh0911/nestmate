@@ -45,14 +45,14 @@ export default function LandingNavbar({ onListSpace }: LandingNavbarProps) {
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
-          ? 'bg-white/90 backdrop-blur-md shadow-xs border-b border-border/60 py-3'
-          : 'bg-transparent py-4 sm:py-5'
+          ? 'bg-white/95 backdrop-blur-md shadow-xs border-b border-border/60 py-2.5 sm:py-3'
+          : 'bg-transparent py-3 sm:py-5'
       }`}
     >
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
         {/* Left: Logo */}
-        <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="w-8 h-8 rounded-xl bg-[#E5501A] flex items-center justify-center text-white shadow-xs transition-transform group-hover:scale-105">
+        <Link to="/" className="flex items-center gap-2 sm:gap-2.5 group shrink-0">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#E5501A] flex items-center justify-center text-white shadow-xs transition-transform group-hover:scale-105 shrink-0">
             <svg
               viewBox="0 0 24 24"
               className="w-4.5 h-4.5 text-white"
@@ -202,18 +202,18 @@ export default function LandingNavbar({ onListSpace }: LandingNavbarProps) {
         {/* Mobile menu right side: City Selector + Hamburger button */}
         <div className="flex items-center gap-2 sm:hidden">
           {/* Mobile City Selector Pill */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <button
               type="button"
               onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-              className="flex items-center gap-1 text-[11px] font-medium text-[#1A1A2E] bg-white border border-gray-200 px-2.5 py-1 rounded-full shadow-xs cursor-pointer"
+              className="flex items-center gap-1 text-[11px] font-medium text-[#1A1A2E] bg-white border border-gray-200 px-2.5 py-1 rounded-full shadow-xs cursor-pointer max-w-[120px]"
             >
-              <svg viewBox="0 0 24 24" className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg viewBox="0 0 24 24" className="w-3 h-3 text-gray-500 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z" />
                 <circle cx="12" cy="10" r="3" />
               </svg>
-              <span>{selectedLang !== 'EN' ? selectedLang : (useStore.getState().filters.city || profile?.city || 'All India')}</span>
-              <ChevronDown className="w-2.5 h-2.5 text-gray-400" />
+              <span className="truncate">{selectedLang !== 'EN' ? selectedLang : (useStore.getState().filters.city || profile?.city || 'All India')}</span>
+              <ChevronDown className="w-2.5 h-2.5 text-gray-400 shrink-0" />
             </button>
 
             {langDropdownOpen && (

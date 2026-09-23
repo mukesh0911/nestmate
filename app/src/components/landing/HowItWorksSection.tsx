@@ -29,26 +29,26 @@ export default function HowItWorksSection() {
   ];
 
   return (
-    <section id="how-it-works" className="py-12 sm:py-28 px-4 sm:px-6 lg:px-8 max-w-[1280px] mx-auto text-center">
+    <section id="how-it-works" className="py-10 sm:py-20 px-4 sm:px-6 lg:px-8 max-w-[1280px] mx-auto text-center">
       {/* Eyebrow & Title */}
-      <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.2em] text-[#E5501A] uppercase mb-2 sm:mb-3 block">
+      <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.2em] text-[#E5501A] uppercase mb-1.5 sm:mb-3 block">
         GET STARTED IN MINUTES
       </span>
 
-      <h2 className="text-2xl sm:text-4xl md:text-5xl font-serif font-medium text-[#1A1A2E] mb-2 sm:mb-3 tracking-tight">
+      <h2 className="text-[28px] sm:text-4xl md:text-5xl font-serif font-medium text-[#1A1A2E] leading-tight mb-2 sm:mb-3 tracking-tight">
         How it works
       </h2>
 
-      <p className="text-xs sm:text-base text-gray-600 max-w-lg mx-auto mb-8 sm:mb-20">
+      <p className="text-[13px] sm:text-base text-gray-600 max-w-md mx-auto mb-6 sm:mb-16 leading-relaxed">
         Finding your next home is simple.
       </p>
 
       {/* ─── MOBILE VIEW (< md): Clean Vertical Scan List Matching Reference Mockup ─── */}
-      <div className="flex flex-col gap-4 md:hidden text-left max-w-sm mx-auto">
+      <div className="flex flex-col gap-3 md:hidden text-left max-w-sm mx-auto">
         {steps.map((step, idx) => (
-          <div key={idx} className="flex items-center gap-3.5 bg-white/60 p-2.5 rounded-2xl border border-gray-100/80 shadow-xs">
+          <div key={idx} className="flex items-center gap-3 bg-white/70 backdrop-blur-xs p-2.5 rounded-2xl border border-gray-100 shadow-xs">
             {/* Illustration Round Circle */}
-            <div className="w-16 h-16 rounded-full overflow-hidden bg-white p-0.5 shadow-xs border border-gray-100 shrink-0">
+            <div className="w-14 h-14 rounded-full overflow-hidden bg-white p-0.5 shadow-xs border border-gray-100 shrink-0">
               <img
                 src={step.illustration}
                 alt={step.title}
@@ -60,14 +60,14 @@ export default function HowItWorksSection() {
             {/* Step info */}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 mb-0.5">
-                <span className="w-4.5 h-4.5 rounded-full bg-[#E5501A] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
+                <span className="w-4 h-4 rounded-full bg-[#E5501A] text-white text-[10px] font-bold flex items-center justify-center shrink-0">
                   {step.num}
                 </span>
                 <h3 className="text-xs sm:text-sm font-bold text-[#1A1A2E] leading-tight">
                   {step.title}
                 </h3>
               </div>
-              <p className="text-[11px] text-gray-500 leading-snug pl-6.5">
+              <p className="text-[11px] sm:text-xs text-gray-500 leading-snug pl-6">
                 {step.desc}
               </p>
             </div>

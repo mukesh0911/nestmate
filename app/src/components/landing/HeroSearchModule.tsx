@@ -102,7 +102,7 @@ export default function HeroSearchModule() {
       <div className="bg-white rounded-2xl sm:rounded-full p-2.5 sm:p-2 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/90 transition-all">
         <form onSubmit={handleSearch} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0">
           {/* City / Area / Landmark */}
-          <div className="flex-1 flex items-center gap-2.5 px-3.5 py-2.5 sm:py-1 bg-gray-50/80 sm:bg-transparent rounded-xl sm:rounded-none">
+          <div className="flex-1 flex items-center gap-2.5 px-3.5 py-2.5 sm:py-1 bg-gray-50/80 sm:bg-transparent rounded-xl sm:rounded-none min-h-[40px]">
             <Search className="w-4 h-4 text-gray-400 shrink-0" />
             <input
               id="search-location-input"
@@ -117,7 +117,7 @@ export default function HeroSearchModule() {
           <div className="hidden sm:block h-7 w-px bg-gray-200 shrink-0" />
 
           {/* Move-in Date Dropdown */}
-          <div className="relative sm:w-36 px-3.5 py-2.5 sm:py-1 bg-gray-50/80 sm:bg-transparent rounded-xl sm:rounded-none">
+          <div className="relative sm:w-36 px-3.5 py-2.5 sm:py-1 bg-gray-50/80 sm:bg-transparent rounded-xl sm:rounded-none min-h-[40px] flex items-center">
             <button
               type="button"
               onClick={() => {
@@ -159,7 +159,7 @@ export default function HeroSearchModule() {
           <div className="hidden sm:block h-7 w-px bg-gray-200 shrink-0" />
 
           {/* Budget Dropdown */}
-          <div className="relative sm:w-36 px-3.5 py-2.5 sm:py-1 bg-gray-50/80 sm:bg-transparent rounded-xl sm:rounded-none">
+          <div className="relative sm:w-36 px-3.5 py-2.5 sm:py-1 bg-gray-50/80 sm:bg-transparent rounded-xl sm:rounded-none min-h-[40px] flex items-center">
             <button
               type="button"
               onClick={() => {
@@ -202,7 +202,7 @@ export default function HeroSearchModule() {
           <button
             type="submit"
             aria-label="Search"
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-7 py-3.5 sm:py-3 rounded-full bg-[#E5501A] hover:bg-[#D0400B] text-white font-semibold text-sm shadow-sm transition-all active:scale-[0.98] cursor-pointer shrink-0 mt-1 sm:mt-0"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-full bg-[#E5501A] hover:bg-[#D0400B] text-white font-semibold text-xs sm:text-sm shadow-xs transition-all active:scale-[0.98] cursor-pointer shrink-0 mt-0.5 sm:mt-0 min-h-[40px]"
           >
             <Search className="w-4 h-4" />
             <span>Search</span>

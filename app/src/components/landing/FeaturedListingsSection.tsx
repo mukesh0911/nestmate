@@ -117,16 +117,16 @@ export default function FeaturedListingsSection() {
   };
 
   return (
-    <section className="py-12 sm:py-28 px-4 sm:px-6 lg:px-8 max-w-[1280px] mx-auto">
+    <section className="py-10 sm:py-20 px-4 sm:px-6 lg:px-8 max-w-[1280px] mx-auto">
       {/* ─── MOBILE VIEW (< md): Matches Reference Mockup Exactly ─── */}
       <div className="md:hidden text-left mb-6">
-        <span className="text-[10px] font-bold tracking-[0.2em] text-[#E5501A] uppercase mb-1.5 block">
+        <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.2em] text-[#E5501A] uppercase mb-1.5 block">
           FEATURED LISTINGS
         </span>
-        <h2 className="text-2xl font-serif font-medium text-[#1A1A2E] tracking-tight mb-1">
+        <h2 className="text-[28px] sm:text-3xl lg:text-4xl font-serif font-medium text-[#1A1A2E] tracking-tight mb-1">
           Find your next space
         </h2>
-        <p className="text-xs text-slate-600 mb-5">
+        <p className="text-[13px] text-slate-600 mb-5 leading-relaxed">
           Discover verified listings across top cities.
         </p>
 
@@ -144,7 +144,7 @@ export default function FeaturedListingsSection() {
                     navigate(`/room/${item.id}`);
                   }
                 }}
-                className="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer flex flex-col"
+                className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-xs cursor-pointer flex flex-col"
               >
                 {/* Photo container */}
                 <div className="relative aspect-[16/10] overflow-hidden bg-slate-100">
@@ -160,7 +160,7 @@ export default function FeaturedListingsSection() {
                     type="button"
                     onClick={(e) => toggleFavorite(e, item.id)}
                     aria-label="Save listing"
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center text-slate-700 shadow-xs cursor-pointer"
+                    className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center text-slate-700 shadow-xs cursor-pointer"
                   >
                     <Heart
                       className={`w-4 h-4 ${
@@ -171,7 +171,7 @@ export default function FeaturedListingsSection() {
 
                   {/* Verified Badge */}
                   {item.verified && (
-                    <div className="absolute bottom-3 left-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/95 backdrop-blur-md text-[10px] font-bold text-emerald-700 shadow-xs">
+                    <div className="absolute bottom-2.5 left-2.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/95 backdrop-blur-md text-[10px] font-bold text-emerald-700 shadow-xs">
                       <ShieldCheck className="w-3 h-3 text-emerald-600" />
                       <span>Verified</span>
                     </div>
@@ -182,7 +182,7 @@ export default function FeaturedListingsSection() {
                 <div className="p-3.5 flex flex-col text-left">
                   {/* Title & Arrow button row */}
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <h3 className="text-sm font-bold text-[#1A1A2E] truncate">
+                    <h3 className="text-sm font-bold text-[#1A1A2E] leading-snug line-clamp-2 min-h-[1.25rem]">
                       {item.title}
                     </h3>
                     <div className="w-6 h-6 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-600 shrink-0">
