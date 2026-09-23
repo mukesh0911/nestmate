@@ -10,6 +10,9 @@ export default function FinalCTASection() {
           src={LANDING_ASSETS.photos.ctaCityWindow}
           alt="Friends overlooking city skyline at sunset"
           loading="lazy"
+          decoding="async"
+          width={800}
+          height={380}
           className="absolute inset-0 w-full h-full object-cover object-[center_35%]"
         />
 

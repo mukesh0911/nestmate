@@ -24,3 +24,6 @@ app/e2e/screenshots/
 app/tests/reports/screenshots/
 app/tests/reports/traces/
 roomate/
+
+# Asset originals
+**/_originals/

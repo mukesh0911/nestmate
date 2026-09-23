@@ -3,10 +3,9 @@ import HeroSearchModule from './HeroSearchModule';
 
 export default function HeroSection() {
   const socialAvatars = [
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&auto=format&fit=crop&q=80',
+    LANDING_ASSETS.avatars.riya,
+    LANDING_ASSETS.avatars.arjun,
+    LANDING_ASSETS.avatars.sneha,
   ];
 
   return (
@@ -133,12 +132,18 @@ export default function HeroSection() {
           {/* Hero Visual on Mobile: sitting right above the search card */}
           <div className="relative rounded-2xl overflow-hidden aspect-[16/11] sm:aspect-[16/10] shadow-md border border-white/60 mb-3.5">
             <img
-              src={LANDING_ASSETS.photos.heroWoman}
+              src={LANDING_ASSETS.photos.heroWomanMobile}
+              srcSet={`${LANDING_ASSETS.photos.heroWomanMobile} 600w, ${LANDING_ASSETS.photos.heroWoman} 896w`}
+              sizes="(max-width: 640px) 100vw, 600px"
               alt="Young woman smiling and working in modern sunlit living room"
               className="w-full h-full object-cover object-center"
               loading="eager"
               fetchPriority="high"
+              decoding="async"
+              width={600}
+              height={412}
             />
+
             {/* Soft gradient bottom overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none" />
 
@@ -210,7 +215,11 @@ export default function HeroSection() {
                   className="w-full h-full object-cover object-center"
                   loading="eager"
                   fetchPriority="high"
+                  decoding="async"
+                  width={896}
+                  height={1120}
                 />
+
 
                 {/* Soft gradient bottom overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none" />

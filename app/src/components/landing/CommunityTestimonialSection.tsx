@@ -10,19 +10,19 @@ export default function CommunityTestimonialSection() {
       quote: '“I found not just a room, but people who feel like home.”',
       author: 'Riya S.',
       location: 'Moved to Bangalore',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
+      avatar: LANDING_ASSETS.avatars.riya,
     },
     {
       quote: '“Moving across cities was intimidating until NestMate connected me with the most wonderful roommates.”',
       author: 'Arjun K.',
       location: 'Moved to Mumbai',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
+      avatar: LANDING_ASSETS.avatars.arjun,
     },
     {
       quote: '“Zero brokerage, verified profiles, and genuinely like-minded roommates. It felt seamless.”',
       author: 'Sneha M.',
       location: 'Moved to Chennai',
-      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&auto=format&fit=crop&q=80',
+      avatar: LANDING_ASSETS.avatars.sneha,
     },
   ];
 

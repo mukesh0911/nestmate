@@ -73,6 +73,9 @@ export default function LivingOptionsSection() {
                 src={opt.image}
                 alt={opt.title}
                 loading="lazy"
+                decoding="async"
+                width={300}
+                height={225}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
             </div>
@@ -111,6 +114,9 @@ export default function LivingOptionsSection() {
                 src={opt.image}
                 alt={opt.title}
                 loading="lazy"
+                decoding="async"
+                width={400}
+                height={300}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
             </div>

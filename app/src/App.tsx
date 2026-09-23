@@ -10,8 +10,8 @@ import { signOut } from 'firebase/auth';
 import { Loader2 } from 'lucide-react';
 import { Toaster } from 'sonner';
 
-// ----- Lazy-loaded pages (code splitting) -----
-const LandingPage = lazy(() => import('@/pages/LandingPage'));
+// ----- Pages -----
+import LandingPage from '@/pages/LandingPage';
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
 const PhoneLogin = lazy(() => import('@/pages/PhoneLogin'));
 const OTPVerify = lazy(() => import('@/pages/OTPVerify'));
@@ -237,6 +237,8 @@ function AppRoutes() {
     hasPhone: false,
   });
 
+  const location = useLocation();
+
   // Track user activity status
   useActiveTracking();
 
@@ -335,7 +337,19 @@ function AppRoutes() {
     };
   }, []);
 
-  if (authState.loading) {
+  // Only block with full-screen PageLoader on protected / onboarding / auth routes.
+  // Public browsing routes ('/', '/explore', '/room/:id', etc.) must render immediately without waiting for auth state.
+  const isPublicRoute =
+    location.pathname === '/' ||
+    location.pathname === '/explore' ||
+    location.pathname.startsWith('/room/') ||
+    location.pathname.startsWith('/flatmate/') ||
+    location.pathname === '/about' ||
+    location.pathname === '/how-it-works' ||
+    location.pathname === '/privacy' ||
+    location.pathname === '/terms';
+
+  if (authState.loading && !isPublicRoute) {
     return <PageLoader />;
   }
 

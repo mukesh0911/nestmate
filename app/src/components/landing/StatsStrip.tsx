@@ -26,8 +26,18 @@ export default function StatsStrip() {
         console.warn('Could not load live stats counts:', e);
       }
     }
-    loadStats();
-    return () => { mounted = false; };
+    const handle = typeof window !== 'undefined' && 'requestIdleCallback' in window
+      ? (window as any).requestIdleCallback(() => loadStats(), { timeout: 3500 })
+      : setTimeout(loadStats, 2000);
+
+    return () => {
+      mounted = false;
+      if (typeof window !== 'undefined' && 'cancelIdleCallback' in window && typeof handle === 'number') {
+        (window as any).cancelIdleCallback(handle);
+      } else {
+        clearTimeout(handle);
+      }
+    };
   }, []);
 
   const stats = [

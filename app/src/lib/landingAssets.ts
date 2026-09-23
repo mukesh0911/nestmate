@@ -5,7 +5,8 @@
 
 export const LANDING_ASSETS = {
   photos: {
-    heroWoman: '/assets/nestmate/photos/01-hero-woman.jpg',
+    heroWoman: '/assets/nestmate/photos/01-hero-woman.webp',
+    heroWomanMobile: '/assets/nestmate/photos/01-hero-woman-mobile.webp',
     heroBedroom: '/assets/nestmate/photos/01-hero-bedroom.webp',
     privateRoom: '/assets/nestmate/photos/02-private-room.webp',
     sharedRoom: '/assets/nestmate/photos/03-shared-room.webp',
@@ -22,9 +23,15 @@ export const LANDING_ASSETS = {
     ctaCityWindow: '/assets/nestmate/photos/18-cta-city-window.webp',
   },
   illustrations: {
-    createProfile: '/assets/nestmate/illustrations/07-create-profile.jpg',
-    exploreOptions: '/assets/nestmate/illustrations/08-explore-options.jpg',
-    findYourMatch: '/assets/nestmate/illustrations/09-find-your-match.jpg',
-    moveInHappily: '/assets/nestmate/illustrations/10-move-in-happily.jpg',
+    createProfile: '/assets/nestmate/illustrations/07-create-profile.webp',
+    exploreOptions: '/assets/nestmate/illustrations/08-explore-options.webp',
+    findYourMatch: '/assets/nestmate/illustrations/09-find-your-match.webp',
+    moveInHappily: '/assets/nestmate/illustrations/10-move-in-happily.webp',
+  },
+  avatars: {
+    riya: '/assets/nestmate/avatars/avatar-riya.webp',
+    arjun: '/assets/nestmate/avatars/avatar-arjun.webp',
+    sneha: '/assets/nestmate/avatars/avatar-sneha.webp',
   },
 } as const;
+

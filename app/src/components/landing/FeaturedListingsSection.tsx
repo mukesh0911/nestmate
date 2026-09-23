@@ -47,8 +47,18 @@ export default function FeaturedListingsSection() {
         console.warn('Could not load featured listings from Firestore:', e);
       }
     }
-    loadFeatured();
-    return () => { mounted = false; };
+    const handle = typeof window !== 'undefined' && 'requestIdleCallback' in window
+      ? (window as any).requestIdleCallback(() => loadFeatured(), { timeout: 2500 })
+      : setTimeout(loadFeatured, 1500);
+
+    return () => {
+      mounted = false;
+      if (typeof window !== 'undefined' && 'cancelIdleCallback' in window && typeof handle === 'number') {
+        (window as any).cancelIdleCallback(handle);
+      } else {
+        clearTimeout(handle);
+      }
+    };
   }, []);
 
   const prefetchRoomDetail = () => {
@@ -159,6 +169,9 @@ export default function FeaturedListingsSection() {
                     src={item.image}
                     alt={item.title}
                     loading="lazy"
+                    decoding="async"
+                    width={360}
+                    height={225}
                     className="w-full h-full object-cover"
                   />
 
@@ -318,6 +331,9 @@ export default function FeaturedListingsSection() {
                       src={item.image}
                       alt={item.title}
                       loading="lazy"
+                      decoding="async"
+                      width={400}
+                      height={300}
                       className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-500"
                     />
 

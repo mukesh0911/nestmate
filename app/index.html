@@ -18,14 +18,20 @@
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://nestmate.in" />
   <title>NestMate — Find Your Perfect Roommate in India</title>
-  <!-- Preload fonts to prevent FOIT/CLS -->
+  <!-- Preload hero image for instant above-the-fold paint -->
+  <link rel="preload" as="image" href="/assets/nestmate/photos/01-hero-woman-mobile.webp" type="image/webp" media="(max-width: 1023px)" fetchpriority="high" />
+  <link rel="preload" as="image" href="/assets/nestmate/photos/01-hero-woman.webp" type="image/webp" media="(min-width: 1024px)" fetchpriority="high" />
+
+  <!-- Preconnect to Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="preload" as="style"
-    href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700&family=Caveat:wght@400..700&display=swap" />
   <link rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700&family=Caveat:wght@400..700&display=swap" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700&family=Caveat:wght@600;700&display=swap"
+    media="print" onload="this.media='all'" />
+  <noscript>
+    <link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700&family=Caveat:wght@600;700&display=swap" />
+  </noscript>
 </head>
 
 <body>

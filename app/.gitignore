@@ -56,3 +56,6 @@ reports/traces/
 .env.development
 .env.production
 scripts/serviceAccountKey.json
+
+# Asset originals
+**/_originals/

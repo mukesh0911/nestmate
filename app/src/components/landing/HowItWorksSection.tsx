@@ -54,6 +54,9 @@ export default function HowItWorksSection() {
                 alt={step.title}
                 className="w-full h-full object-cover rounded-full"
                 loading="lazy"
+                decoding="async"
+                width={56}
+                height={56}
               />
             </div>
 
@@ -87,6 +90,9 @@ export default function HowItWorksSection() {
                   alt={step.title}
                   className="w-full h-full object-cover rounded-full"
                   loading="lazy"
+                  decoding="async"
+                  width={128}
+                  height={128}
                 />
               </div>
 
