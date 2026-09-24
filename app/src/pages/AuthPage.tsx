@@ -21,8 +21,6 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const {
-    initRecaptcha,
-    sendOTP,
     signInWithEmail,
     signUpWithEmail,
     signInWithGoogle,
@@ -36,9 +34,6 @@ export default function AuthPage() {
   const [authMethod, setAuthMethod] = useState<'google' | 'email' | 'forgot'>(() => {
     return isAdminRedirect ? 'email' : 'google';
   });
-
-  // Phone state
-  const [phone, setPhone] = useState((location.state as any)?.phone?.replace('+91', '').trim() || '');
 
   // Email state - prefill with mukvr46@gmail.com if entering via admin route
   const [email, setEmail] = useState(() => {
@@ -59,17 +54,10 @@ export default function AuthPage() {
     setError('');
     setLoading(true);
     try {
-      const { isNew, role, onboardingComplete, email: signedEmail, hasPhone } = await signInWithGoogle();
+      const { isNew, role, onboardingComplete, email: signedEmail } = await signInWithGoogle();
       const isTargetAdmin = isAdminRedirect || (signedEmail && signedEmail.toLowerCase() === 'mukvr46@gmail.com');
       if (isTargetAdmin) {
         navigate(redirectParam || '/admin');
-        return;
-      }
-
-      // MANDATORY PHONE VERIFICATION:
-      // All users must verify their Indian mobile number via OTP before accessing the platform
-      if (!hasPhone) {
-        navigate('/verify-phone');
         return;
       }
 
@@ -83,7 +71,7 @@ export default function AuthPage() {
       } else if (!onboardingComplete) {
         navigate(role === 'owner' ? '/onboarding/owner' : '/onboarding/seeker');
       } else {
-        navigate(role === 'owner' ? '/owner-dashboard' : '/dashboard');
+        navigate(role === 'owner' ? '/owner-dashboard' : '/explore?tab=rooms');
       }
     } catch (e: any) {
       setError(e.message || 'Google sign-in failed.');
@@ -211,11 +199,11 @@ export default function AuthPage() {
               {authMethod === 'google' && (
                 <div>
                   <div className="text-center mb-6">
-                    <h2 className="text-[22px] xl:text-[24px] font-bold text-[#1A1A2E] tracking-tight">
-                      Welcome to NestMate
+                    <h2 className="text-[22px] xl:text-[25px] font-bold text-[#1A1A2E] tracking-tight">
+                      Find Your Place &amp; People
                     </h2>
-                    <p className="text-xs text-stone-500 mt-1">
-                      Sign in with your Google account to get started
+                    <p className="text-xs sm:text-sm text-stone-500 mt-1.5 leading-relaxed">
+                      Join thousands finding verified flatmates &amp; furnished spaces across India
                     </p>
                   </div>
 
@@ -225,7 +213,7 @@ export default function AuthPage() {
                       type="button"
                       onClick={handleGoogle}
                       disabled={loading}
-                      className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white hover:bg-stone-50 border border-stone-200/90 hover:border-stone-300 rounded-2xl text-xs sm:text-sm font-bold text-[#1A1A2E] transition-all cursor-pointer shadow-xs active:scale-[0.99] disabled:opacity-50"
+                      className="w-full min-h-[50px] flex items-center justify-center gap-3 py-3.5 px-5 bg-white hover:bg-stone-50/90 border border-stone-200/90 hover:border-stone-300 rounded-2xl text-sm font-bold text-[#1A1A2E] transition-all cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-xs active:scale-[0.98] disabled:opacity-50"
                     >
                       {loading ? (
                         <span className="w-5 h-5 border-2 border-stone-300 border-t-[#E5501A] rounded-full animate-spin" />
@@ -241,19 +229,6 @@ export default function AuthPage() {
                         </>
                       )}
                     </button>
-
-                    {/* Mandatory OTP Notice */}
-                    <div className="p-3.5 bg-amber-50/80 border border-amber-200/80 rounded-2xl flex items-start gap-2.5 text-left">
-                      <ShieldCheck className="w-4 h-4 text-[#E5501A] shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-xs font-bold text-[#1A1A2E]">
-                          Mandatory Mobile OTP Verification
-                        </p>
-                        <p className="text-[11px] text-stone-600 mt-0.5 leading-relaxed">
-                          After Google sign-in, you will verify your Indian mobile number via OTP in the next step to keep our community 100% genuine and safe.
-                        </p>
-                      </div>
-                    </div>
                   </div>
 
                   {displayError && (
@@ -568,18 +543,22 @@ export default function AuthPage() {
         </div>
 
         {/* Mobile Auth Card */}
-        <div className="w-full max-w-[420px] mx-auto">
-          <div className="bg-white rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-stone-200/80 p-6 sm:p-7 relative">
-            {/* Phone Icon / Header */}
-            <div className="w-12 h-12 rounded-2xl bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center mx-auto mb-3 border border-[#E5501A]/20 shadow-xs">
-              <Smartphone className="w-6 h-6 text-[#E5501A]" />
+        <div className="w-full max-w-[400px] mx-auto px-1 sm:px-0">
+          <div className="bg-white rounded-[28px] sm:rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-stone-200/80 p-6 sm:p-7 relative transition-all">
+            {/* Playful & Trustworthy Brand Element */}
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FFF2EB] to-[#FFF7ED] text-[#E5501A] flex items-center justify-center mx-auto mb-3.5 border border-[#E5501A]/20 shadow-xs">
+              <Home className="w-6 h-6 text-[#E5501A]" />
             </div>
 
             {authMethod === 'google' && (
               <div>
                 <div className="text-center mb-5">
-                  <h2 className="text-xl font-bold text-[#1A1A2E]">Welcome to NestMate</h2>
-                  <p className="text-xs text-stone-500 mt-1">Sign in with your Google account to continue</p>
+                  <h2 className="text-xl sm:text-[22px] font-bold text-[#1A1A2E] tracking-tight">
+                    Find Your Place &amp; People
+                  </h2>
+                  <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+                    Join verified flatmates &amp; furnished spaces in your city
+                  </p>
                 </div>
 
                 {/* Google Sign-in CTA */}
@@ -588,13 +567,13 @@ export default function AuthPage() {
                     type="button"
                     onClick={handleGoogle}
                     disabled={loading}
-                    className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white hover:bg-stone-50 border border-stone-200/90 rounded-2xl text-xs sm:text-sm font-bold text-[#1A1A2E] shadow-sm active:scale-[0.99] cursor-pointer disabled:opacity-50"
+                    className="w-full min-h-[48px] flex items-center justify-center gap-3 py-3 px-4 bg-white hover:bg-stone-50 border border-stone-200/90 hover:border-stone-300 rounded-2xl text-xs sm:text-sm font-bold text-[#1A1A2E] shadow-[0_2px_8px_rgba(0,0,0,0.04)] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
                   >
                     {loading ? (
                       <span className="w-5 h-5 border-2 border-stone-300 border-t-[#E5501A] rounded-full animate-spin" />
                     ) : (
                       <>
-                        <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
                           <path
                             fill="#4285F4"
                             d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
@@ -616,18 +595,6 @@ export default function AuthPage() {
                       </>
                     )}
                   </button>
-
-                  <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-2xl flex items-start gap-2.5 text-left">
-                    <ShieldCheck className="w-4 h-4 text-[#E5501A] shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-bold text-[#1A1A2E]">
-                        Mandatory Mobile OTP Verification
-                      </p>
-                      <p className="text-[11px] text-stone-600 mt-0.5 leading-relaxed">
-                        To maintain a 100% verified community, all members verify their Indian mobile number via OTP in the next step.
-                      </p>
-                    </div>
-                  </div>
                 </div>
 
                 {displayError && (
@@ -644,7 +611,7 @@ export default function AuthPage() {
                       <Lock className="w-2.5 h-2.5" />
                     </div>
                     <span className="text-[9px] font-semibold text-stone-600 leading-tight">
-                      Number private
+                      Privacy first
                     </span>
                   </div>
 
@@ -653,7 +620,7 @@ export default function AuthPage() {
                       <Leaf className="w-2.5 h-2.5" />
                     </div>
                     <span className="text-[9px] font-semibold text-stone-600 leading-tight">
-                      100% Free
+                      Zero brokerage
                     </span>
                   </div>
 
@@ -662,7 +629,7 @@ export default function AuthPage() {
                       <Users className="w-2.5 h-2.5" />
                     </div>
                     <span className="text-[9px] font-semibold text-stone-600 leading-tight">
-                      Verified members
+                      Verified profiles
                     </span>
                   </div>
                 </div>

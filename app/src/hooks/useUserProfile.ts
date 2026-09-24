@@ -29,20 +29,30 @@ export function useUserProfile() {
     const existingSnap = await getDoc(userRef);
     const existing = existingSnap.exists() ? existingSnap.data() : {};
 
-    const { phone, email, workEmail, ...rest } = data as Partial<UserProfile> & Record<string, unknown>;
+    const { phone, email, workEmail, whatsappNumber, ...rest } = data as Partial<UserProfile> & Record<string, unknown>;
 
     // Prefer explicit writes; otherwise migrate legacy public PII into private store
     const phoneToSave = phone !== undefined ? String(phone) : (existing.phone as string | undefined);
     const emailToSave = email !== undefined ? String(email) : (existing.email as string | undefined);
     const workEmailToSave = workEmail !== undefined ? String(workEmail) : (existing.workEmail as string | undefined);
+    const whatsappToSave = whatsappNumber !== undefined ? String(whatsappNumber).trim() : (existing.whatsappNumber as string | undefined);
 
-    if (phoneToSave || emailToSave || workEmailToSave) {
+    if (phoneToSave || emailToSave || workEmailToSave || whatsappToSave !== undefined) {
       console.log('Writing to privateUserData:', userId);
       await savePrivateUserData(userId, {
         ...(phoneToSave ? { phone: phoneToSave } : {}),
         ...(emailToSave ? { email: emailToSave } : {}),
         ...(workEmailToSave ? { workEmail: workEmailToSave } : {}),
+        ...(whatsappToSave !== undefined ? { whatsappNumber: whatsappToSave } : {}),
       });
+
+      // Synchronize with userContacts (read-protected by Firestore rules for accepted connections)
+      if (whatsappNumber !== undefined) {
+        await setDoc(doc(db, 'userContacts', userId), {
+          whatsappNumber: whatsappToSave || '',
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      }
     }
 
     console.log('Existing doc in Firestore:', userId, JSON.stringify(existing));
@@ -55,6 +65,7 @@ export function useUserProfile() {
         phone: '',
         email: '',
         workEmail: '',
+        whatsappNumber: '',
         updatedAt: serverTimestamp(),
       }, { merge: true });
       console.log('Successfully wrote to users doc:', userId);

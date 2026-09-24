@@ -8,5 +8,6 @@ export function sanitizePublicProfile<T extends Record<string, unknown>>(profile
     phone: '',
     email: '',
     workEmail: '',
+    whatsappNumber: '',
   };
 }

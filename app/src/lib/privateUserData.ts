@@ -6,6 +6,7 @@ export interface PrivateUserData {
   phone?: string;
   email?: string;
   workEmail?: string;
+  whatsappNumber?: string;
   updatedAt?: unknown;
 }
 
@@ -27,6 +28,7 @@ export async function savePrivateUserData(
   if (data.phone !== undefined) cleaned.phone = data.phone;
   if (data.email !== undefined) cleaned.email = data.email;
   if (data.workEmail !== undefined) cleaned.workEmail = data.workEmail;
+  if (data.whatsappNumber !== undefined) cleaned.whatsappNumber = data.whatsappNumber;
   await setDoc(privateUserDataRef(userId), cleaned, { merge: true });
 }
 
@@ -34,7 +36,7 @@ export async function savePrivateUserData(
  * Merge private contact fields into the caller's own profile for UI use.
  * Does not write anything back to the public `users` document.
  */
-export async function hydrateOwnProfile<T extends { uid: string; phone?: string; email?: string; workEmail?: string }>(
+export async function hydrateOwnProfile<T extends { uid: string; phone?: string; email?: string; workEmail?: string; whatsappNumber?: string }>(
   profile: T
 ): Promise<T> {
   try {
@@ -43,16 +45,18 @@ export async function hydrateOwnProfile<T extends { uid: string; phone?: string;
     const legacyPhone = !priv.phone && profile.phone ? profile.phone : undefined;
     const legacyEmail = !priv.email && profile.email ? profile.email : undefined;
     const legacyWork = !priv.workEmail && profile.workEmail ? profile.workEmail : undefined;
-    if (legacyPhone || legacyEmail || legacyWork) {
+    const legacyWhatsApp = !priv.whatsappNumber && profile.whatsappNumber ? profile.whatsappNumber : undefined;
+    if (legacyPhone || legacyEmail || legacyWork || legacyWhatsApp) {
       await savePrivateUserData(profile.uid, {
         ...(legacyPhone ? { phone: legacyPhone } : {}),
         ...(legacyEmail ? { email: legacyEmail } : {}),
         ...(legacyWork ? { workEmail: legacyWork } : {}),
+        ...(legacyWhatsApp ? { whatsappNumber: legacyWhatsApp } : {}),
       });
       try {
         await setDoc(
           doc(db, 'users', profile.uid),
-          { phone: '', email: '', workEmail: '', updatedAt: serverTimestamp() },
+          { phone: '', email: '', workEmail: '', whatsappNumber: '', updatedAt: serverTimestamp() },
           { merge: true }
         );
       } catch {
@@ -60,7 +64,7 @@ export async function hydrateOwnProfile<T extends { uid: string; phone?: string;
       }
     }
 
-    const refreshed = (legacyPhone || legacyEmail || legacyWork)
+    const refreshed = (legacyPhone || legacyEmail || legacyWork || legacyWhatsApp)
       ? await getPrivateUserData(profile.uid)
       : priv;
 
@@ -69,6 +73,7 @@ export async function hydrateOwnProfile<T extends { uid: string; phone?: string;
       phone: refreshed.phone ?? profile.phone ?? '',
       email: refreshed.email ?? profile.email ?? '',
       workEmail: refreshed.workEmail ?? profile.workEmail ?? '',
+      whatsappNumber: refreshed.whatsappNumber ?? profile.whatsappNumber ?? '',
     };
   } catch (err) {
     console.warn('Failed to hydrate private user data:', err);
@@ -77,12 +82,12 @@ export async function hydrateOwnProfile<T extends { uid: string; phone?: string;
 }
 
 /** Fields that must never be written to the public users collection. */
-export const PUBLIC_PII_KEYS = ['phone', 'email', 'workEmail'] as const;
+export const PUBLIC_PII_KEYS = ['phone', 'email', 'workEmail', 'whatsappNumber'] as const;
 
-export function stripPiiFromWrite<T extends Record<string, unknown>>(data: T): Omit<T, 'phone' | 'email' | 'workEmail'> {
+export function stripPiiFromWrite<T extends Record<string, unknown>>(data: T): Omit<T, 'phone' | 'email' | 'workEmail' | 'whatsappNumber'> {
   const next = { ...data };
   for (const key of PUBLIC_PII_KEYS) {
     delete next[key];
   }
-  return next as Omit<T, 'phone' | 'email' | 'workEmail'>;
+  return next as Omit<T, 'phone' | 'email' | 'workEmail' | 'whatsappNumber'>;
 }

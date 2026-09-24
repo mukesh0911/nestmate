@@ -15,7 +15,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useChat } from '@/hooks/useChat';
-import { useConnections, getRelationshipState } from '@/hooks/useConnections';
+import { useConnections, getRelationshipState, getConnectedUserWhatsApp } from '@/hooks/useConnections';
 import type { Connection } from '@/hooks/useConnections';
 import { useNotifications } from '@/hooks/useNotifications';
 import { calculateCompatibility, calculateProfileCompatibility, getActiveStatus } from '@/hooks/useMatches';
@@ -90,6 +90,7 @@ export default function MatchDetail() {
 
   const [myConnections, setMyConnections] = useState<Connection[]>([]);
   const [chatRoomMap, setChatRoomMap] = useState<Record<string, string>>({});
+  const [targetWhatsApp, setTargetWhatsApp] = useState<string | null>(null);
 
   // Report & Block State
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -188,6 +189,21 @@ export default function MatchDetail() {
     });
     return () => unsub();
   }, [user?.uid, subscribeToChatRooms]);
+
+  // Fetch private WhatsApp contact if connection is accepted
+  useEffect(() => {
+    if (!id || !user?.uid) return;
+    const isConnAccepted = myConnections.some(
+      c => (c.toUserId === id || c.fromUserId === id) && c.status === 'accepted'
+    );
+    if (isConnAccepted) {
+      getConnectedUserWhatsApp(id).then(num => {
+        if (num) setTargetWhatsApp(num);
+      });
+    } else {
+      setTargetWhatsApp(null);
+    }
+  }, [id, user?.uid, myConnections]);
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -1298,7 +1314,7 @@ export default function MatchDetail() {
       <ContactModal
         isOpen={contactModalOpen}
         onClose={() => setContactModalOpen(false)}
-        profile={p}
+        profile={p ? { ...p, whatsappNumber: targetWhatsApp || undefined } : null}
       />
 
       {/* ── Report Modal ─────────────────────────────────────────────── */}

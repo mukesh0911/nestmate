@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { resolveEntityCoordinates } from '@/lib/locationResolver';
-import { ArrowLeft, Save, RefreshCw, Loader2, Linkedin, Instagram, Shield, ShieldCheck, CheckCircle2, XCircle, AlertCircle, Upload, Clock, FileText } from 'lucide-react';
+import { ArrowLeft, Save, RefreshCw, Loader2, Linkedin, Instagram, MessageCircle, Shield, ShieldCheck, CheckCircle2, XCircle, AlertCircle, Upload, Clock, FileText } from 'lucide-react';
 import { cities, localitiesByCity, professions } from '@/lib/staticData';
 import { collection, getDocs, query, where, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -25,6 +25,7 @@ export default function EditProfile() {
     city: '',
     locality: '',
     workEmail: '',
+    whatsappNumber: '',
     linkedin: '',
     instagram: '',
   });
@@ -173,6 +174,7 @@ export default function EditProfile() {
         city: profile.city || '',
         locality: profile.localities?.[0] || profile.locality || '',
         workEmail: profile.workEmail || '',
+        whatsappNumber: profile.whatsappNumber || '',
         linkedin: profile.socialLinks?.linkedin || '',
         instagram: profile.socialLinks?.instagram || '',
       });
@@ -214,6 +216,7 @@ export default function EditProfile() {
         locality: formData.locality,
         localities: formData.locality ? [formData.locality] : [],
         workEmail: formData.workEmail,
+        whatsappNumber: formData.whatsappNumber,
         // workEmailVerified is admin/OTP-only — never self-grant from typing an email
         socialLinks: {
           linkedin: formData.linkedin,
@@ -484,6 +487,28 @@ export default function EditProfile() {
                 onChange={e => setFormData({ ...formData, instagram: e.target.value })}
                 className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-gray-200 bg-white text-sm font-medium text-[#1A1A2E] focus:outline-none focus:border-[#E5501A] shadow-xs"
               />
+            </div>
+
+            {/* WhatsApp Number (Private until connection accepted) */}
+            <div className="pt-2 border-t border-gray-100">
+              <label className="text-xs font-bold text-[#1A1A2E] block mb-1">
+                WhatsApp Number
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                  <MessageCircle className="w-4.5 h-4.5 text-emerald-600" />
+                </div>
+                <input
+                  type="tel"
+                  placeholder="+91 XXXXX XXXXX"
+                  value={formData.whatsappNumber}
+                  onChange={e => setFormData({ ...formData, whatsappNumber: e.target.value })}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-gray-200 bg-white text-sm font-medium text-[#1A1A2E] focus:outline-none focus:border-[#E5501A] shadow-xs"
+                />
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1.5 pl-1 leading-relaxed">
+                Add a WhatsApp number so you can share it with people you connect with on NestMate.
+              </p>
             </div>
           </div>
         </div>

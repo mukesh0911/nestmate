@@ -4,6 +4,8 @@ import {
   addDoc,
   getDocs,
   getDoc,
+  setDoc,
+  deleteDoc,
   updateDoc,
   query,
   where,
@@ -174,6 +176,32 @@ export function useConnections() {
 
   /** Accept a connection request */
   const acceptRequest = useCallback(async (connectionId: string) => {
+    const snap = await getDoc(doc(db, 'connections', connectionId));
+    if (snap.exists()) {
+      const data = snap.data();
+      const fromUserId = data.fromUserId;
+      const toUserId = data.toUserId;
+      if (fromUserId && toUserId) {
+        try {
+          await Promise.all([
+            setDoc(doc(db, 'acceptedPairs', `${fromUserId}_${toUserId}`), {
+              user1: fromUserId,
+              user2: toUserId,
+              connectionId,
+              createdAt: serverTimestamp(),
+            }),
+            setDoc(doc(db, 'acceptedPairs', `${toUserId}_${fromUserId}`), {
+              user1: toUserId,
+              user2: fromUserId,
+              connectionId,
+              createdAt: serverTimestamp(),
+            }),
+          ]);
+        } catch (e) {
+          console.warn('Failed to sync accepted pair record:', e);
+        }
+      }
+    }
     await updateDoc(doc(db, 'connections', connectionId), {
       status: 'accepted',
     });
@@ -181,6 +209,18 @@ export function useConnections() {
 
   /** Reject a connection request */
   const rejectRequest = useCallback(async (connectionId: string) => {
+    const snap = await getDoc(doc(db, 'connections', connectionId));
+    if (snap.exists()) {
+      const { fromUserId, toUserId } = snap.data();
+      if (fromUserId && toUserId) {
+        try {
+          await Promise.all([
+            deleteDoc(doc(db, 'acceptedPairs', `${fromUserId}_${toUserId}`)),
+            deleteDoc(doc(db, 'acceptedPairs', `${toUserId}_${fromUserId}`)),
+          ]);
+        } catch {}
+      }
+    }
     await updateDoc(doc(db, 'connections', connectionId), {
       status: 'rejected',
     });
@@ -188,6 +228,18 @@ export function useConnections() {
 
   /** Block a user */
   const blockUser = useCallback(async (connectionId: string) => {
+    const snap = await getDoc(doc(db, 'connections', connectionId));
+    if (snap.exists()) {
+      const { fromUserId, toUserId } = snap.data();
+      if (fromUserId && toUserId) {
+        try {
+          await Promise.all([
+            deleteDoc(doc(db, 'acceptedPairs', `${fromUserId}_${toUserId}`)),
+            deleteDoc(doc(db, 'acceptedPairs', `${toUserId}_${fromUserId}`)),
+          ]);
+        } catch {}
+      }
+    }
     await updateDoc(doc(db, 'connections', connectionId), {
       status: 'blocked',
     });
@@ -271,4 +323,36 @@ export function useConnections() {
     subscribeToMyConnections,
     getMonthlyConnectCount,
   };
+}
+
+/**
+ * Generate a valid WhatsApp deep link.
+ * Handles Indian numbers (adds country code 91 if 10 digits) or international numbers.
+ * Strips formatting characters, spaces, and hyphens.
+ */
+export function formatWhatsAppDeepLink(phone: string, text?: string): string {
+  if (!phone) return '';
+  const clean = phone.replace(/\D/g, '');
+  if (!clean) return '';
+  // If 10 digits, default to Indian country code 91
+  const fullNumber = clean.length === 10 ? `91${clean}` : clean;
+  const baseUrl = `https://wa.me/${fullNumber}`;
+  return text ? `${baseUrl}?text=${encodeURIComponent(text)}` : baseUrl;
+}
+
+/**
+ * Fetch private WhatsApp contact information for an accepted connection partner.
+ * Protected by Firestore security rules (only accessible to parties with an accepted connection).
+ */
+export async function getConnectedUserWhatsApp(targetUserId: string): Promise<string | null> {
+  if (!targetUserId) return null;
+  try {
+    const snap = await getDoc(doc(db, 'userContacts', targetUserId));
+    if (!snap.exists()) return null;
+    const data = snap.data();
+    return data?.whatsappNumber || null;
+  } catch (err) {
+    // If not accepted connection, Firestore security rules will safely reject the read
+    return null;
+  }
 }

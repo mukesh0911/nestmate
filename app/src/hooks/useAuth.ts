@@ -108,6 +108,7 @@ export interface UserProfile {
   }[];
   workEmail?: string;
   workEmailVerified?: boolean;
+  whatsappNumber?: string;
   socialLinks?: {
     linkedin?: string;
     instagram?: string;

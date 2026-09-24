@@ -182,9 +182,6 @@ function LoginRoute({ isAuthenticated, authState, getDashboardRoute }: { isAuthe
     if (redirect && (redirect === '/admin' || redirect.startsWith('/admin'))) {
       return <Navigate to={redirect} replace />;
     }
-    if (!authState.hasPhone) {
-      return <Navigate to="/verify-phone" replace />;
-    }
     return <Navigate to={getDashboardRoute()} replace />;
   }
   return <AuthPage />;
@@ -202,11 +199,6 @@ function OnboardingGuard({ children, isAuthenticated, authState, expectedRole }:
   if (authState.loading || (auth.currentUser && authState.uid !== auth.currentUser.uid)) return <PageLoader />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (!isAccountActive(authState.status)) return <BlockedAccountScreen status={authState.status} />;
-
-  // Mandatory Phone Verification: Must verify phone before accessing role/onboarding
-  if (!authState.hasPhone) {
-    return <Navigate to="/verify-phone" replace />;
-  }
 
   // Incomplete onboarding must never reach interactive features.
   // If the user already has a role, send them to the right onboarding page to continue;
@@ -392,14 +384,8 @@ function BrowseRoomsRedirect() {
         {/* Auth routes */}
         <Route path="/login" element={<LoginRoute isAuthenticated={isAuthenticated} authState={authState} getDashboardRoute={getDashboardRoute} />} />
         <Route path="/phone-login" element={<Navigate to="/login" replace />} />
-        <Route path="/verify-otp" element={<Navigate to="/verify-phone" replace />} />
-        <Route path="/verify-phone" element={
-          !isAuthenticated
-            ? <Navigate to="/login" replace />
-            : authState.hasPhone
-              ? <Navigate to={authState.onboardingComplete ? (authState.role === 'owner' ? '/owner-dashboard' : '/explore?tab=rooms') : (authState.role ? `/onboarding/${authState.role}` : '/role-select')} replace />
-              : <VerifyPhone />
-        } />
+        <Route path="/verify-otp" element={<Navigate to="/login" replace />} />
+        <Route path="/verify-phone" element={<Navigate to={!isAuthenticated ? '/login' : (authState.onboardingComplete ? (authState.role === 'owner' ? '/owner-dashboard' : '/explore?tab=rooms') : (authState.role ? `/onboarding/${authState.role}` : '/role-select'))} replace />} />
 
         {/* Post-auth onboarding — reachable until onboarding is complete.
             Once complete, redirect to the correct dashboard so a refresh
@@ -407,29 +393,23 @@ function BrowseRoomsRedirect() {
         <Route path="/role-select" element={
           !isAuthenticated
             ? <Navigate to="/login" replace />
-            : !authState.hasPhone
-              ? <Navigate to="/verify-phone" replace />
-              : authState.onboardingComplete
-                ? <Navigate to={authState.role === 'owner' ? '/owner-dashboard' : '/explore?tab=rooms'} replace />
-                : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><RoleSelect /></PrivateRoute>
+            : authState.onboardingComplete
+              ? <Navigate to={authState.role === 'owner' ? '/owner-dashboard' : '/explore?tab=rooms'} replace />
+              : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><RoleSelect /></PrivateRoute>
         } />
         <Route path="/onboarding/seeker" element={
           !isAuthenticated
             ? <Navigate to="/login" replace />
-            : !authState.hasPhone
-              ? <Navigate to="/verify-phone" replace />
-              : authState.onboardingComplete
-                ? <Navigate to="/explore?tab=rooms" replace />
-                : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><SeekerOnboarding /></PrivateRoute>
+            : authState.onboardingComplete
+              ? <Navigate to="/explore?tab=rooms" replace />
+              : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><SeekerOnboarding /></PrivateRoute>
         } />
         <Route path="/onboarding/owner" element={
           !isAuthenticated
             ? <Navigate to="/login" replace />
-            : !authState.hasPhone
-              ? <Navigate to="/verify-phone" replace />
-              : authState.onboardingComplete
-                ? <Navigate to="/owner-dashboard" replace />
-                : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><OwnerOnboarding /></PrivateRoute>
+            : authState.onboardingComplete
+              ? <Navigate to="/owner-dashboard" replace />
+              : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><OwnerOnboarding /></PrivateRoute>
         } />
 
         {/* Public & App routes with shared Layout */}

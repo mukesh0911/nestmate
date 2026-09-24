@@ -128,9 +128,32 @@ service cloud.firestore {
       allow delete: if isOwner(userId) || isAdmin();
     }
 
-    // Private contact fields (phone, email, workEmail) — owner or admin only
+    // Private contact fields (phone, email, workEmail, whatsappNumber) — owner or admin only
     match /privateUserData/{userId} {
       allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    // Shared contact cards (WhatsApp number) — accessible only to owner, admin, or accepted connection partners
+    match /userContacts/{userId} {
+      allow read: if isAuthenticated() && (
+        isOwner(userId)
+        || isAdmin()
+        || exists(/databases/$(database)/documents/acceptedPairs/$(request.auth.uid + '_' + userId))
+      );
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // Accepted connection pairing registry — created/updated on connection acceptance
+    match /acceptedPairs/{pairId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.user1 ||
+        request.auth.uid == resource.data.user2 ||
+        isAdmin()
+      );
+      allow create, update: if isAuthenticated()
+        && (request.auth.uid == request.resource.data.user1 || request.auth.uid == request.resource.data.user2 || isAdmin());
+      allow delete: if isAuthenticated()
+        && (request.auth.uid == resource.data.user1 || request.auth.uid == resource.data.user2 || isAdmin());
     }
 
     // Listings: public read access so visitors can browse room listings.

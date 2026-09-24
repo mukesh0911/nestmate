@@ -5,14 +5,14 @@ import { useStore } from '@/store/useStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useReviews } from '@/hooks/useReviews';
 import { useMatches } from '@/hooks/useMatches';
-import { useConnections } from '@/hooks/useConnections';
+import { useConnections, formatWhatsAppDeepLink } from '@/hooks/useConnections';
 import { useChat } from '@/hooks/useChat';
 import { useListings } from '@/hooks/useListings';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   Crown, Shield, Star, Settings, Bell, Lock, HelpCircle, LogOut, SwitchCamera,
-  ChevronRight, TrendingUp, MessageSquare, Heart, Eye, CheckCircle2, Linkedin, Instagram,
+  ChevronRight, TrendingUp, MessageSquare, MessageCircle, Heart, Eye, CheckCircle2, Linkedin, Instagram,
   FileText, ShieldCheck, Users, Sliders, Building2, Sparkles, Brain, Share2
 } from 'lucide-react';
 import TrustBadge from '@/components/TrustBadge';
@@ -50,9 +50,20 @@ export default function ProfilePage() {
         const list = [];
         for (const conn of conns) {
           const otherId = conn.fromUserId === user.uid ? conn.toUserId : conn.fromUserId;
-          const snap = await getDoc(doc(db, 'users', otherId));
-          if (snap.exists()) {
-            list.push({ connection: conn, profile: { uid: snap.id, ...snap.data() } });
+          const [userSnap, contactSnap] = await Promise.all([
+            getDoc(doc(db, 'users', otherId)),
+            getDoc(doc(db, 'userContacts', otherId)).catch(() => null),
+          ]);
+          if (userSnap.exists()) {
+            const contactData = contactSnap && contactSnap.exists() ? contactSnap.data() : {};
+            list.push({
+              connection: conn,
+              profile: {
+                uid: userSnap.id,
+                ...userSnap.data(),
+                whatsappNumber: contactData?.whatsappNumber || '',
+              },
+            });
           }
         }
         setAcceptedConnections(list);
@@ -295,13 +306,17 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Trust & Socials */}
-          {(profile?.socialLinks?.linkedin || profile?.socialLinks?.instagram || profile?.workEmailVerified) && (
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="font-serif font-medium text-base text-[#1A1A2E]">Trust & Socials</h4>
-                <button onClick={() => navigate('/edit-profile')} className="text-xs text-[#E5501A] font-semibold cursor-pointer">Edit</button>
-              </div>
+          {/* Trust, Socials & Contact Overview */}
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-serif font-medium text-base text-[#1A1A2E]">Trust &amp; Socials</h4>
+              <button onClick={() => navigate('/edit-profile')} className="text-xs text-[#E5501A] font-semibold cursor-pointer hover:underline">
+                Edit
+              </button>
+            </div>
+
+            {/* Social Links */}
+            {(profile?.socialLinks?.linkedin || profile?.socialLinks?.instagram || profile?.workEmailVerified) ? (
               <div className="space-y-2">
                 {profile.socialLinks?.linkedin && (
                   <a href={profile.socialLinks.linkedin} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-[#0077B5]/10 rounded-2xl text-[#0077B5] hover:bg-[#0077B5]/20 transition-colors font-semibold text-xs sm:text-sm">
@@ -316,8 +331,47 @@ export default function ProfilePage() {
                   </a>
                 )}
               </div>
+            ) : null}
+
+            {/* Private Contact Information (WhatsApp) */}
+            <div className="pt-2 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Contact</span>
+                <span className="text-[10px] text-gray-400">Shared only with accepted connections</span>
+              </div>
+              {profile?.whatsappNumber ? (
+                <div className="flex items-center justify-between p-3 bg-emerald-50/70 border border-emerald-100 rounded-2xl">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                      <MessageCircle className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wide">WhatsApp Number</p>
+                      <p className="text-xs sm:text-sm font-bold text-[#1A1A2E] truncate">{profile.whatsappNumber}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => navigate('/edit-profile')} className="text-xs font-semibold text-[#E5501A] hover:underline cursor-pointer ml-2 shrink-0">
+                    Edit
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between p-3 bg-[#FBF9F6] border border-gray-100 rounded-2xl">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-stone-100 text-stone-500 flex items-center justify-center shrink-0">
+                      <MessageCircle className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-[#1A1A2E]">WhatsApp Number</p>
+                      <p className="text-[11px] text-gray-500 truncate">Add your WhatsApp number</p>
+                    </div>
+                  </div>
+                  <button onClick={() => navigate('/edit-profile')} className="text-xs font-bold text-[#E5501A] hover:underline cursor-pointer ml-2 shrink-0">
+                    Add
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Account Menu */}
           <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-2 space-y-0.5">
@@ -446,17 +500,31 @@ export default function ProfilePage() {
                         <p className="text-xs sm:text-sm font-bold text-[#1A1A2E] truncate">{p.name}</p>
                         <p className="text-[11px] text-gray-500 truncate">{p.profession || 'Member'} · {p.city}</p>
                       </div>
-                      <button
-                        onClick={async () => {
-                          const targetId = p.uid || conn.connection.fromUserId;
-                          const roomId = await getOrCreateChatRoom(user!.uid, targetId);
-                          navigate(`/chat/${roomId}`);
-                        }}
-                        className="p-2 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full transition-all shadow-xs cursor-pointer"
-                        title="Message"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {p.whatsappNumber ? (
+                          <a
+                            href={formatWhatsAppDeepLink(p.whatsappNumber, `Hi ${p.name}, connecting via NestMate!`)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full transition-all shadow-xs cursor-pointer inline-flex items-center justify-center"
+                            title={`Message ${p.name} on WhatsApp`}
+                            aria-label={`Message ${p.name} on WhatsApp`}
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </a>
+                        ) : null}
+                        <button
+                          onClick={async () => {
+                            const targetId = p.uid || conn.connection.fromUserId;
+                            const roomId = await getOrCreateChatRoom(user!.uid, targetId);
+                            navigate(`/chat/${roomId}`);
+                          }}
+                          className="p-2 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full transition-all shadow-xs cursor-pointer"
+                          title="Message on NestMate"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
