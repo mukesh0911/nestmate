@@ -89,6 +89,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/safety': 'Safety Center | NestMate',
   '/applicants/compare': 'Applicant Compare | NestMate',
   '/help': 'Help & Support | NestMate',
+  '/pricing': 'Plans & Pricing | NestMate',
   '/admin': 'Admin Dashboard | NestMate',
 };
 
@@ -220,14 +221,36 @@ function OnboardingGuard({ children, isAuthenticated, authState, expectedRole }:
 }
 
 function AppRoutes() {
-  const [authState, setAuthState] = useState<AuthState>({
-    uid: null,
-    role: null,
-    onboardingComplete: false,
-    status: 'active',
-    loading: true,
-    hasPhone: false,
+  const [authState, setAuthState] = useState<AuthState>(() => {
+    if (import.meta.env.DEV && typeof window !== 'undefined') {
+      try {
+        const raw = window.localStorage.getItem('nestmate_auth_session')
+          || (window as any).__MOCK_AUTH_USER__;
+        if (raw) {
+          const testUser = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          if (testUser?.uid) {
+            return {
+              uid: testUser.uid,
+              role: testUser.role || null,
+              onboardingComplete: testUser.onboardingComplete !== false,
+              status: testUser.status || 'active',
+              loading: false,
+              hasPhone: !!testUser.phone,
+            };
+          }
+        }
+      } catch {}
+    }
+    return {
+      uid: null,
+      role: null,
+      onboardingComplete: false,
+      status: 'active',
+      loading: true,
+      hasPhone: false,
+    };
   });
+
 
   const location = useLocation();
 
@@ -258,7 +281,7 @@ function AppRoutes() {
 
         // Fallback timer: if Firestore server doesn't respond within 2500ms, fail closed
         fallbackTimer = setTimeout(() => {
-          setAuthState(prev => prev.loading ? { uid: firebaseUser.uid, role: null, onboardingComplete: false, status: 'active', loading: false } : prev);
+          setAuthState(prev => prev.loading ? { uid: firebaseUser.uid, role: null, onboardingComplete: false, status: 'active', loading: false, hasPhone: !!firebaseUser.phoneNumber } : prev);
         }, 2500);
 
         unsubscribeProfile = onSnapshot(
@@ -318,6 +341,26 @@ function AppRoutes() {
           }
         );
       } else {
+        if (import.meta.env.DEV && typeof window !== 'undefined') {
+          const raw = window.localStorage.getItem('nestmate_auth_session')
+            || (window as any).__MOCK_AUTH_USER__;
+          if (raw) {
+            try {
+              const testUser = typeof raw === 'string' ? JSON.parse(raw) : raw;
+              if (testUser?.uid) {
+                setAuthState({
+                  uid: testUser.uid,
+                  role: testUser.role || null,
+                  onboardingComplete: testUser.onboardingComplete !== false,
+                  status: testUser.status || 'active',
+                  loading: false,
+                  hasPhone: !!testUser.phone,
+                });
+                return;
+              }
+            } catch {}
+          }
+        }
         setAuthState({ uid: null, role: null, onboardingComplete: false, status: 'active', loading: false, hasPhone: false });
       }
     });
@@ -336,10 +379,15 @@ function AppRoutes() {
     location.pathname === '/explore' ||
     location.pathname.startsWith('/room/') ||
     location.pathname.startsWith('/flatmate/') ||
+    location.pathname.startsWith('/match/') ||
     location.pathname === '/about' ||
     location.pathname === '/how-it-works' ||
     location.pathname === '/privacy' ||
-    location.pathname === '/terms';
+    location.pathname === '/terms' ||
+    location.pathname === '/trust' ||
+    location.pathname === '/safety' ||
+    location.pathname === '/pricing' ||
+    location.pathname === '/help';
 
   if (authState.loading && !isPublicRoute) {
     return <PageLoader />;
@@ -400,16 +448,12 @@ function BrowseRoomsRedirect() {
         <Route path="/onboarding/seeker" element={
           !isAuthenticated
             ? <Navigate to="/login" replace />
-            : authState.onboardingComplete
-              ? <Navigate to="/explore?tab=rooms" replace />
-              : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><SeekerOnboarding /></PrivateRoute>
+            : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><SeekerOnboarding /></PrivateRoute>
         } />
         <Route path="/onboarding/owner" element={
           !isAuthenticated
             ? <Navigate to="/login" replace />
-            : authState.onboardingComplete
-              ? <Navigate to="/owner-dashboard" replace />
-              : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><OwnerOnboarding /></PrivateRoute>
+            : <PrivateRoute isAuthenticated={isAuthenticated} status={authState.status}><OwnerOnboarding /></PrivateRoute>
         } />
 
         {/* Public & App routes with shared Layout */}
@@ -424,6 +468,7 @@ function BrowseRoomsRedirect() {
           <Route path="/room/:id" element={<RoomDetail />} />
           <Route path="/match/:id" element={<MatchDetail />} />
           <Route path="/trust" element={<TrustCenter />} />
+          <Route path="/safety" element={<SafetyCenter />} />
           <Route path="/help" element={<HelpSupport />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/about" element={<AboutUs />} />
@@ -432,7 +477,7 @@ function BrowseRoomsRedirect() {
 
           {/* Out-of-scope routes redirected */}
           <Route path="/map" element={<Navigate to="/explore" replace />} />
-          <Route path="/pricing" element={<Navigate to="/" replace />} />
+          <Route path="/pricing" element={<PricingPage />} />
 
           {/* Authenticated user routes */}
           <Route path="/dashboard" element={<DashboardRedirect />} />
@@ -445,7 +490,6 @@ function BrowseRoomsRedirect() {
           <Route path="/edit-profile" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><EditProfile /></OnboardingGuard>} />
           <Route path="/verify" element={<Navigate to="/edit-profile#verification" replace />} />
           <Route path="/preferences" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState} expectedRole="seeker"><PreferencesPage /></OnboardingGuard>} />
-          <Route path="/safety" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><SafetyCenter /></OnboardingGuard>} />
           <Route path="/applicants/compare" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState} expectedRole="owner"><ApplicantCompare /></OnboardingGuard>} />
           <Route path="/settings" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><SettingsPage /></OnboardingGuard>} />
           <Route path="/notifications" element={<OnboardingGuard isAuthenticated={isAuthenticated} authState={authState}><NotificationsPage /></OnboardingGuard>} />

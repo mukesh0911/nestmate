@@ -22,7 +22,7 @@ export interface DashboardSeekerCardProps {
   saving?: boolean;
   onCall?: (profile: UserProfile) => void;
   onChat?: (uid: string, name: string) => void;
-  cState?: 'connect' | 'pending_sent' | 'pending_received' | 'chat';
+  cState?: 'connect' | 'pending_sent' | 'pending_received' | 'chat' | 'connected' | 'none';
   connecting?: boolean;
   onSkip?: (uid: string, name: string) => void;
   onReport?: (match: MatchedUser) => void;
@@ -58,6 +58,7 @@ export default function DashboardSeekerCard({
   const navigate = useNavigate();
   const [imgFailed, setImgFailed] = useState(false);
   const p = match.profile;
+  const activeCState = cState === 'connected' ? 'chat' : cState === 'none' ? 'connect' : cState;
   const activeStatus = getActiveStatus(p.lastActiveAt);
 
   const initial = getUserInitials(p.name);
@@ -149,7 +150,9 @@ export default function DashboardSeekerCard({
                   {p.name || 'Roommate'}
                 </h3>
                 {p.workEmailVerified && (
-                  <CheckCircle2 className="w-4 h-4 text-blue-500 shrink-0" title="Corporate Verified" />
+                  <span title="Corporate Verified" className="shrink-0 flex items-center">
+                    <CheckCircle2 className="w-4 h-4 text-blue-500" />
+                  </span>
                 )}
               </div>
 
@@ -322,11 +325,11 @@ export default function DashboardSeekerCard({
               {onChat && (
                 <button
                   type="button"
-                  disabled={cState === 'pending_sent' || connecting}
+                  disabled={activeCState === 'pending_sent' || connecting}
                   onClick={() => onChat(p.uid || '', p.name || '')}
                   className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-2xs"
-                  title={cState === 'chat' ? 'Chat' : cState === 'pending_sent' ? 'Request Sent' : cState === 'pending_received' ? 'Accept Request' : 'Connect'}
-                  aria-label={cState === 'chat' ? 'Chat' : cState === 'pending_sent' ? 'Request Sent' : cState === 'pending_received' ? 'Accept Request' : 'Connect'}
+                  title={activeCState === 'chat' ? 'Chat' : activeCState === 'pending_sent' ? 'Request Sent' : activeCState === 'pending_received' ? 'Accept Request' : 'Connect'}
+                  aria-label={activeCState === 'chat' ? 'Chat' : activeCState === 'pending_sent' ? 'Request Sent' : activeCState === 'pending_received' ? 'Accept Request' : 'Connect'}
                 >
                   {connecting ? (
                     <Loader2 className="w-4 h-4 animate-spin" />

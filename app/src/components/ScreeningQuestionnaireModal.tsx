@@ -1,4 +1,4 @@
-import { useState, useId } from 'react';
+import { useState, useId, useEffect } from 'react';
 import {
   type ScreeningQuestion,
   type ScreeningAnswer,
@@ -42,6 +42,18 @@ export default function ScreeningQuestionnaireModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
   const baseId = useId();
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isSubmitting) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isSubmitting, onClose]);
 
   if (!isOpen || questions.length === 0) return null;
 
@@ -94,12 +106,18 @@ export default function ScreeningQuestionnaireModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={e => {
+        if (e.target === e.currentTarget && !isSubmitting) onClose();
+      }}
+    >
       <div
         className="w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh] transition-all transform animate-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
         aria-labelledby="screening-title"
+        onClick={e => e.stopPropagation()}
       >
         {/* Top Header */}
         <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-[#FBF9F6]">

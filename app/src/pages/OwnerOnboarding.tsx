@@ -75,6 +75,11 @@ export default function OwnerOnboarding() {
     'No pets', 'No guests overnight', 'Maintain cleanliness', 'No parties'
   ];
 
+  // Document title
+  useEffect(() => {
+    document.title = 'Owner Onboarding | NestMate';
+  }, []);
+
   // Prefill from existing profile if available
   useEffect(() => {
     if (authProfile?.name && !ownerName) {
@@ -91,6 +96,13 @@ export default function OwnerOnboarding() {
       setOwnerType((authProfile as any).ownerType);
     }
   }, [authProfile]);
+
+  // If owner has already completed onboarding upon initial mount, redirect to dashboard
+  useEffect(() => {
+    if (authProfile?.onboardingComplete) {
+      navigate('/owner-dashboard', { replace: true });
+    }
+  }, [authProfile?.onboardingComplete, navigate]);
 
   const toggleAmenity = (item: string) => {
     setSelectedAmenities(prev =>
@@ -235,7 +247,13 @@ export default function OwnerOnboarding() {
         {/* Top-Right Dismiss Button */}
         <button
           type="button"
-          onClick={() => handleFinish('dashboard')}
+          onClick={() => {
+            if (authProfile?.onboardingComplete) {
+              navigate('/owner-dashboard');
+            } else {
+              navigate('/explore?tab=rooms');
+            }
+          }}
           aria-label="Close"
           className="absolute top-5 right-5 sm:top-7 sm:right-7 w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 bg-slate-100/90 hover:bg-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all cursor-pointer"
         >
@@ -419,6 +437,24 @@ export default function OwnerOnboarding() {
                       </button>
                     )}
                   </div>
+                  {availableLocalities && availableLocalities.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {availableLocalities.slice(0, 5).map(loc => (
+                        <button
+                          key={loc}
+                          type="button"
+                          onClick={() => setLocality(loc)}
+                          className={`px-2.5 py-1 text-xs rounded-full border transition-colors cursor-pointer ${
+                            locality.toLowerCase() === loc.toLowerCase()
+                              ? 'bg-[#FFF2EB] border-[#E5501A] text-[#E5501A] font-semibold'
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          {loc}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -475,7 +511,13 @@ export default function OwnerOnboarding() {
                     <button
                       key={type}
                       type="button"
-                      onClick={() => setFlatType(type)}
+                      onClick={() => {
+                        setFlatType(type);
+                        const match = type.match(/\d+/);
+                        if (match) {
+                          setTotalRooms(match[0]);
+                        }
+                      }}
                       className={`py-2 px-4 rounded-full border text-xs transition-all cursor-pointer ${
                         flatType === type
                           ? 'border-[#E5501A] bg-[#FFF2EB] text-[#E5501A] font-semibold shadow-[0_2px_8px_rgba(229,80,26,0.12)]'
@@ -720,6 +762,56 @@ export default function OwnerOnboarding() {
                       }`}
                     >
                       👥 {guestPolicy === 'guests_welcome' ? 'Guests OK' : 'No overnight'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Cleanliness */}
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.02),0_1px_2px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_14px_rgba(0,0,0,0.05)] transition-shadow">
+                  <span className="text-xs text-slate-600 font-medium">Cleanliness standard</span>
+                  <div className="bg-slate-100/90 border border-slate-200/50 p-1 rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.03)] grid grid-cols-2 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setCleanlinessPolicy('high')}
+                      className={`py-2 px-1 rounded-lg text-xs font-medium transition-all text-center cursor-pointer ${
+                        cleanlinessPolicy === 'high' ? 'bg-white text-slate-900 font-bold shadow-[0_1px_4px_rgba(0,0,0,0.06)]' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      🧹 High standard
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCleanlinessPolicy('flexible')}
+                      className={`py-2 px-1 rounded-lg text-xs font-medium transition-all text-center cursor-pointer ${
+                        cleanlinessPolicy === 'flexible' ? 'bg-white text-slate-900 font-bold shadow-[0_1px_4px_rgba(0,0,0,0.06)]' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      ✨ Flexible
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quiet Hours */}
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.02),0_1px_2px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_14px_rgba(0,0,0,0.05)] transition-shadow">
+                  <span className="text-xs text-slate-600 font-medium">Quiet hours norm</span>
+                  <div className="bg-slate-100/90 border border-slate-200/50 p-1 rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.03)] grid grid-cols-2 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setQuietHoursPolicy('quiet_11pm')}
+                      className={`py-2 px-1 rounded-lg text-xs font-medium transition-all text-center cursor-pointer ${
+                        quietHoursPolicy === 'quiet_11pm' ? 'bg-white text-slate-900 font-bold shadow-[0_1px_4px_rgba(0,0,0,0.06)]' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      🌙 Quiet 11 PM
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuietHoursPolicy('flexible')}
+                      className={`py-2 px-1 rounded-lg text-xs font-medium transition-all text-center cursor-pointer ${
+                        quietHoursPolicy === 'flexible' ? 'bg-white text-slate-900 font-bold shadow-[0_1px_4px_rgba(0,0,0,0.06)]' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      🎸 Flexible
                     </button>
                   </div>
                 </div>

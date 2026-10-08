@@ -38,6 +38,10 @@ export default function AdminMarketplace() {
   }, []);
 
   useEffect(() => {
+    document.title = 'Marketplace Insights | NestMate Admin';
+  }, []);
+
+  useEffect(() => {
     fetchAnalytics();
   }, [fetchAnalytics]);
 
@@ -76,8 +80,9 @@ export default function AdminMarketplace() {
             {[7, 14, 30, 90].map(days => (
               <button
                 key={days}
+                type="button"
                 onClick={() => setWindowDays(days)}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                   windowDays === days
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
@@ -87,9 +92,10 @@ export default function AdminMarketplace() {
             ))}
           </div>
           <button
+            type="button"
             onClick={() => fetchAnalytics(true)}
             disabled={isRefreshing}
-            className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors cursor-pointer"
             title="Refresh events">
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>

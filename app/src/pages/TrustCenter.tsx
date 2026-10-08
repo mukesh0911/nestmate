@@ -1,15 +1,18 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import {
   ShieldCheck, Shield, CheckCircle2, ChevronDown, ChevronUp,
-  AlertTriangle, Phone, Eye, Lock, ArrowRight, UserCheck, Clock, FileText, Check
+  AlertTriangle, Phone, Eye, Lock, ArrowRight, UserCheck, Clock, Check
 } from 'lucide-react';
 
 export default function TrustCenter() {
-  const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [expandedScam, setExpandedScam] = useState<number | null>(null);
+
+  useEffect(() => {
+    document.title = 'Trust & Safety Center | NestMate';
+  }, []);
 
   const toggleScam = (idx: number) => {
     setExpandedScam(expandedScam === idx ? null : idx);
@@ -58,12 +61,12 @@ export default function TrustCenter() {
     {
       title: 'Fake Gate Pass / "Visiting Charge" Scams',
       summary: 'Scammers asking for ₹500 - ₹2,000 for a security pass before visiting a gated society.',
-      detail: 'No legitimate Bangalore society charges visitors for looking at a rental flat. Never transfer funds for "gate entry tokens", "COVID sanitization fees", or "visitor cards". NestMate listings never require entry fees.',
+      detail: 'No legitimate gated apartment society charges visitors for looking at a rental flat. Never transfer funds for "gate entry tokens", "COVID sanitization fees", or "visitor cards". NestMate listings never require entry fees.',
     },
     {
       title: 'Deposit Before In-Person Inspection',
       summary: 'Pressure to transfer advance token money "because 5 other people are coming today".',
-      detail: 'Fraudsters create fake listings with stock photos from luxury villas in Whitefield or Koramangala and demand token advances. Never send money before you or a trusted friend has physically inspected the room and met the resident.',
+      detail: 'Fraudsters create fake listings with stock photos from luxury villas or apartments and demand token advances. Never send money before you or a trusted friend has physically inspected the room and met the resident.',
     },
     {
       title: 'Refusal to Chat Inside NestMate',
@@ -89,7 +92,7 @@ export default function TrustCenter() {
             <Shield className="w-3.5 h-3.5" /> Trust & Safety Center
           </div>
           <h1 className="text-3xl sm:text-5xl font-bold tracking-tight mb-4">
-            How NestMate Protects Roommate Seekers in Bangalore
+            How NestMate Protects Roommate Seekers Across India
           </h1>
           <p className="text-sm sm:text-base text-white/70 max-w-2xl mx-auto leading-relaxed">
             Finding a roommate is a personal and financial decision. Here is how our graduated verification tiers,
@@ -202,10 +205,10 @@ export default function TrustCenter() {
         <section className="mb-12">
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="w-5 h-5 text-brand-orange" />
-            <h2 className="type-h2 text-slate-900">Known Bangalore Rental Scams</h2>
+            <h2 className="type-h2 text-slate-900">Known Rental Scams to Avoid</h2>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mb-6">
-            Be aware of common fraud vectors reported by room seekers across Bangalore.
+            Be aware of common fraud vectors reported by room seekers across major rental markets.
           </p>
 
           <div className="space-y-3">
@@ -288,7 +291,7 @@ export default function TrustCenter() {
         {/* CTA Bottom Band */}
         <div className="bg-slate-900 text-white rounded-3xl p-8 text-center">
           <h2 className="text-xl sm:text-2xl font-bold mb-2">
-            Ready to find verified roommates in Bangalore?
+            Ready to find verified roommates?
           </h2>
           <p className="text-xs sm:text-sm text-white/70 max-w-md mx-auto mb-6">
             Join NestMate for free. Verified profiles, explained lifestyle compatibility, and fresh listings only.

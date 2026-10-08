@@ -43,6 +43,16 @@ export default function AdminLayout() {
     }
   }, [isAdmin, getMetrics]);
 
+  // Escape key listener for mobile sidebar
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSidebarOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [sidebarOpen]);
+
   // Gate: loading
   if (checking || authLoading) {
     return (

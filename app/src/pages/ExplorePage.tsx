@@ -48,21 +48,36 @@ export default function ExplorePage() {
   const { subscribeToChatRooms, getOrCreateChatRoom } = useChat();
   const { findMatches, getProfilesByIds } = useMatches();
 
-  const defaultCity = currentUser?.city || filters.city || 'Bengaluru';
+  const urlCity = searchParams.get('city');
+  const urlQuery = searchParams.get('query') || '';
+
+  const defaultCity = urlCity || currentUser?.city || filters.city || 'Bengaluru';
   const [selectedCity, setSelectedCity] = useState(defaultCity);
 
   useEffect(() => {
-    if (currentUser?.city && !filters.city) {
+    if (urlCity && urlCity !== selectedCity) {
+      setSelectedCity(urlCity);
+      updateFilters({ city: urlCity });
+      setAdvFilters(prev => ({ ...prev, city: urlCity }));
+    } else if (currentUser?.city && !filters.city && !urlCity) {
       setSelectedCity(currentUser.city);
     }
-  }, [currentUser?.city, filters.city]);
+  }, [urlCity, currentUser?.city, filters.city, updateFilters]);
 
   const [isCityOpen, setIsCityOpen] = useState(false);
   const [citySearch, setCitySearch] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(urlQuery);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [advFilters, setAdvFilters] = useState<AdvancedFilterState>(DEFAULT_ADVANCED_FILTERS);
+
+  // Sync searchQuery when URL query param changes
+  useEffect(() => {
+    const qParam = searchParams.get('query');
+    if (qParam !== null && qParam !== searchQuery) {
+      setSearchQuery(qParam);
+    }
+  }, [searchParams]);
 
   const [sortBy, setSortBy] = useState<SortOption>('match');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -98,12 +113,20 @@ export default function ExplorePage() {
     : 'rooms';
 
   const handleTabChange = (tab: CategoryTab) => {
-    setSearchParams({ tab }, { replace: true });
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tab);
+      return next;
+    }, { replace: true });
   };
 
   useEffect(() => {
     if (!rawTab) {
-      setSearchParams({ tab: 'rooms' }, { replace: true });
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.set('tab', 'rooms');
+        return next;
+      }, { replace: true });
     }
   }, [rawTab, setSearchParams]);
 
@@ -246,6 +269,15 @@ export default function ExplorePage() {
     updateFilters({ city: cityName });
     setAdvFilters(prev => ({ ...prev, city: cityName }));
     setIsCityOpen(false);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (cityName) {
+        next.set('city', cityName);
+      } else {
+        next.delete('city');
+      }
+      return next;
+    }, { replace: true });
   };
 
   const filteredCities = cities.filter(c =>
@@ -401,7 +433,7 @@ export default function ExplorePage() {
     if (!user?.uid || connectingId) return;
     setConnectingId(connId);
     try {
-      await acceptRequest(connId, user.uid);
+      await acceptRequest(connId);
       toast.success('Connection request accepted! You can now message each other.');
     } catch {
       toast.error('Failed to accept connection request.');
@@ -414,7 +446,7 @@ export default function ExplorePage() {
     if (!user?.uid || connectingId) return;
     setConnectingId(connId);
     try {
-      await rejectRequest(connId, user.uid);
+      await rejectRequest(connId);
       toast.success('Connection request declined.');
     } catch {
       toast.error('Failed to decline connection request.');
@@ -423,16 +455,25 @@ export default function ExplorePage() {
     }
   };
 
-  // Close city dropdown on outside click
+  // Close city dropdown on outside click or Escape key
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (!(e.target as HTMLElement).closest('.city-dropdown-container')) {
         setIsCityOpen(false);
       }
     };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsCityOpen(false);
+      }
+    };
     if (isCityOpen) {
       document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
     }
   }, [isCityOpen]);
 
@@ -563,6 +604,28 @@ export default function ExplorePage() {
                   ))}
                 </div>
               </div>
+            )}
+          </div>
+
+          {/* Mobile Locality / Area Search Bar */}
+          <div className="relative mb-3 flex items-center bg-white border border-gray-200/90 rounded-2xl px-3.5 py-2 shadow-2xs">
+            <Search className="w-4 h-4 text-gray-400 shrink-0 mr-2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={`Search locality or keywords in ${selectedCity}...`}
+              className="w-full text-xs font-medium text-[#1A1A2E] placeholder:text-gray-400 bg-transparent border-none outline-none"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
+                className="p-1 text-gray-400 hover:text-gray-600 cursor-pointer shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             )}
           </div>
 
@@ -1152,7 +1215,7 @@ export default function ExplorePage() {
                         {receivedRequests.map(req => {
                           const m = connectedProfiles.find(p => p.profile.uid === req.fromUserId) || {
                             profile: { uid: req.fromUserId, name: 'Prospective Roommate', city: selectedCity, budget: 10000 } as any,
-                            compatibilityScore: currentUser ? calculateProfileCompatibility(currentUser, { uid: req.fromUserId, city: selectedCity } as any).score : 0,
+                            compatibilityScore: currentUser ? calculateCompatibility(currentUser.quizAnswers, {}, currentUser.city, selectedCity) : 0,
                             matchReasons: ['Shared interest in connecting']
                           };
                           return (
@@ -1182,7 +1245,7 @@ export default function ExplorePage() {
                         {sentRequests.map(req => {
                           const m = connectedProfiles.find(p => p.profile.uid === req.toUserId) || {
                             profile: { uid: req.toUserId, name: 'Prospective Roommate', city: selectedCity, budget: 10000 } as any,
-                            compatibilityScore: currentUser ? calculateProfileCompatibility(currentUser, { uid: req.toUserId, city: selectedCity } as any).score : 0,
+                            compatibilityScore: currentUser ? calculateCompatibility(currentUser.quizAnswers, {}, currentUser.city, selectedCity) : 0,
                             matchReasons: ['Request sent']
                           };
                           return (
@@ -1241,7 +1304,8 @@ export default function ExplorePage() {
           }
           setShowFiltersModal(false);
         }}
-        initialFilters={advFilters}
+        filters={advFilters}
+        totalResultsCount={0}
       />
 
       {/* Create Team Modal */}

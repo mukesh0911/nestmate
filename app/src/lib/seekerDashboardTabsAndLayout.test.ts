@@ -134,7 +134,7 @@ describe('SeekerDashboard Tabs & Layout Architecture', () => {
   describe('Part 3: Dynamic Seeker Card Integrity', () => {
     it('properly normalizes rent display with currency formatting', () => {
       const budget1 = 15000;
-      const budget2 = 0;
+      const budget2: number = 0;
       const budgetText1 = budget1 && budget1 > 0 ? `₹ ${budget1.toLocaleString('en-IN')}` : '₹ 5,000';
       const budgetText2 = budget2 && budget2 > 0 ? `₹ ${budget2.toLocaleString('en-IN')}` : '₹ 5,000';
 

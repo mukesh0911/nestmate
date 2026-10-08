@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
 export default function PrivacyPolicy() {
@@ -6,6 +6,18 @@ export default function PrivacyPolicy() {
   const [activeTab, setActiveTab] = useState<'privacy' | 'terms'>(
     location.pathname.includes('terms') ? 'terms' : 'privacy'
   );
+
+  useEffect(() => {
+    if (location.pathname.includes('terms')) {
+      setActiveTab('terms');
+    } else if (location.pathname.includes('privacy')) {
+      setActiveTab('privacy');
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    document.title = activeTab === 'privacy' ? 'Privacy Policy | NestMate' : 'Terms of Service | NestMate';
+  }, [activeTab]);
 
   return (
     <div className="min-h-screen bg-parchment page-transition">
@@ -19,16 +31,18 @@ export default function PrivacyPolicy() {
         {/* Tabs */}
         <div className="flex border-b border-border mb-10">
           <button
+            type="button"
             onClick={() => setActiveTab('privacy')}
-            className={`pb-4 px-6 font-medium text-sm transition-all border-b-2 ${
+            className={`pb-4 px-6 font-medium text-sm transition-all border-b-2 cursor-pointer ${
               activeTab === 'privacy' ? 'border-fire text-fire' : 'border-transparent text-ink/60 hover:text-ink'
             }`}
           >
             Privacy Policy
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('terms')}
-            className={`pb-4 px-6 font-medium text-sm transition-all border-b-2 ${
+            className={`pb-4 px-6 font-medium text-sm transition-all border-b-2 cursor-pointer ${
               activeTab === 'terms' ? 'border-fire text-fire' : 'border-transparent text-ink/60 hover:text-ink'
             }`}
           >

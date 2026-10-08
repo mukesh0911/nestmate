@@ -147,8 +147,8 @@ describe('WhatsApp Privacy & Contact Access Scenarios (A - H)', () => {
 
     // stripPiiFromWrite strips whatsappNumber from writes to users/{uid}
     const publicDocWrite = stripPiiFromWrite(rawPublicUser);
-    expect(publicDocWrite.whatsappNumber).toBeUndefined();
-    expect(publicDocWrite.phone).toBeUndefined();
+    expect((publicDocWrite as any).whatsappNumber).toBeUndefined();
+    expect((publicDocWrite as any).phone).toBeUndefined();
   });
 
   it('SCENARIO H: Direct Firestore access by an unauthorized user or guest is blocked', () => {

@@ -11,8 +11,6 @@ import {
   Users,
   Leaf,
   Home,
-  ChevronDown,
-  Smartphone,
   CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -108,7 +106,7 @@ export default function AuthPage() {
       } else if (!onboardingComplete) {
         navigate(role === 'owner' ? '/onboarding/owner' : '/onboarding/seeker');
       } else {
-        navigate(role === 'owner' ? '/owner-dashboard' : '/dashboard');
+        navigate(role === 'owner' ? '/owner-dashboard' : '/explore?tab=rooms');
       }
     } catch (e: any) {
       if (e?.code === 'auth/user-not-found' || e?.code === 'auth/invalid-credential') {
@@ -121,6 +119,10 @@ export default function AuthPage() {
           navigate('/role-select');
           return;
         } catch (signupErr: any) {
+          if (signupErr?.code === 'auth/email-already-in-use' || signupErr?.message?.includes('email-already-in-use')) {
+            setError('Incorrect password. An account with this email already exists.');
+            return;
+          }
           setError(signupErr.message || 'Authentication failed. Please check your credentials.');
           return;
         }
@@ -454,8 +456,9 @@ export default function AuthPage() {
                       }}
                       placeholder="you@example.com"
                       aria-label="Email address"
-                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-stone-200 text-sm font-medium outline-hidden"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-stone-200 hover:border-stone-300 focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 text-sm font-medium outline-hidden"
                       autoFocus
+                      onKeyDown={(e) => e.key === 'Enter' && handleForgot()}
                     />
                   </div>
 
@@ -490,10 +493,14 @@ export default function AuthPage() {
             <span>Dev:</span>
             <button
               type="button"
-              onClick={() => setPhone('6505553434')}
+              onClick={() => {
+                setEmail('seeker@example.com');
+                setPassword('password123');
+                setAuthMethod('email');
+              }}
               className="underline hover:text-[#E5501A]"
             >
-              Fill +91 6505553434
+              Fill Demo Seeker
             </button>
             <span>·</span>
             <button
@@ -676,37 +683,74 @@ export default function AuthPage() {
                   ← Back to Google Sign In
                 </button>
 
+                {isAdminRedirect && (
+                  <div className="mb-4 p-3 bg-slate-900 text-white rounded-2xl border border-slate-800 shadow-xs flex items-start gap-2.5">
+                    <div className="w-6 h-6 rounded-lg bg-[#E5501A]/20 border border-[#E5501A]/30 flex items-center justify-center font-bold text-[#E5501A] shrink-0 mt-0.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#E5501A]" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-white">Administrator Access</p>
+                      <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">
+                        Sign in with authorized admin account (<strong>mukvr46@gmail.com</strong>).
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="text-center mb-4">
                   <h2 className="text-lg font-bold text-[#1A1A2E]">
                     {isAdminRedirect ? 'Admin Sign In' : 'Sign in with Email'}
                   </h2>
+                  <p className="text-xs text-stone-500 mt-1">
+                    {isAdminRedirect ? 'Enter your admin credentials' : 'Enter your email and password'}
+                  </p>
                 </div>
 
                 <div className="space-y-3 mb-4">
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      setError('');
-                    }}
-                    placeholder="Email address"
-                    className="w-full px-4 py-3 rounded-2xl border border-stone-200 text-sm font-medium outline-hidden"
-                  />
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      setError('');
-                    }}
-                    placeholder="Password (min 6 chars)"
-                    className="w-full px-4 py-3 rounded-2xl border border-stone-200 text-sm font-medium outline-hidden"
-                  />
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setError('');
+                      }}
+                      placeholder="you@example.com"
+                      aria-label="Email address"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-stone-200 hover:border-stone-300 focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 text-sm font-medium outline-hidden"
+                      autoFocus
+                      onKeyDown={(e) => e.key === 'Enter' && document.getElementById('mobile-pw-input')?.focus()}
+                    />
+                  </div>
+
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                    <input
+                      id="mobile-pw-input"
+                      type={showPass ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setError('');
+                      }}
+                      placeholder="Password (min 6 chars)"
+                      aria-label="Password"
+                      className="w-full pl-10 pr-10 py-2.5 rounded-2xl border border-stone-200 hover:border-stone-300 focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 text-sm font-medium outline-hidden"
+                      onKeyDown={(e) => e.key === 'Enter' && handleEmailSubmit()}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(!showPass)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                    >
+                      {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 {displayError && (
-                  <p className="flex items-center gap-1.5 text-xs text-red-500 mb-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                  <p className="flex items-center gap-1.5 text-xs text-red-500 mb-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2" role="alert">
                     <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                     {displayError}
                   </p>
@@ -715,9 +759,98 @@ export default function AuthPage() {
                 <button
                   onClick={handleEmailSubmit}
                   disabled={loading}
-                  className="w-full bg-[#E5501A] hover:bg-[#D0400B] text-white font-bold text-sm py-3 px-5 rounded-2xl shadow-md cursor-pointer disabled:opacity-50"
+                  className="w-full bg-[#E5501A] hover:bg-[#D0400B] text-white font-bold text-sm py-3 px-5 rounded-2xl shadow-md cursor-pointer disabled:opacity-50 mb-3 flex items-center justify-center gap-2"
                 >
-                  {loading ? 'Signing in...' : 'Continue with Email'}
+                  {loading ? (
+                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <span>{isAdminRedirect ? 'Sign In to Admin Portal' : 'Continue with Email'}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+
+                <div className="flex justify-between items-center text-xs text-stone-500 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMethod('forgot');
+                      setError('');
+                      setSuccess('');
+                    }}
+                    className="hover:underline text-stone-500 cursor-pointer"
+                  >
+                    Forgot password?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGoogle}
+                    className="text-[#E5501A] font-semibold hover:underline cursor-pointer"
+                  >
+                    Use Google instead
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* MOBILE FORGOT PASSWORD AUTH */}
+            {authMethod === 'forgot' && (
+              <div>
+                <button
+                  onClick={() => {
+                    setAuthMethod('email');
+                    setError('');
+                    setSuccess('');
+                  }}
+                  className="flex items-center gap-1 text-xs font-semibold text-stone-500 hover:text-[#1A1A2E] mb-3 cursor-pointer"
+                >
+                  ← Back to Email Sign In
+                </button>
+
+                <div className="text-center mb-4">
+                  <h2 className="text-lg font-bold text-[#1A1A2E]">Reset Password</h2>
+                  <p className="text-xs text-stone-500 mt-1">
+                    We'll send a password reset link to your email.
+                  </p>
+                </div>
+
+                <div className="relative mb-4">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setError('');
+                    }}
+                    placeholder="you@example.com"
+                    aria-label="Email address"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-stone-200 hover:border-stone-300 focus:border-[#E5501A] focus:ring-2 focus:ring-[#E5501A]/10 text-sm font-medium outline-hidden"
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && handleForgot()}
+                  />
+                </div>
+
+                {displayError && (
+                  <p className="flex items-center gap-1.5 text-xs text-red-500 mb-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2" role="alert">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                    {displayError}
+                  </p>
+                )}
+                {success && (
+                  <p className="flex items-center gap-1.5 text-xs text-emerald-600 mb-3 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                    {success}
+                  </p>
+                )}
+
+                <button
+                  onClick={handleForgot}
+                  disabled={loading}
+                  className="w-full bg-[#E5501A] hover:bg-[#D0400B] text-white font-bold text-sm py-2.5 px-6 rounded-2xl shadow-md transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {loading ? 'Sending...' : 'Send Reset Link'}
                 </button>
               </div>
             )}
@@ -730,10 +863,26 @@ export default function AuthPage() {
             <span>Dev:</span>
             <button
               type="button"
-              onClick={() => setPhone('6505553434')}
+              onClick={() => {
+                setEmail('seeker@example.com');
+                setPassword('password123');
+                setAuthMethod('email');
+              }}
               className="underline hover:text-[#E5501A]"
             >
-              +91 6505553434
+              Demo Seeker
+            </button>
+            <span>·</span>
+            <button
+              type="button"
+              onClick={() => {
+                setEmail('mukvr46@gmail.com');
+                setPassword('mukesh@123');
+                setAuthMethod('email');
+              }}
+              className="underline hover:text-[#E5501A]"
+            >
+              Admin
             </button>
           </div>
         )}

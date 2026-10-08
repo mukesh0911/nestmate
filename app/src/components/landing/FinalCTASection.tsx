@@ -36,7 +36,7 @@ export default function FinalCTASection() {
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3.5 w-full sm:w-auto max-w-xs sm:max-w-none">
             <Link
-              to="/signup"
+              to="/login"
               className="inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-[#E5501A] hover:bg-[#D0400B] text-white text-[13px] sm:text-sm font-semibold shadow-md shadow-orange-900/10 transition-all cursor-pointer text-center min-h-[44px]"
             >
               <span>Get Started</span>

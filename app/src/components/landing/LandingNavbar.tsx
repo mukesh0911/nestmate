@@ -54,14 +54,26 @@ export default function LandingNavbar({ onListSpace }: LandingNavbarProps) {
     };
   }, [mobileMenuOpen]);
 
-  // Close mobile menu on Escape key
+  // Close mobile menu or dropdowns on Escape key and handle outside clicks
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMobileMenuOpen(false);
+      if (e.key === 'Escape') {
+        setMobileMenuOpen(false);
+        setLangDropdownOpen(false);
+      }
+    };
+    const handleClickOutside = (e: MouseEvent) => {
+      if (langDropdownOpen && !(e.target as HTMLElement).closest('.nav-city-dropdown')) {
+        setLangDropdownOpen(false);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [langDropdownOpen]);
 
   const scrollToSection = (id: string) => {
     setMobileMenuOpen(false);
@@ -158,7 +170,7 @@ export default function LandingNavbar({ onListSpace }: LandingNavbarProps) {
         {/* Right: Actions */}
         <div className="hidden sm:flex items-center gap-3">
           {/* City Selector Pill */}
-          <div className="relative">
+          <div className="nav-city-dropdown relative">
             <button
               type="button"
               onClick={() => setLangDropdownOpen(!langDropdownOpen)}
@@ -244,7 +256,7 @@ export default function LandingNavbar({ onListSpace }: LandingNavbarProps) {
         {/* Mobile menu right side: City Selector + Hamburger button */}
         <div className="flex items-center gap-2 sm:hidden">
           {/* Mobile City Selector Pill */}
-          <div className="relative shrink-0">
+          <div className="nav-city-dropdown relative shrink-0">
             <button
               type="button"
               onClick={() => setLangDropdownOpen(!langDropdownOpen)}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { deleteUser } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, getDocs, query, where, orderBy, limit, updateDoc, deleteDoc, addDoc, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { adminEmailKey } from '@/lib/adminKeys';
 import {
@@ -684,6 +685,132 @@ export function useAdmin() {
     return totalDeleted;
   }, []);
 
+  /**
+   * Nuclear wipe: Completely purges all collections across the entire database,
+   * resets local storage/caches, and optionally deletes the current Firebase Auth account.
+   */
+  const wipeEntireDatabase = useCallback(async (
+    options: { deleteCurrentAuthAccount?: boolean } = {},
+    onProgress?: (msg: string) => void
+  ) => {
+    const log = (m: string) => onProgress?.(m);
+    log('⚠️ INITIATING COMPLETE FACTORY RESET (NUCLEAR WIPE)...');
+
+    let totalDeleted = 0;
+    // Order matters: dependent child records first, core entities, and admin access dead last!
+    const collectionsToWipe = [
+      'connections',
+      'notifications',
+      'listingViews',
+      'reports',
+      'verifications',
+      'reviews',
+      'matches',
+      'supportTickets',
+      'analyticsEvents',
+      'listings',
+      'privateUserData',
+      'users',
+      'adminAuditLogs',
+      'adminConfig',
+      'admins', // Deleted last so admin permissions are retained during the wipe
+    ];
+
+    const batches: Array<() => Promise<void>> = [];
+    let currentBatch = writeBatch(db);
+    let batchOps = 0;
+
+    const queueDelete = (ref: any) => {
+      currentBatch.delete(ref);
+      batchOps++;
+      if (batchOps >= 400) {
+        const b = currentBatch;
+        batches.push(() => b.commit());
+        currentBatch = writeBatch(db);
+        batchOps = 0;
+      }
+    };
+
+    // 1. Wipe chat subcollections first (messages), then chatRooms
+    try {
+      log('Scanning chat rooms and purging message subcollections...');
+      const chatRoomsSnap = await getDocs(collection(db, 'chatRooms'));
+      let msgCount = 0;
+      for (const roomDoc of chatRoomsSnap.docs) {
+        try {
+          const msgsSnap = await getDocs(collection(db, 'chatRooms', roomDoc.id, 'messages'));
+          for (const mDoc of msgsSnap.docs) {
+            queueDelete(mDoc.ref);
+            msgCount++;
+            totalDeleted++;
+          }
+        } catch {
+          // ignore if subcollection query fails
+        }
+        queueDelete(roomDoc.ref);
+        totalDeleted++;
+      }
+      log(`✓ Purged ${chatRoomsSnap.size} chat rooms and ${msgCount} message(s).`);
+    } catch (e) {
+      log(`Note: chatRooms scan skipped: ${(e as Error)?.message || e}`);
+    }
+
+    // 2. Wipe each collection in order
+    for (const col of collectionsToWipe) {
+      log(`Scanning and purging collection: '${col}'...`);
+      try {
+        const snap = await getDocs(collection(db, col));
+        let count = 0;
+        for (const docSnap of snap.docs) {
+          queueDelete(docSnap.ref);
+          count++;
+          totalDeleted++;
+        }
+        log(`✓ Purged ${count} document(s) from '${col}'.`);
+      } catch (err) {
+        log(`⚠️ Could not query '${col}': ${(err as Error)?.message || err}`);
+      }
+    }
+
+    // Commit remaining batch ops
+    if (batchOps > 0) {
+      const b = currentBatch;
+      batches.push(() => b.commit());
+    }
+
+    log(`Committing ${batches.length} batch deletion(s) to Firestore...`);
+    for (let i = 0; i < batches.length; i++) {
+      log(`Executing deletion batch ${i + 1} of ${batches.length}...`);
+      await batches[i]();
+    }
+
+    log(`✅ All database collections cleared! Total documents erased: ${totalDeleted}.`);
+
+    // 3. Clear browser local storage & session storage
+    log('Clearing local client storage, session cache, and offline stores...');
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+      log('✓ Local and session storage completely cleared.');
+    } catch {
+      // storage clear ignore
+    }
+
+    // 4. Delete current auth user account if requested
+    if (options.deleteCurrentAuthAccount && auth.currentUser) {
+      const currentEmail = auth.currentUser.email || auth.currentUser.uid;
+      log(`Deleting current Firebase Auth user (${currentEmail})...`);
+      try {
+        await deleteUser(auth.currentUser);
+        log(`✓ Successfully deleted auth user account (${currentEmail}) from Firebase Authentication.`);
+      } catch (err) {
+        log(`⚠️ Notice: Deleting your current Firebase Auth user requires recent login: ${(err as Error)?.message || err}`);
+      }
+    }
+
+    return totalDeleted;
+  }, []);
+
   return {
     isAdmin, checking,
     getMetrics, getAllUsers, suspendUser, banUser, reinstateUser, updateUserVerification,
@@ -694,6 +821,7 @@ export function useAdmin() {
     requestResubmission, beginReview,
     getAdmins, addAdmin, removeAdmin, getAdminConfig, updateAdminEmails,
     cleanDemoAndSeedData,
+    wipeEntireDatabase,
   };
 }
 

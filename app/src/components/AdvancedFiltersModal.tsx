@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, RotateCcw, Check, Sparkles, Filter, MapPin, ChevronDown, ShieldCheck } from 'lucide-react';
 import { amenitiesList, cities } from '@/lib/staticData';
@@ -63,6 +63,12 @@ export default function AdvancedFiltersModal({
   totalResultsCount,
 }: Props) {
   const [draft, setDraft] = useState<AdvancedFilterState>({ ...DEFAULT_ADVANCED_FILTERS, ...initialFilters });
+
+  useEffect(() => {
+    if (isOpen) {
+      setDraft({ ...DEFAULT_ADVANCED_FILTERS, ...initialFilters });
+    }
+  }, [isOpen, initialFilters]);
 
   if (!isOpen) return null;
 
@@ -427,7 +433,11 @@ export default function AdvancedFiltersModal({
         {/* Sticky Apply Button Bar */}
         <div className="p-4 border-t border-slate-100 bg-white flex items-center justify-between gap-4 sticky bottom-0 z-10 shrink-0 pb-[max(16px,env(safe-area-inset-bottom,0px))]">
           <div className="text-xs text-slate-500">
-            Matching listings: <strong className="text-slate-900 text-sm font-bold">{totalResultsCount}</strong>
+            {totalResultsCount > 0 ? (
+              <>Matching listings: <strong className="text-slate-900 text-sm font-bold">{totalResultsCount}</strong></>
+            ) : (
+              <span>Refine and discover</span>
+            )}
           </div>
           <button
             type="button"

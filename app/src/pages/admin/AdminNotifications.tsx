@@ -71,8 +71,27 @@ export default function AdminNotifications() {
   }, [getBroadcastHistory]);
 
   useEffect(() => {
+    document.title = 'System Broadcasts | NestMate Admin';
+  }, []);
+
+  useEffect(() => {
     loadHistory();
   }, [loadHistory]);
+
+  // Escape key & body scroll lock for confirmation modal
+  useEffect(() => {
+    if (!showConfirm) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowConfirm(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [showConfirm]);
 
   const handleSendBroadcast = async () => {
     if (!title.trim() || !body.trim()) {
@@ -356,6 +375,9 @@ export default function AdminNotifications() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
           onClick={() => setShowConfirm(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-broadcast-title"
         >
           <div
             className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 animate-scale-up"
@@ -366,7 +388,7 @@ export default function AdminNotifications() {
                 <ShieldCheck className="w-6 h-6 text-fire" />
               </div>
               <div>
-                <h3 className="font-bold text-gray-900 text-lg">Confirm Broadcast</h3>
+                <h3 id="confirm-broadcast-title" className="font-bold text-gray-900 text-lg">Confirm Broadcast</h3>
                 <p className="text-xs text-gray-500">Please review before sending.</p>
               </div>
             </div>
@@ -385,7 +407,7 @@ export default function AdminNotifications() {
               <button
                 type="button"
                 onClick={() => setShowConfirm(false)}
-                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50"
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 cursor-pointer"
               >
                 Cancel
               </button>
@@ -393,7 +415,7 @@ export default function AdminNotifications() {
                 type="button"
                 onClick={handleSendBroadcast}
                 disabled={sending}
-                className="flex-1 py-2.5 bg-fire hover:bg-fire-dark text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 bg-fire hover:bg-fire-dark text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Confirm & Dispatch

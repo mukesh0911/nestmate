@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -66,6 +66,10 @@ export default function HelpSupport() {
   const [sending, setSending] = useState(false);
   const [ticketSent, setTicketSent] = useState(false);
 
+  useEffect(() => {
+    document.title = 'Help & Support | NestMate';
+  }, []);
+
   const filteredFAQs = useMemo(() => {
     if (!searchQuery.trim()) return FAQ_DATA;
     const q = searchQuery.toLowerCase();
@@ -83,7 +87,7 @@ export default function HelpSupport() {
     setSending(true);
     try {
       await addDoc(collection(db, 'supportTickets'), {
-        userId: profile?.id || 'anonymous',
+        userId: profile?.uid || 'anonymous',
         userEmail: profile?.email || null,
         userPhone: profile?.phone || null,
         userName: profile?.name || 'Anonymous User',
@@ -108,8 +112,15 @@ export default function HelpSupport() {
       <div className="bg-white/80 backdrop-blur-md border-b border-gray-100 py-4 px-4 sticky top-0 z-30 shadow-2xs">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-xs font-semibold text-gray-600 hover:text-[#1A1A2E] bg-white px-3.5 py-1.5 rounded-full border border-gray-200 shadow-2xs transition-all"
+            type="button"
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate('/explore?tab=rooms');
+              }
+            }}
+            className="flex items-center gap-2 text-xs font-semibold text-gray-600 hover:text-[#1A1A2E] bg-white px-3.5 py-1.5 rounded-full border border-gray-200 shadow-2xs transition-all cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back</span>
@@ -219,6 +230,7 @@ export default function HelpSupport() {
                 Our support desk will respond to your registered profile ({profile?.phone || profile?.email || 'account inbox'}) within 24 hours.
               </p>
               <button
+                type="button"
                 onClick={() => { setTicketSent(false); setMessage(''); }}
                 className="text-xs font-semibold text-[#E5501A] hover:underline pt-2 block mx-auto cursor-pointer"
               >

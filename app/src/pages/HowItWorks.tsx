@@ -1,8 +1,15 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Search, MessageCircle, Home, Shield, Star } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function HowItWorks() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    document.title = 'How It Works | NestMate';
+  }, []);
 
   const steps = [
     {
@@ -88,7 +95,13 @@ export default function HowItWorks() {
             Every profile goes through verification. Phone numbers stay private until both parties agree to share. 
             Report any concerns and our team will respond within 24 hours.
           </p>
-          <button onClick={() => navigate('/login')} className="btn-fire">Get Started</button>
+          <button
+            type="button"
+            onClick={() => navigate(user ? '/explore?tab=rooms' : '/login')}
+            className="btn-fire cursor-pointer"
+          >
+            {user ? 'Explore Roommates & Rooms' : 'Get Started'}
+          </button>
         </div>
       </div>
     </div>

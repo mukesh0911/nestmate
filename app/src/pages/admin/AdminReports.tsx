@@ -89,8 +89,33 @@ export default function AdminReports() {
   };
 
   useEffect(() => {
+    document.title = 'User Reports | NestMate Admin';
+  }, []);
+
+  useEffect(() => {
     fetchReports();
   }, [getAllReports]);
+
+  // Escape key & body scroll lock for selected drawer or confirmAction modal
+  useEffect(() => {
+    if (!selected && !confirmAction) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (confirmAction) {
+          setConfirmAction(null);
+        } else if (selected) {
+          setSelected(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [selected, confirmAction]);
 
   // Parallel fetch profiles for missing unique user IDs
   useEffect(() => {
@@ -337,7 +362,12 @@ export default function AdminReports() {
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-full bg-red-50 text-red-700 border border-red-200 flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden">
                           {getAvatar(report.reportedUserId) ? (
-                            <img src={getAvatar(report.reportedUserId)} className="w-full h-full object-cover" alt="" />
+                            <img
+                              src={getAvatar(report.reportedUserId)}
+                              className="w-full h-full object-cover"
+                              alt=""
+                              onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                            />
                           ) : (
                             getName(report.reportedUserId).charAt(0)
                           )}
@@ -450,7 +480,12 @@ export default function AdminReports() {
                 <div className="flex items-center gap-3 bg-red-50/50 rounded-2xl p-3.5 border border-red-100">
                   <div className="w-11 h-11 rounded-full bg-red-100 flex items-center justify-center text-sm font-bold text-red-600 shrink-0 overflow-hidden">
                     {getAvatar(selected.reportedUserId) ? (
-                      <img src={getAvatar(selected.reportedUserId)} className="w-full h-full object-cover" alt="" />
+                      <img
+                        src={getAvatar(selected.reportedUserId)}
+                        className="w-full h-full object-cover"
+                        alt=""
+                        onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                      />
                     ) : (
                       getName(selected.reportedUserId).charAt(0)
                     )}
@@ -469,7 +504,12 @@ export default function AdminReports() {
                 <div className="flex items-center gap-3 bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
                   <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0 overflow-hidden">
                     {getAvatar(selected.reporterId) ? (
-                      <img src={getAvatar(selected.reporterId)} className="w-full h-full object-cover" alt="" />
+                      <img
+                        src={getAvatar(selected.reporterId)}
+                        className="w-full h-full object-cover"
+                        alt=""
+                        onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                      />
                     ) : (
                       getName(selected.reporterId).charAt(0)
                     )}
@@ -552,10 +592,15 @@ export default function AdminReports() {
 
       {/* Confirmation Modal */}
       {confirmAction && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-report-action-title"
+        >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setConfirmAction(null)} />
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 border border-slate-200">
-            <h3 className="text-base font-bold text-slate-900 mb-2">
+            <h3 id="confirm-report-action-title" className="text-base font-bold text-slate-900 mb-2">
               Confirm {confirmAction.type === 'suspend' ? 'Suspension' : 'Permanent Ban'}
             </h3>
             <p className="text-xs text-slate-600 mb-6 leading-relaxed">

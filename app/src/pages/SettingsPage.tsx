@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useStorage } from '@/hooks/useStorage';
 import {
-  Bell, Lock, Eye, Moon, Camera, Loader2, AlertTriangle, ChevronRight, Download, Trash2, ShieldCheck,
+  Bell, Lock, Eye, Moon, Camera, Loader2, AlertTriangle, Download, Trash2, ShieldCheck, X, ArrowRightLeft,
 } from 'lucide-react';
 import {
   collection, query, where, getDocs, deleteDoc, doc, getDoc,
@@ -48,6 +48,10 @@ export default function SettingsPage() {
   const [toggles, setToggles] = useState<SettingsState>(defaultSettings);
   const [saving, setSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarImgError, setAvatarImgError] = useState(false);
+
+  // Switch role modal state
+  const [showSwitchRoleModal, setShowSwitchRoleModal] = useState(false);
 
   // Delete account state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -57,11 +61,47 @@ export default function SettingsPage() {
   // Download data state
   const [downloading, setDownloading] = useState(false);
 
+  // Dynamic SEO title
+  useEffect(() => {
+    document.title = 'Settings | NestMate';
+  }, []);
+
+  // Sync profile settings and dark mode class
   useEffect(() => {
     if (profile?.settings) {
-      setToggles(prev => ({ ...prev, ...profile.settings }));
+      setToggles(prev => {
+        const next = { ...prev, ...profile.settings };
+        if (next.darkMode) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+        return next;
+      });
     }
   }, [profile?.settings]);
+
+  // Modal accessibility: body scroll lock and escape listener
+  useEffect(() => {
+    const hasOpenModal = showDeleteModal || showSwitchRoleModal;
+    if (!hasOpenModal) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (!deleting) setShowDeleteModal(false);
+        if (!saving) setShowSwitchRoleModal(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showDeleteModal, showSwitchRoleModal, deleting, saving]);
 
   const toggle = async (key: keyof SettingsState) => {
     const updated = { ...toggles, [key]: !toggles[key] };
@@ -79,6 +119,7 @@ export default function SettingsPage() {
         await updateProfile(user.uid, { settings: updated } as any);
       } catch (err) {
         console.error('Failed to save settings:', err);
+        toast.error('Failed to update setting. Please try again.');
       } finally {
         setSaving(false);
       }
@@ -92,8 +133,11 @@ export default function SettingsPage() {
         const url = await uploadProfilePicture(e.target.files[0], user.uid);
         await updateProfile(user.uid, { avatar: url } as any);
         await refreshProfile(user.uid);
+        setAvatarImgError(false);
+        toast.success('Profile picture updated');
       } catch (err) {
         console.error('Failed to upload avatar:', err);
+        toast.error('Failed to upload profile picture');
       } finally {
         setAvatarUploading(false);
       }
@@ -103,6 +147,25 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     await logout();
     navigate('/');
+  };
+
+  // ─── SWITCH ROLE ──────────────────────────────────────────────
+  const handleConfirmSwitchRole = async () => {
+    if (!user?.uid || !profile) return;
+    setSaving(true);
+    const newRole = profile.role === 'seeker' ? 'owner' : 'seeker';
+    try {
+      await updateProfile(user.uid, { role: newRole } as any);
+      await refreshProfile(user.uid);
+      setShowSwitchRoleModal(false);
+      toast.success(`Switched to ${newRole === 'owner' ? 'Host' : 'Seeker'} mode`);
+      navigate(newRole === 'seeker' ? '/explore?tab=rooms' : '/owner-dashboard', { replace: true });
+    } catch (err) {
+      console.error('Failed to switch role:', err);
+      toast.error('Failed to switch role. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   // ─── DELETE ACCOUNT ──────────────────────────────────────────
@@ -145,11 +208,14 @@ export default function SettingsPage() {
         await deleteUser(auth.currentUser);
       }
 
+      toast.success('Your account has been deleted.');
       navigate('/');
     } catch (err: any) {
       console.error('Delete account failed:', err);
       if (err.code === 'auth/requires-recent-login') {
-        alert('For security, please log out and log back in before deleting your account.');
+        toast.error('For security, please log out and log back in before deleting your account.');
+      } else {
+        toast.error('Failed to delete account. Please try again.');
       }
     } finally {
       setDeleting(false);
@@ -196,8 +262,10 @@ export default function SettingsPage() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      toast.success('Your data archive has been downloaded.');
     } catch (err) {
       console.error('Download failed:', err);
+      toast.error('Failed to export data archive. Please try again.');
     } finally {
       setDownloading(false);
     }
@@ -264,8 +332,13 @@ export default function SettingsPage() {
             <div className="flex flex-col items-center justify-center py-2">
               <div className="relative group">
                 <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center text-2xl font-serif font-bold text-[#E5501A] overflow-hidden border-4 border-white shadow-sm">
-                  {profile?.avatar || user?.photoURL ? (
-                    <img src={profile?.avatar || user?.photoURL || ''} alt="Avatar" className="w-full h-full object-cover" />
+                  {(profile?.avatar || user?.photoURL) && !avatarImgError ? (
+                    <img
+                      src={profile?.avatar || user?.photoURL || ''}
+                      alt="Avatar"
+                      className="w-full h-full object-cover"
+                      onError={() => setAvatarImgError(true)}
+                    />
                   ) : (
                     (profile?.name || user?.displayName ? (profile?.name || user?.displayName)![0].toUpperCase() : '?')
                   )}
@@ -316,26 +389,10 @@ export default function SettingsPage() {
                 <p className="text-xs text-gray-500 mt-0.5">Current Mode: <span className="font-semibold text-[#1A1A2E] capitalize">{profile?.role === 'owner' ? 'Host / Owner' : 'Flat Seeker'}</span></p>
               </div>
               <button
-                onClick={async () => {
-                  if (window.confirm('Switching will change your dashboard view. Are you sure?')) {
-                    if (user?.uid && profile) {
-                      setSaving(true);
-                      const newRole = profile.role === 'seeker' ? 'owner' : 'seeker';
-                      try {
-                        await updateProfile(user.uid, { role: newRole } as any);
-                        await refreshProfile(user.uid);
-                        navigate(newRole === 'seeker' ? '/dashboard' : '/owner-dashboard', { replace: true });
-                      } catch (err) {
-                        console.error('Failed to switch role:', err);
-                        toast.error('Failed to switch role');
-                      } finally {
-                        setSaving(false);
-                      }
-                    }
-                  }
-                }}
-                className="px-5 py-2.5 border border-gray-200 text-[#1A1A2E] rounded-full text-xs font-semibold hover:border-[#E5501A] hover:text-[#E5501A] transition-all cursor-pointer shadow-2xs"
+                onClick={() => setShowSwitchRoleModal(true)}
+                className="px-5 py-2.5 border border-gray-200 text-[#1A1A2E] rounded-full text-xs font-semibold hover:border-[#E5501A] hover:text-[#E5501A] transition-all cursor-pointer shadow-2xs flex items-center gap-1.5"
               >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
                 Switch to {profile?.role === 'seeker' ? 'Owner Mode' : 'Seeker Mode'}
               </button>
             </div>
@@ -490,10 +547,74 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Switch Role Confirmation Modal */}
+      {showSwitchRoleModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !saving) {
+              setShowSwitchRoleModal(false);
+            }
+          }}
+        >
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-xl border border-gray-100 space-y-4 relative">
+            <button
+              onClick={() => !saving && setShowSwitchRoleModal(false)}
+              className="absolute top-5 right-5 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+              aria-label="Close modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="w-14 h-14 bg-[#FFF2EB] rounded-2xl flex items-center justify-center mx-auto text-[#E5501A]">
+              <ArrowRightLeft className="w-7 h-7" />
+            </div>
+            <h2 className="font-serif font-medium text-2xl text-center text-[#1A1A2E]">
+              Switch to {profile?.role === 'seeker' ? 'Host Mode' : 'Seeker Mode'}?
+            </h2>
+            <p className="text-xs text-gray-500 text-center leading-relaxed">
+              {profile?.role === 'seeker'
+                ? 'You will switch to Host Mode to list properties, manage incoming applicants, and configure living norms.'
+                : 'You will switch to Seeker Mode to search rooms, compare flatmates, and manage your roommate profile.'}
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setShowSwitchRoleModal(false)}
+                className="flex-1 py-3 border border-gray-200 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-all cursor-pointer"
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmSwitchRole}
+                disabled={saving}
+                className="flex-1 py-3 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs shadow-[#E5501A]/20"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
+                {saving ? 'Switching...' : 'Confirm Switch'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Account Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-xl border border-gray-100 space-y-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !deleting) {
+              setShowDeleteModal(false);
+            }
+          }}
+        >
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-xl border border-gray-100 space-y-4 relative">
+            <button
+              onClick={() => !deleting && setShowDeleteModal(false)}
+              className="absolute top-5 right-5 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+              aria-label="Close modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
             <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mx-auto text-red-600">
               <Trash2 className="w-7 h-7" />
             </div>
@@ -509,13 +630,17 @@ export default function SettingsPage() {
               className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 font-mono text-center text-red-600 font-bold tracking-widest focus:outline-none focus:border-red-400"
             />
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setShowDeleteModal(false)} className="flex-1 py-3 border border-gray-200 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-50" disabled={deleting}>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 py-3 border border-gray-200 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-all cursor-pointer"
+                disabled={deleting}
+              >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteAccount}
                 disabled={deleteConfirmText !== 'DELETE' || deleting}
-                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-full text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-full text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer shadow-xs shadow-red-600/20"
               >
                 {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                 {deleting ? 'Deleting...' : 'Confirm Delete'}

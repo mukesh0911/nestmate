@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { X, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { CURATED_SCREENING_QUESTIONS } from '@/lib/screeningQuestions';
 
@@ -18,6 +19,20 @@ export default function ApplicantScreeningAnswersModal({
   screeningAnswers,
   onAccept,
 }: ApplicantScreeningAnswersModalProps) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const answersEntries = Object.entries(screeningAnswers || {});
@@ -50,7 +65,10 @@ export default function ApplicantScreeningAnswersModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
+    <div
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200"
+    >
       <div
         className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
         role="dialog"

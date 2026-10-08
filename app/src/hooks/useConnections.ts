@@ -15,6 +15,8 @@ import {
   Timestamp,
   onSnapshot,
   or,
+  writeBatch,
+  increment,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
@@ -119,10 +121,24 @@ export function useConnections() {
         return activeDoc ? activeDoc.id : allDocs[0].id;
       }
 
+      // Pre-check quota before dispatching
+      const userSnap = await getDoc(doc(db, 'users', fromId));
+      const userData = userSnap.exists() ? userSnap.data() : null;
+      const isPremium = userData?.isPremium === true;
+      const currentConnectsUsed = userData?.connectsUsed ?? 0;
+
+      if (!isPremium && currentConnectsUsed >= FREE_CONNECT_LIMIT) {
+        throw new Error(`Free connection limit reached (${FREE_CONNECT_LIMIT}/${FREE_CONNECT_LIMIT}). Upgrade to NestMate Pro for unlimited connections.`);
+      }
+
       // Only attach listingId when provided AND non-empty; rules validate ownership.
       const listingId = opts?.listingId?.trim();
       const screeningAnswers = opts?.screeningAnswers;
-      const ref = await addDoc(collection(db, 'connections'), {
+
+      // Atomically create connection record AND increment user's connectsUsed counter
+      const batch = writeBatch(db);
+      const connRef = doc(collection(db, 'connections'));
+      batch.set(connRef, {
         fromUserId: fromId,
         toUserId: toId,
         status: 'pending',
@@ -130,7 +146,13 @@ export function useConnections() {
         ...(listingId ? { listingId } : {}),
         ...(screeningAnswers ? { screeningAnswers } : {}),
       });
-      return ref.id;
+      batch.set(doc(db, 'users', fromId), {
+        connectsUsed: increment(1),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      await batch.commit();
+
+      return connRef.id;
     },
     []
   );

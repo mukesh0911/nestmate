@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -25,6 +25,32 @@ export default function HeroSearchModule() {
   const [budgetRange, setBudgetRange] = useState('Any budget');
   const [isBudgetOpen, setIsBudgetOpen] = useState(false);
   const [isDateOpen, setIsDateOpen] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (isDateOpen && !target.closest('.hero-date-dropdown')) {
+        setIsDateOpen(false);
+      }
+      if (isBudgetOpen && !target.closest('.hero-budget-dropdown')) {
+        setIsBudgetOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsDateOpen(false);
+        setIsBudgetOpen(false);
+      }
+    };
+    if (isDateOpen || isBudgetOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [isDateOpen, isBudgetOpen]);
 
   const budgetOptions = [
     { label: 'Any budget', min: 0, max: 100000 },
@@ -80,7 +106,7 @@ export default function HeroSearchModule() {
               : 'bg-white/90 text-gray-600 hover:text-gray-900 border border-gray-200/80'
           }`}
         >
-          <Home className="w-3.5 h-3.5 text-[#E5501A] shrink-0" />
+          <Home className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'rooms' ? 'text-[#E5501A]' : 'text-gray-400'}`} />
           <span className="truncate">Rooms &amp; PGs</span>
         </button>
 
@@ -93,7 +119,7 @@ export default function HeroSearchModule() {
               : 'bg-white/90 text-gray-600 hover:text-gray-900 border border-gray-200/80'
           }`}
         >
-          <Users className="w-3.5 h-3.5 shrink-0" />
+          <Users className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'flatmates' ? 'text-[#E5501A]' : 'text-gray-400'}`} />
           <span className="truncate">Roommates</span>
         </button>
       </div>
@@ -117,7 +143,7 @@ export default function HeroSearchModule() {
           <div className="hidden sm:block h-7 w-px bg-gray-200 shrink-0" />
 
           {/* Move-in Date Dropdown */}
-          <div className="relative sm:w-36 px-3.5 py-2.5 sm:py-1 bg-gray-50/80 sm:bg-transparent rounded-xl sm:rounded-none min-h-[40px] flex items-center">
+          <div className="hero-date-dropdown relative sm:w-36 px-3.5 py-2.5 sm:py-1 bg-gray-50/80 sm:bg-transparent rounded-xl sm:rounded-none min-h-[40px] flex items-center">
             <button
               type="button"
               onClick={() => {
@@ -159,7 +185,7 @@ export default function HeroSearchModule() {
           <div className="hidden sm:block h-7 w-px bg-gray-200 shrink-0" />
 
           {/* Budget Dropdown */}
-          <div className="relative sm:w-36 px-3.5 py-2.5 sm:py-1 bg-gray-50/80 sm:bg-transparent rounded-xl sm:rounded-none min-h-[40px] flex items-center">
+          <div className="hero-budget-dropdown relative sm:w-36 px-3.5 py-2.5 sm:py-1 bg-gray-50/80 sm:bg-transparent rounded-xl sm:rounded-none min-h-[40px] flex items-center">
             <button
               type="button"
               onClick={() => {

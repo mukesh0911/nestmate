@@ -41,6 +41,8 @@ export default function ChatPage() {
   const [searchChat, setSearchChat] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [imageUploading, setImageUploading] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const QUICK_EMOJIS = ['👋', '😊', '👍', '🏠', '✨', '❤️', '📍', '🤝'];
   const { uploadChatImage } = useStorage();
   const { logEvent } = useAnalytics();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -49,6 +51,21 @@ export default function ChatPage() {
   const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [phoneModalMode, setPhoneModalMode] = useState<'request' | 'accept'>('request');
   const [phoneInput, setPhoneInput] = useState('');
+
+  // Modal accessibility: Escape key and body scroll locking
+  useEffect(() => {
+    if (showPhoneModal) {
+      document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setShowPhoneModal(false);
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.body.style.overflow = '';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [showPhoneModal]);
 
   // Keep phone input in sync once own profile (incl. private phone) hydrates
   useEffect(() => {
@@ -356,6 +373,15 @@ export default function ChatPage() {
   const iRequested = phoneSharing?.requestedBy === user?.uid;
   const otherRequested = phoneRequested && !iRequested;
 
+  // Dynamic Document Title
+  useEffect(() => {
+    if (activeOtherProfile?.name) {
+      document.title = `${activeOtherProfile.name} | Messages | NestMate`;
+    } else {
+      document.title = 'Messages | NestMate';
+    }
+  }, [activeOtherProfile?.name]);
+
   if (isLoading) {
     return (
       <StateLoading
@@ -397,23 +423,47 @@ export default function ChatPage() {
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
           {filteredRooms.length === 0 ? (
-            <StateEmpty
-              compact
-              icon={MessageCircle}
-              title="No conversations yet"
-              description="Connect with matches to start chatting"
-            />
+            <div className="py-6 text-center space-y-3">
+              <StateEmpty
+                compact
+                icon={MessageCircle}
+                title="No conversations yet"
+                description="Connect with matches to start chatting"
+              />
+              <button
+                type="button"
+                onClick={() => navigate('/explore?tab=roommates')}
+                className="text-xs text-[#E5501A] font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer"
+              >
+                <span>Browse Roommates</span>
+                <ChevronLeft className="w-3 h-3 rotate-180" />
+              </button>
+            </div>
           ) : filteredRooms.map(room => {
             const otherUser = getOtherParticipant(room);
             const typing = getOtherTyping(room);
             return (
-              <button key={room.id} onClick={() => { setActiveRoom(room.id); setIsMobileChatOpen(true); }}
-                className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all text-left ${activeRoom === room.id ? 'bg-[#FFF2EB] border border-[#E5501A]/30' : 'hover:bg-gray-50 border border-transparent'
-                  }`}>
+              <button
+                key={room.id}
+                type="button"
+                onClick={() => {
+                  setActiveRoom(room.id);
+                  setIsMobileChatOpen(true);
+                  navigate(`/chat/${room.id}`, { replace: true });
+                }}
+                className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all text-left cursor-pointer ${
+                  activeRoom === room.id ? 'bg-[#FFF2EB] border border-[#E5501A]/30' : 'hover:bg-gray-50 border border-transparent'
+                }`}
+              >
                 <div className="relative w-11 h-11 flex-shrink-0">
                   <div className="w-11 h-11 rounded-2xl bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
                     {otherUser?.avatar ? (
-                      <img src={otherUser.avatar} alt={otherUser.name} className="w-full h-full object-cover" />
+                      <img
+                        src={otherUser.avatar}
+                        alt={otherUser.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                      />
                     ) : (
                       <span className="text-sm font-bold text-ink/40">{otherUser?.name?.charAt(0) || 'U'}</span>
                     )}
@@ -457,13 +507,26 @@ export default function ChatPage() {
           <>
             {/* Header */}
             <div className="flex items-center gap-2 sm:gap-4 p-3.5 sm:p-4 border-b border-gray-200/80 bg-white/90 backdrop-blur-md">
-              <button onClick={() => setIsMobileChatOpen(false)} className="sm:hidden p-2 -ml-2 rounded-full hover:bg-ink/5">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileChatOpen(false);
+                  navigate('/chat', { replace: true });
+                }}
+                className="sm:hidden p-2 -ml-2 rounded-full hover:bg-ink/5 cursor-pointer"
+                aria-label="Back to conversations"
+              >
                 <ChevronLeft className="w-5 h-5 text-ink/70" />
               </button>
               <div className="relative w-10 h-10 flex-shrink-0">
                 <div className="w-10 h-10 rounded-full bg-cream overflow-hidden border border-border flex items-center justify-center">
                   {activeOtherProfile?.avatar ? (
-                    <img src={activeOtherProfile.avatar} alt={activeOtherProfile.name} className="w-full h-full object-cover" />
+                    <img
+                      src={activeOtherProfile.avatar}
+                      alt={activeOtherProfile.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                    />
                   ) : (
                     <span className="text-sm font-bold text-ink/40">{activeOtherProfile?.name?.charAt(0) || 'U'}</span>
                   )}
@@ -588,7 +651,12 @@ export default function ChatPage() {
                       }`}>
                       {msg.imageUrl && (
                         <div className="mb-2 rounded-lg overflow-hidden">
-                          <img src={msg.imageUrl} alt="Chat attachment" className="max-w-full h-auto" />
+                          <img
+                            src={msg.imageUrl}
+                            alt="Chat attachment"
+                            className="max-w-full h-auto"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                          />
                         </div>
                       )}
                       {msg.content && <p className="text-sm">{msg.content}</p>}
@@ -596,6 +664,13 @@ export default function ChatPage() {
                         <span className={`text-[10px] ${isMe ? 'text-white/70' : 'text-ink/40'}`}>
                           {formatTime(msg.createdAt)}
                         </span>
+                        {isMe && (
+                          msg.read ? (
+                            <span title="Read"><CheckCheck className="w-3.5 h-3.5 text-white/90" /></span>
+                          ) : (
+                            <span title="Sent"><Check className="w-3.5 h-3.5 text-white/70" /></span>
+                          )
+                        )}
                       </div>
                     </div>
                   </div>
@@ -628,8 +703,34 @@ export default function ChatPage() {
 
             {/* Input */}
             <div className="p-3 sm:p-4 bg-white border-t border-gray-100">
+              {showEmojiPicker && (
+                <div className="flex items-center gap-1.5 p-2 bg-slate-50 border border-slate-200/80 rounded-2xl mb-2.5 animate-in fade-in duration-150 overflow-x-auto">
+                  <span className="text-[11px] font-semibold text-slate-400 px-1 uppercase tracking-wider shrink-0">Quick:</span>
+                  {QUICK_EMOJIS.map(emoji => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => {
+                        setInput(prev => prev + emoji);
+                        setShowEmojiPicker(false);
+                      }}
+                      className="w-8 h-8 flex items-center justify-center text-base hover:bg-white rounded-xl transition-all hover:scale-110 cursor-pointer shadow-2xs border border-transparent hover:border-slate-200 shrink-0"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="flex items-center gap-1.5 sm:gap-2 max-w-full">
-                <button type="button" className="p-2 text-gray-400 hover:text-gray-600 transition-colors shrink-0" aria-label="Emoji (coming soon)" title="Emoji (coming soon)">
+                <button
+                  type="button"
+                  onClick={() => setShowEmojiPicker(prev => !prev)}
+                  className={`p-2 transition-colors shrink-0 cursor-pointer rounded-full ${
+                    showEmojiPicker ? 'text-[#E5501A] bg-[#FFF2EB]' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                  aria-label="Add emoji"
+                  title="Add emoji"
+                >
                   <Smile className="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
                 <label className="p-2 text-gray-400 hover:text-gray-600 cursor-pointer transition-colors shrink-0" aria-label="Attach image">

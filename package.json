@@ -7,6 +7,22 @@
     "check": "npm --prefix app run check",
     "test": "npm --prefix app test",
     "test:rules": "cd app && npx -y firebase-tools emulators:exec --only firestore --project demo-nestmate \"node ../scripts/run-rules-tests.cjs\"",
-    "test:storage-rules": "cd app && npx -y firebase-tools emulators:exec --only storage --project demo-nestmate \"node ../scripts/run-storage-rules-tests.cjs\""
+    "test:storage-rules": "cd app && npx -y firebase-tools emulators:exec --only storage --project demo-nestmate \"node ../scripts/run-storage-rules-tests.cjs\"",
+    "test:seed": "node tests/seed/run-seed.cjs && node tests/seed/full-firestore-seed.cjs",
+    "seed:firestore": "node tests/seed/full-firestore-seed.cjs",
+    "test:reset": "node tests/seed/run-reset.cjs",
+    "test:verify": "node tests/seed/run-verify.cjs",
+    "test:matrix": "node tests/helpers/generate-matrix.cjs",
+    "test:api": "playwright test tests/api --project=chromium --reporter=list",
+    "test:api:auth": "playwright test tests/api/authAndUserApi.spec.ts --project=chromium --reporter=list",
+    "test:api:security": "playwright test tests/api/securityAndRulesApi.spec.ts --project=chromium --reporter=list",
+    "test:api:business": "playwright test tests/api/businessLogicApi.spec.ts tests/api/listingsApi.spec.ts tests/api/connectionsAndQuotaApi.spec.ts tests/api/matchingApi.spec.ts tests/api/messagingAndNotifsApi.spec.ts tests/api/moderationAndVerifApi.spec.ts --project=chromium --reporter=list",
+    "test:api:multiuser": "playwright test tests/api/multiUserWorkflowApi.spec.ts --project=chromium --reporter=list",
+    "test:api:all": "playwright test tests/api --reporter=list",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
   }
 }

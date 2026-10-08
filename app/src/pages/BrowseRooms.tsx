@@ -15,6 +15,7 @@ import { cities } from '@/lib/staticData';
 import { areSameCityAlias } from '@/lib/cityNormalization';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { toast } from 'sonner';
 import StateEmpty from '@/components/StateEmpty';
 import StateLoading from '@/components/StateLoading';
 import RoomCard from '@/components/RoomCard';
@@ -123,8 +124,34 @@ export default function BrowseRooms({
     try {
       await toggleSavedRoom(user.uid, roomId, isSaved);
       await refreshProfile();
+      toast.success(isSaved ? 'Room removed from saved' : 'Room saved to your favorites');
     } catch (err) {
       console.error('Failed to save room:', err);
+      toast.error('Failed to update saved room');
+    } finally {
+      setSavingRoomId(null);
+    }
+  };
+
+  const handleToggleSaveRoom = async (room: Listing) => {
+    if (!user?.uid) {
+      useStore.getState().openAuthModal({
+        title: 'Sign in to Save Rooms',
+        subtitle: 'Save your favorite rooms and access them anytime across devices.',
+        redirect: `/room/${room.id}`,
+      });
+      return;
+    }
+    if (savingRoomId) return;
+    setSavingRoomId(room.id);
+    const isSaved = savedRoomIds.includes(room.id);
+    try {
+      await toggleSavedRoom(user.uid, room.id, isSaved);
+      await refreshProfile();
+      toast.success(isSaved ? 'Room removed from saved' : 'Room saved to your favorites');
+    } catch (err) {
+      console.error('Failed to save room:', err);
+      toast.error('Failed to update saved room');
     } finally {
       setSavingRoomId(null);
     }
@@ -310,7 +337,7 @@ export default function BrowseRooms({
                 key={listing.id}
                 room={listing}
                 isSaved={savedRoomIds.includes(listing.id)}
-                onToggleSave={(e) => handleToggleSave(e, listing.id)}
+                onToggleSave={handleToggleSaveRoom}
                 compatibilityScore={profile ? calculateRoomCompatibility(profile, listing) : undefined}
                 distanceKm={0}
                 onClick={() => navigate(`/room/${listing.id}`)}
@@ -569,8 +596,6 @@ export default function BrowseRooms({
             <RoomCard
               key={listing.id}
               room={listing}
-              listing={listing}
-              currentUser={profile}
               isSaved={savedRoomIds.includes(listing.id)}
               isSaving={savingRoomId === listing.id}
               onToggleSave={handleToggleSave}

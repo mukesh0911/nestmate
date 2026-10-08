@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useListings } from '@/hooks/useListings';
 import { useStorage } from '@/hooks/useStorage';
@@ -8,7 +8,7 @@ import { cities, localitiesByCity, flatTypes, furnishingTypes, amenitiesList, ho
 import {
   ArrowLeft, Save, Trash2, ToggleLeft, ToggleRight, Loader2,
   AlertTriangle, Upload, X, Image as ImageIcon, ShieldAlert, Sparkles,
-  MapPin, IndianRupee, Home, CheckCircle2, Check
+  MapPin, Home, CheckCircle2, Check
 } from 'lucide-react';
 import OwnerVerificationGate from '@/components/OwnerVerificationGate';
 import { subscribeToOwnerVerification, type OwnerVerification } from '@/lib/ownerVerification';
@@ -20,6 +20,7 @@ export default function EditListing() {
   // owner can publish directly without re-running the onboarding wizard.
   const isNew = id === 'new';
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { getListingById, updateListing, deleteListing, createListing } = useListings();
   const { uploadListingImages } = useStorage();
@@ -64,18 +65,54 @@ export default function EditListing() {
     return unsub;
   }, [user?.uid]);
 
+  // Dynamic document title
+  useEffect(() => {
+    document.title = isNew ? 'Create Listing | NestMate' : `${form.title ? form.title + ' — Edit' : 'Edit Listing'} | NestMate`;
+  }, [isNew, form.title]);
+
+  // Escape key and scroll lock for Delete Confirmation Modal
+  useEffect(() => {
+    if (!showDeleteConfirm) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowDeleteConfirm(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [showDeleteConfirm]);
+
   useEffect(() => {
     if (!id) return;
     if (isNew) {
+      if (location.state && (location.state as any).prefill) {
+        const p = (location.state as any).prefill;
+        setForm(prev => ({
+          ...prev,
+          city: p.city || prev.city,
+          locality: p.locality || prev.locality,
+          flatType: p.flatType || prev.flatType,
+          furnishing: p.furnishing || prev.furnishing,
+          monthlyRent: p.monthlyRent || prev.monthlyRent,
+          deposit: p.deposit || prev.deposit,
+          availableFrom: p.availableFrom || prev.availableFrom,
+          amenities: p.amenities || prev.amenities,
+          houseRules: p.houseRules || prev.houseRules,
+        }));
+      }
       setLoading(false);
       return;
     }
-    getListingById(id).then((listing) => {
-      if (!listing) {
+    getListingById(id).then((result) => {
+      if (!result || !result.listing) {
         setError('Listing not found');
         setLoading(false);
         return;
       }
+      const listing = result.listing;
       if (listing.ownerId !== user?.uid) {
         setError('You do not own this listing');
         setLoading(false);
@@ -92,7 +129,7 @@ export default function EditListing() {
         deposit: listing.deposit || 0,
         partnersNeeded: (listing as any).partnersNeeded || 1,
         availableFrom: listing.availableFrom || '',
-        genderPreference: (listing as any).genderPreference || 'any',
+        genderPreference: (listing as any).genderPreference || (listing as any).preferredGender || 'any',
         amenities: listing.amenities || [],
         houseRules: listing.houseRules || [],
         screeningQuestions: (listing as any).screeningQuestions || [],
@@ -102,7 +139,7 @@ export default function EditListing() {
       setExistingImages(listing.images || []);
       setLoading(false);
     });
-  }, [id, user?.uid]);
+  }, [id, user?.uid, isNew, location.state]);
 
   const handleSave = async () => {
     if (!id || !user?.uid) return;
@@ -578,6 +615,28 @@ export default function EditListing() {
                     </button>
                   )}
                 </div>
+
+                {(localitiesByCity[form.city] || []).length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
+                    <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mr-0.5">
+                      Popular:
+                    </span>
+                    {(localitiesByCity[form.city] || []).slice(0, 5).map(loc => (
+                      <button
+                        key={loc}
+                        type="button"
+                        onClick={() => setForm({ ...form, locality: loc })}
+                        className={`text-[11px] px-2.5 py-0.5 rounded-full border transition-all cursor-pointer ${
+                          form.locality === loc
+                            ? 'bg-[#FFF2EB] text-[#E5501A] border-[#E5501A]/40 font-bold'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        {loc}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -839,7 +898,10 @@ export default function EditListing() {
 
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div
+            onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteConfirm(false); }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
+          >
             <div className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full border border-gray-100 shadow-xl space-y-5">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center shrink-0">
@@ -857,7 +919,7 @@ export default function EditListing() {
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="flex-1 py-3 border border-gray-200 rounded-full text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-all"
+                  className="flex-1 py-3 border border-gray-200 rounded-full text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-all cursor-pointer"
                 >
                   Keep Listing
                 </button>
@@ -865,7 +927,7 @@ export default function EditListing() {
                   type="button"
                   onClick={handleDelete}
                   disabled={saving}
-                  className="flex-1 py-3 bg-red-600 text-white rounded-full text-sm font-semibold hover:bg-red-700 transition-all disabled:opacity-50"
+                  className="flex-1 py-3 bg-red-600 text-white rounded-full text-sm font-semibold hover:bg-red-700 transition-all disabled:opacity-50 cursor-pointer"
                 >
                   {saving ? 'Deleting...' : 'Yes, Delete'}
                 </button>

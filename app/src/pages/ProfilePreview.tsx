@@ -1,26 +1,67 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  ArrowLeft, ShieldCheck, Eye, EyeOff, Lock, User, CheckCircle2,
-  Sparkles, MapPin, Briefcase, Calendar, Info, Settings, AlertTriangle
+  ArrowLeft, ShieldCheck, Lock, User, MapPin, Info, Settings,
 } from 'lucide-react';
+import PageShell from '@/components/PageShell';
+import { getDynamicPreferences } from '@/lib/dynamicTraits';
+
+const QUIZ_LABELS: Record<string, { label: string; values?: Record<string, string> }> = {
+  q1: { label: 'Sleep Schedule', values: { '1': 'Early Bird (10 PM)', '2': 'Night Owl (1 AM+)', '3': 'Flexible' } },
+  q2: { label: 'Diet', values: { '1': 'Vegetarian', '2': 'Non-Vegetarian', '3': 'Eggetarian', '4': 'Vegan' } },
+  q3: { label: 'Smoking', values: { '1': 'Non-Smoker', '2': 'Occasional Smoker', '3': 'Regular Smoker' } },
+  q4: { label: 'Drinking', values: { '1': 'Non-Drinker', '2': 'Social Drinker', '3': 'Regular Drinker' } },
+  q5: { label: 'Cleanliness', values: { '1': 'High Standard', '2': 'Moderate', '3': 'Relaxed' } },
+  q6: { label: 'Work Mode', values: { '1': 'Work From Home', '2': 'Hybrid', '3': 'In-Office' } },
+  q7: { label: 'Guests / Visitors', values: { '1': 'Rarely', '2': 'Weekends Only', '3': 'Anytime', '4': 'Prior Notice' } },
+  q8: { label: 'Pets', values: { '1': 'Pet Friendly', '2': 'No Pets', '3': 'Comfortable with Pets' } },
+  q9: { label: 'Social Vibe', values: { '1': 'Quiet & Private', '2': 'Balanced', '3': 'Very Social' } },
+  q10: { label: 'Cooking', values: { '1': 'Cooks Daily', '2': 'Cooks Occasionally', '3': 'Orders / Maid' } },
+  sleep_time: { label: 'Sleep Schedule' },
+  wake_time: { label: 'Wake Time' },
+  food_pref: { label: 'Dietary Preference' },
+  smoking: { label: 'Smoking' },
+  drinking: { label: 'Drinking' },
+  cleanliness: { label: 'Cleanliness' },
+  work_mode: { label: 'Work Mode' },
+  pets: { label: 'Pets' },
+  guests: { label: 'Guests Policy' },
+};
 
 export default function ProfilePreview() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [showAnnotations, setShowAnnotations] = useState(true);
+  const [avatarImgError, setAvatarImgError] = useState(false);
+
+  // Dynamic SEO title
+  useEffect(() => {
+    document.title = 'Profile Preview | NestMate';
+  }, []);
+
+  const dynamicBadges = useMemo(() => {
+    if (!profile) return [];
+    return getDynamicPreferences({
+      quizAnswers: profile.quizAnswers,
+      householdExpectations: (profile as any).householdExpectations,
+      profession: profile.profession,
+    });
+  }, [profile]);
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-parchment flex items-center justify-center p-4">
-        <div className="text-center">
-          <p className="text-sm text-slate-500 mb-4">Please log in to preview your profile.</p>
-          <Link to="/login" className="btn-fire py-2 px-4 rounded-xl text-xs font-bold">
+      <PageShell maxWidth="max-w-md">
+        <div className="text-center py-12">
+          <p className="text-sm text-gray-500 mb-4">Please log in to preview your profile.</p>
+          <Link
+            to="/login"
+            className="px-5 py-2.5 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full text-xs font-semibold shadow-xs"
+          >
             Go to Login
           </Link>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
@@ -35,41 +76,40 @@ export default function ProfilePreview() {
     : profile.name || 'Anonymous User';
 
   return (
-    <div className="min-h-screen bg-[#FBF9F6] pb-24">
-      {/* Top Navigation Bar */}
-      <div className="bg-[#FBF9F6]/95 backdrop-blur-md border-b border-gray-200/60 py-3.5 px-4 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+    <PageShell
+      maxWidth="max-w-2xl"
+      title="Public Profile Preview"
+      subtitle="See exactly how prospective roommates and hosts view your profile in discovery."
+      actions={
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#1A1A2E] cursor-pointer"
+            onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/profile'))}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-gray-200 text-xs font-semibold text-gray-600 hover:text-[#1A1A2E] hover:border-gray-300 transition-all cursor-pointer bg-white shadow-2xs"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back</span>
           </button>
-          <div className="flex items-center gap-2">
-            <Eye className="w-4 h-4 text-[#E5501A]" />
-            <h1 className="font-serif font-medium text-base text-[#1A1A2E]">Public Profile Preview</h1>
-          </div>
           <Link
             to="/settings"
-            className="text-xs font-semibold text-[#E5501A] hover:underline flex items-center gap-1"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-gray-200 text-xs font-semibold text-[#E5501A] hover:border-[#E5501A]/30 transition-all cursor-pointer bg-white shadow-2xs"
           >
             <Settings className="w-3.5 h-3.5" />
             <span>Adjust</span>
           </Link>
         </div>
-      </div>
-
-      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
+      }
+      withBottomNavPad
+    >
+      <div className="space-y-6 pb-20">
         {/* Banner Notice */}
-        <div className="bg-[#FFF2EB]/60 border border-[#E5501A]/20 rounded-3xl p-4 flex items-start justify-between gap-3 shadow-xs">
+        <div className="bg-[#FFF2EB]/60 border border-[#E5501A]/20 rounded-3xl p-4 sm:p-5 flex items-start justify-between gap-3 shadow-xs">
           <div className="flex items-start gap-3">
             <Info className="w-5 h-5 text-[#E5501A] shrink-0 mt-0.5" />
             <div>
-              <h2 className="text-xs font-bold text-[#1A1A2E] mb-0.5">
+              <h2 className="text-xs font-serif font-bold text-[#1A1A2E] mb-0.5">
                 Exact Stranger View
               </h2>
-              <p className="text-[11px] text-gray-600 leading-relaxed font-medium">
+              <p className="text-[11px] text-gray-600 leading-relaxed font-sans">
                 This shows precisely how other roommate seekers in your city see your profile before connecting. Phone numbers and private verification documents are strictly hidden.
               </p>
             </div>
@@ -77,17 +117,17 @@ export default function ProfilePreview() {
           <button
             type="button"
             onClick={() => setShowAnnotations(a => !a)}
-            className="text-[11px] font-semibold px-3 py-1.5 bg-white border border-gray-200 text-[#1A1A2E] rounded-full shrink-0 hover:bg-gray-50 transition-colors shadow-xs cursor-pointer"
+            className="text-[11px] font-semibold px-3 py-1.5 bg-white border border-gray-200 text-[#1A1A2E] rounded-full shrink-0 hover:bg-gray-50 transition-colors shadow-2xs cursor-pointer"
           >
             {showAnnotations ? 'Hide Tags' : 'Show Tags'}
           </button>
         </div>
 
         {/* Profile Card Projection */}
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-6 relative overflow-hidden">
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-6 sm:p-7 relative overflow-hidden">
           {/* Public Visibility Chip */}
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider font-sans">
               Profile Card
             </span>
             <span className={`text-xs font-semibold px-3 py-0.5 rounded-full ${
@@ -98,17 +138,20 @@ export default function ProfilePreview() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 mb-6">
-            {/* Avatar with optional blur */}
+            {/* Avatar with optional blur & onError fallback */}
             <div className="relative">
               <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-gray-200 bg-[#FBF9F6] flex items-center justify-center shadow-xs">
-                {profile.avatar ? (
+                {profile.avatar && !avatarImgError ? (
                   <img
                     src={profile.avatar}
                     alt={displayName}
                     className={`w-full h-full object-cover ${isBlurred ? 'blur-md' : ''}`}
+                    onError={() => setAvatarImgError(true)}
                   />
                 ) : (
-                  <User className="w-10 h-10 text-gray-300" />
+                  <div className="w-full h-full bg-[#FFF2EB] text-[#E5501A] font-serif font-bold text-2xl flex items-center justify-center">
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>
                 )}
               </div>
               {showAnnotations && isBlurred && (
@@ -151,16 +194,44 @@ export default function ProfilePreview() {
             </div>
           </div>
 
+          {/* Dynamic Badges */}
+          {dynamicBadges.length > 0 && (
+            <div className="mb-6 pt-2">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-sans">
+                  Lifestyle Badges
+                </span>
+                {showAnnotations && (
+                  <span className="text-[10px] text-emerald-700 font-semibold">Matched Signals</span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {dynamicBadges.map((badge, idx) => {
+                  const Icon = badge.icon;
+                  return (
+                    <span
+                      key={idx}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${badge.bg}`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{badge.label}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* About / Bio */}
           {profile.bio && (
             <div className="mb-6 bg-[#FBF9F6] rounded-2xl p-4 border border-gray-100">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">About</span>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-sans">About</span>
                 {showAnnotations && (
                   <span className="text-[10px] text-emerald-700 font-semibold">Visible to Everyone</span>
                 )}
               </div>
-              <p className="text-xs sm:text-sm text-gray-700 leading-relaxed font-normal">{profile.bio}</p>
+              <p className="text-xs sm:text-sm text-gray-700 leading-relaxed font-sans">{profile.bio}</p>
             </div>
           )}
 
@@ -168,7 +239,7 @@ export default function ProfilePreview() {
           {profile.quizAnswers && Object.keys(profile.quizAnswers).length > 0 && (
             <div className="space-y-2 mb-6">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-sans">
                   Lifestyle Habits & Household Norms
                 </span>
                 {showAnnotations && (
@@ -176,14 +247,19 @@ export default function ProfilePreview() {
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                {Object.entries(profile.quizAnswers).map(([key, val]) => (
-                  <span
-                    key={key}
-                    className="text-xs px-3 py-1.5 rounded-full bg-[#FBF9F6] border border-gray-200 text-gray-700 font-medium"
-                  >
-                    <strong className="capitalize text-[#1A1A2E]">{key.replace('_', ' ')}:</strong> {String(val)}
-                  </span>
-                ))}
+                {Object.entries(profile.quizAnswers).map(([key, val]) => {
+                  const meta = QUIZ_LABELS[key.toLowerCase()];
+                  const label = meta?.label || key.replace(/_/g, ' ');
+                  const readableVal = meta?.values?.[String(val)] || String(val).replace(/_/g, ' ');
+                  return (
+                    <span
+                      key={key}
+                      className="text-xs px-3 py-1.5 rounded-full bg-[#FBF9F6] border border-gray-200 text-gray-700 font-medium"
+                    >
+                      <strong className="capitalize text-[#1A1A2E]">{label}:</strong> {readableVal}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -204,13 +280,13 @@ export default function ProfilePreview() {
         <div className="text-center pt-2">
           <Link
             to="/settings"
-            className="inline-flex items-center gap-2 rounded-full bg-[#E5501A] hover:bg-[#D0400B] active:scale-[0.98] text-white font-semibold text-xs sm:text-sm py-3 px-6 shadow-xs transition-all"
+            className="inline-flex items-center gap-2 rounded-full bg-[#E5501A] hover:bg-[#D0400B] active:scale-[0.98] text-white font-semibold text-xs sm:text-sm py-3 px-6 shadow-xs transition-all shadow-[#E5501A]/20"
           >
             <Settings className="w-4 h-4" />
             <span>Adjust Privacy & Visibility Settings</span>
           </Link>
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

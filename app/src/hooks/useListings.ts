@@ -84,6 +84,9 @@ export interface Listing {
    * false = explicitly unverified (must not appear in discovery).
    */
   ownerVerified?: boolean;
+  preferredGender?: string;
+  genderPreference?: string;
+  state?: string;
 }
 
 // ListingFilters + applyClientFilters now live in @/lib/listingFilters

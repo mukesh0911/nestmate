@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { cities, localitiesByCity, professions, quizQuestions } from '@/lib/staticData';
+import { cities, localitiesByCity, professions } from '@/lib/staticData';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useStorage } from '@/hooks/useStorage';
 import { useMatches } from '@/hooks/useMatches';
 import { resolveEntityCoordinates } from '@/lib/locationResolver';
 import {
-  Building2, User, Users, MapPin, ShieldCheck, Check,
+  Building2, User, Users, ShieldCheck, Check,
   ArrowRight, X, Sparkles, ChevronRight, Home, Camera,
-  Briefcase, Calendar, Wallet, CheckCircle2, ArrowLeft, Heart,
-  Moon, Sun, Utensils, Wind, Wine, Laptop, Cigarette, Loader2
+  Briefcase, Calendar, CheckCircle2
 } from 'lucide-react';
 
 const CITY_SVG_ICONS: Record<string, React.ReactNode> = {
@@ -125,6 +124,13 @@ export default function SeekerOnboarding() {
       setName(authProfile.name);
     }
   }, [authProfile, user, avatarPreview, avatarFile, name]);
+
+  // If user has already completed onboarding upon initial mount, redirect to explore
+  useEffect(() => {
+    if (authProfile?.onboardingComplete && matchScreenState === 'form') {
+      navigate('/explore?tab=rooms', { replace: true });
+    }
+  }, [authProfile?.onboardingComplete, matchScreenState, navigate]);
 
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -291,7 +297,11 @@ export default function SeekerOnboarding() {
             You're all set, {name.split(' ')[0]}!
           </h2>
           <p className="text-sm sm:text-base text-slate-600 mb-2">
-            We discovered <span className="font-bold text-[#E5501A] text-xl">{matchCount}</span> compatible roommates in {city}.
+            We discovered{' '}
+            <span className="font-bold text-[#E5501A] text-xl">
+              {matchCount > 0 ? matchCount : 'new'}
+            </span>{' '}
+            compatible roommates in {city}.
           </p>
           <p className="text-xs text-slate-400 max-w-xs mx-auto mb-8">
             Ranked by mutual budget overlap, lifestyle norms, and neighborhood proximity.
@@ -299,7 +309,7 @@ export default function SeekerOnboarding() {
 
           <button
             type="button"
-            onClick={() => navigate('/dashboard', { replace: true })}
+            onClick={() => navigate('/explore?tab=roommates', { replace: true })}
             className="w-full sm:w-auto min-w-[280px] px-9 py-4 rounded-full bg-gradient-to-r from-[#E5501A] to-[#F26428] hover:from-[#D0400B] hover:to-[#E5501A] text-white font-bold text-sm sm:text-base transition-all duration-200 shadow-[0_4px_16px_rgba(229,80,26,0.22),0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_22px_rgba(229,80,26,0.32),0_2px_5px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] inline-flex items-center justify-center gap-2.5 mx-auto cursor-pointer"
           >
             <span>View My Matches</span>
@@ -323,7 +333,7 @@ export default function SeekerOnboarding() {
         {/* Top-Right Dismiss Button */}
         <button
           type="button"
-          onClick={() => navigate('/dashboard')}
+          onClick={() => navigate('/explore?tab=rooms')}
           aria-label="Close"
           className="absolute top-5 right-5 sm:top-7 sm:right-7 w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 bg-slate-100/90 hover:bg-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all cursor-pointer"
         >
@@ -895,23 +905,52 @@ export default function SeekerOnboarding() {
                 </div>
 
                 {/* Work Mode & Pets */}
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.02),0_1px_2px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_14px_rgba(0,0,0,0.05)] transition-shadow">
-                  <span className="text-xs text-slate-600 font-medium">Work mode & pets</span>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setAnswer('work_mode', quizAnswers.work_mode === 'wfh' ? 'wfo' : quizAnswers.work_mode === 'wfo' ? 'hybrid' : 'wfh')}
-                      className="py-2 px-1.5 rounded-lg text-[11px] font-medium transition-all text-center border cursor-pointer bg-[#FFF2EB] border-[#E5501A]/35 text-[#E5501A] font-semibold shadow-[0_1px_4px_rgba(229,80,26,0.1)]"
-                    >
-                      💻 {quizAnswers.work_mode === 'wfh' ? 'Remote (WFH)' : quizAnswers.work_mode === 'wfo' ? 'In Office (WFO)' : 'Hybrid Work'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAnswer('pets', quizAnswers.pets === 'love' ? 'ok' : quizAnswers.pets === 'ok' ? 'no' : 'love')}
-                      className="py-2 px-1.5 rounded-lg text-[11px] font-medium transition-all text-center border cursor-pointer bg-[#FFF2EB] border-[#E5501A]/35 text-[#E5501A] font-semibold shadow-[0_1px_4px_rgba(229,80,26,0.1)]"
-                    >
-                      🐾 {quizAnswers.pets === 'love' ? 'Love Pets' : quizAnswers.pets === 'ok' ? 'Pets OK' : 'No Pets'}
-                    </button>
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-3 shadow-[0_2px_8px_rgba(0,0,0,0.02),0_1px_2px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_14px_rgba(0,0,0,0.05)] transition-shadow">
+                  <div>
+                    <span className="text-xs text-slate-600 font-medium block mb-1.5">Work mode</span>
+                    <div className="bg-slate-100/90 border border-slate-200/50 p-1 rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.03)] grid grid-cols-3 gap-1">
+                      {[
+                        { id: 'hybrid', label: 'Hybrid' },
+                        { id: 'wfh', label: 'Remote' },
+                        { id: 'wfo', label: 'Office' },
+                      ].map(opt => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setAnswer('work_mode', opt.id)}
+                          className={`py-1.5 px-1 rounded-lg text-xs font-medium transition-all text-center cursor-pointer ${
+                            quizAnswers.work_mode === opt.id
+                              ? 'bg-white text-slate-900 font-bold shadow-[0_1px_4px_rgba(0,0,0,0.06)]'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-600 font-medium block mb-1.5">Pets policy</span>
+                    <div className="bg-slate-100/90 border border-slate-200/50 p-1 rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.03)] grid grid-cols-3 gap-1">
+                      {[
+                        { id: 'love', label: '🐾 Love' },
+                        { id: 'ok', label: 'Pets OK' },
+                        { id: 'no', label: 'No Pets' },
+                      ].map(opt => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setAnswer('pets', opt.id)}
+                          className={`py-1.5 px-1 rounded-lg text-xs font-medium transition-all text-center cursor-pointer ${
+                            quizAnswers.pets === opt.id
+                              ? 'bg-white text-slate-900 font-bold shadow-[0_1px_4px_rgba(0,0,0,0.06)]'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -984,7 +1023,7 @@ export default function SeekerOnboarding() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/explore?tab=rooms')}
                 disabled={loading}
                 className="py-2.5 px-5 border border-slate-200/90 rounded-full text-xs font-semibold text-slate-700 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03),0_2px_6px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] hover:border-slate-300 hover:bg-slate-50 transition-all cursor-pointer"
               >

@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Check, Crown, X, ChevronDown, HelpCircle, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
@@ -12,6 +12,25 @@ export default function PricingPage() {
   const [paying, setPaying] = useState(false);
   const [showMockCheckout, setShowMockCheckout] = useState(false);
   const [selectedPrice, setSelectedPrice] = useState(299);
+
+  useEffect(() => {
+    document.title = 'Plans & Pricing | NestMate';
+  }, []);
+
+  // Modal Escape key and body scroll lock
+  useEffect(() => {
+    if (!showMockCheckout) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowMockCheckout(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [showMockCheckout]);
 
   // Sprint 4C (truth): features with no implementation behind them are
   // explicitly annotated "coming soon" instead of being sold as available.
@@ -239,19 +258,32 @@ export default function PricingPage() {
 
       {/* Mock Razorpay Checkout Modal */}
       {showMockCheckout && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full overflow-hidden shadow-2xl animate-fade-in border border-border">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowMockCheckout(false);
+          }}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mock-checkout-title"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl max-w-sm w-full overflow-hidden shadow-2xl animate-fade-in border border-border"
+          >
             {/* Header */}
             <div className="bg-[#E05A47] text-white p-6 relative">
               <button
+                type="button"
                 onClick={() => setShowMockCheckout(false)}
-                className="absolute top-4 right-4 text-white/85 hover:text-white transition-colors"
+                className="absolute top-4 right-4 text-white/85 hover:text-white transition-colors cursor-pointer"
+                aria-label="Close modal"
               >
                 <X className="w-5 h-5" />
               </button>
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center font-bold text-lg">N</div>
-                <span className="font-display italic text-lg font-bold">NestMate Premium</span>
+                <span id="mock-checkout-title" className="font-display italic text-lg font-bold">NestMate Premium</span>
               </div>
               <p className="text-xs text-white/80">{isAnnual ? 'Annual Subscription' : 'Monthly Subscription'}</p>
               <div className="mt-4 flex items-baseline gap-1">
@@ -288,19 +320,21 @@ export default function PricingPage() {
 
               <div className="space-y-2 pt-2 border-t border-border">
                 <button
+                  type="button"
                   onClick={() => {
                     toast.info('Premium activation is a Future Production Integration (Razorpay + server verify).');
                     setShowMockCheckout(false);
                   }}
-                  className="w-full py-3 bg-teal hover:bg-teal/90 text-white rounded-xl text-sm font-semibold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-teal hover:bg-teal/90 text-white rounded-xl text-sm font-semibold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
                 >
                   Notify me when Premium launches
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowMockCheckout(false);
                   }}
-                  className="w-full py-3 border border-border hover:bg-cream/30 text-ink/75 rounded-xl text-sm font-semibold transition-all"
+                  className="w-full py-3 border border-border hover:bg-cream/30 text-ink/75 rounded-xl text-sm font-semibold transition-all cursor-pointer"
                 >
                   Close
                 </button>

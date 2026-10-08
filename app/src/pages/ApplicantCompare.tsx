@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useConnections } from '@/hooks/useConnections';
-import { doc, getDoc } from 'firebase/firestore';
+import { useChat } from '@/hooks/useChat';
+import { doc, getDoc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import {
   Users, ArrowLeft, ShieldCheck, MessageCircle,
-  CheckCircle2, User, Sparkles, Loader2, DollarSign, Calendar, Briefcase
+  CheckCircle2, User, Sparkles, Loader2, IndianRupee, Calendar, Briefcase,
+  Utensils, Moon, Cigarette, X
 } from 'lucide-react';
 
 interface CandidateData {
@@ -28,13 +30,34 @@ export default function ApplicantCompare() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const { getMyConnections } = useConnections();
+  const { getMyConnections, acceptRequest } = useConnections();
+  const { getOrCreateChatRoom } = useChat();
 
   const [candidates, setCandidates] = useState<CandidateData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<CandidateData | null>(null);
   const [confirmSelectModal, setConfirmSelectModal] = useState(false);
   const [mobileActiveIndex, setMobileActiveIndex] = useState(0);
+
+  // Document Title
+  useEffect(() => {
+    document.title = 'Compare Applicants | NestMate';
+  }, []);
+
+  // Modal accessibility: Escape key and body scroll locking
+  useEffect(() => {
+    if (confirmSelectModal) {
+      document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setConfirmSelectModal(false);
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.body.style.overflow = '';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [confirmSelectModal]);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -47,14 +70,16 @@ export default function ApplicantCompare() {
       setLoading(true);
       try {
         if (targetIds.length > 0) {
-          // Load specific requested applicant profiles
+          // Load specific requested applicant profiles and resolve their connection documents
+          const allOwnerConns = await getMyConnections(ownerUid);
           const loaded: CandidateData[] = [];
           for (const uid of targetIds) {
             const userSnap = await getDoc(doc(db, 'users', uid));
             if (userSnap.exists()) {
               const udata = userSnap.data();
+              const existingConn = allOwnerConns.find(c => c.fromUserId === uid || c.toUserId === uid);
               loaded.push({
-                connectionId: '',
+                connectionId: existingConn ? existingConn.id : '',
                 applicantId: uid,
                 name: udata.name || 'Applicant',
                 avatar: udata.avatar,
@@ -70,10 +95,11 @@ export default function ApplicantCompare() {
           }
           setCandidates(loaded);
         } else {
-          // Load from accepted connections
-          const conns = await getMyConnections(ownerUid, 'accepted');
+          // Load from pending or accepted connections
+          const conns = await getMyConnections(ownerUid);
+          const validConns = conns.filter(c => c.status === 'pending' || c.status === 'accepted');
           const loaded: CandidateData[] = [];
-          for (const c of conns.slice(0, 3)) {
+          for (const c of validConns.slice(0, 3)) {
             const partnerId = c.fromUserId === ownerUid ? c.toUserId : c.fromUserId;
             const userSnap = await getDoc(doc(db, 'users', partnerId));
             if (userSnap.exists()) {
@@ -111,9 +137,51 @@ export default function ApplicantCompare() {
     setConfirmSelectModal(true);
   };
 
-  const handleExecuteFill = () => {
-    if (!selectedCandidate) return;
-    toast.success(`Selected ${selectedCandidate.name}! The room is marked Filled and notifications sent.`);
+  const handleChatApplicant = async (applicantId: string) => {
+    if (!user?.uid) return;
+    try {
+      const roomId = await getOrCreateChatRoom(user.uid, applicantId);
+      navigate(`/chat/${roomId}`);
+    } catch (err) {
+      console.error('Failed to open chat:', err);
+      navigate('/chat');
+    }
+  };
+
+  const handleExecuteFill = async () => {
+    if (!selectedCandidate || !user?.uid) return;
+    const targetListingId = searchParams.get('listingId');
+    try {
+      if (targetListingId) {
+        await updateDoc(doc(db, 'listings', targetListingId), {
+          status: 'filled',
+          updatedAt: serverTimestamp(),
+        });
+      }
+      if (selectedCandidate.connectionId) {
+        await acceptRequest(selectedCandidate.connectionId);
+      }
+      let actionUrl = '/chat';
+      try {
+        const roomId = await getOrCreateChatRoom(user.uid, selectedCandidate.applicantId);
+        if (roomId) actionUrl = `/chat/${roomId}`;
+      } catch {
+        // Fallback to /chat
+      }
+      await addDoc(collection(db, 'notifications'), {
+        userId: selectedCandidate.applicantId,
+        type: 'match',
+        title: 'You were selected!',
+        description: `Great news! You have been selected as the new roommate. Open Messages to coordinate move-in.`,
+        read: false,
+        actionUrl,
+        createdAt: serverTimestamp(),
+      });
+      toast.success(`Selected ${selectedCandidate.name}! The room is marked Filled and notifications sent.`);
+    } catch (e) {
+      console.error('Failed to execute room fill:', e);
+      toast.error('Failed to update room status in database.');
+    }
     setConfirmSelectModal(false);
     setTimeout(() => {
       navigate('/owner-dashboard');
@@ -124,8 +192,19 @@ export default function ApplicantCompare() {
     <div className="min-h-screen bg-[#FBF9F6] pb-24">
       {/* Confirm Select Modal */}
       {confirmSelectModal && selectedCandidate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-xl border border-gray-100 text-center space-y-4">
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setConfirmSelectModal(false); }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+        >
+          <div className="relative bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-xl border border-gray-100 text-center space-y-4">
+            <button
+              type="button"
+              onClick={() => setConfirmSelectModal(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+              title="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
             <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto border border-emerald-200 shadow-2xs">
               <CheckCircle2 className="w-8 h-8" />
             </div>
@@ -139,14 +218,14 @@ export default function ApplicantCompare() {
               <button
                 type="button"
                 onClick={() => setConfirmSelectModal(false)}
-                className="flex-1 py-3 border border-gray-200 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-all"
+                className="flex-1 py-3 border border-gray-200 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-all cursor-pointer"
               >
                 Review Others
               </button>
               <button
                 type="button"
                 onClick={handleExecuteFill}
-                className="flex-1 py-3 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full text-xs font-semibold shadow-sm shadow-[#E5501A]/20 transition-all"
+                className="flex-1 py-3 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full text-xs font-semibold shadow-sm shadow-[#E5501A]/20 transition-all cursor-pointer"
               >
                 Confirm Roommate
               </button>
@@ -365,17 +444,18 @@ export default function ApplicantCompare() {
 
                     {/* Action Buttons */}
                     <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                      <Link
-                        to="/chat"
-                        className="p-3 rounded-2xl border border-gray-200 text-gray-600 hover:text-[#E5501A] hover:border-[#E5501A]/30 hover:bg-[#FFF2EB]/40 transition-colors shadow-2xs shrink-0"
+                      <button
+                        type="button"
+                        onClick={() => handleChatApplicant(c.applicantId)}
+                        className="p-3 rounded-2xl border border-gray-200 text-gray-600 hover:text-[#E5501A] hover:border-[#E5501A]/30 hover:bg-[#FFF2EB]/40 transition-colors shadow-2xs shrink-0 cursor-pointer"
                         title="Chat with applicant"
                       >
                         <MessageCircle className="w-4 h-4" />
-                      </Link>
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleSelectCandidate(c)}
-                        className="flex-1 py-3.5 px-4 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full text-xs font-bold shadow-xs shadow-[#E5501A]/20 transition-all active:scale-[0.98]"
+                        className="flex-1 py-3.5 px-4 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full text-xs font-bold shadow-xs shadow-[#E5501A]/20 transition-all active:scale-[0.98] cursor-pointer"
                       >
                         Select {c.name.split(' ')[0]} as Roommate
                       </button>
@@ -399,7 +479,16 @@ export default function ApplicantCompare() {
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <div className="w-7 h-7 rounded-full overflow-hidden bg-gray-100 shrink-0">
-                            {c.avatar ? <img src={c.avatar} alt={c.name} className="w-full h-full object-cover" /> : <User className="w-4 h-4 m-auto text-gray-400" />}
+                            {c.avatar ? (
+                              <img
+                                src={c.avatar}
+                                alt={c.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                              />
+                            ) : (
+                              <User className="w-4 h-4 m-auto text-gray-400" />
+                            )}
                           </div>
                           <div className="min-w-0">
                             <p className="text-xs text-[#1A1A2E] truncate font-bold">{c.name}</p>
@@ -419,17 +508,41 @@ export default function ApplicantCompare() {
 
             {/* DESKTOP COMPARISON MATRIX (>= 768px) */}
             <div className="hidden md:block overflow-x-auto pb-4">
-              <div className="grid grid-cols-4 min-w-[720px] gap-4">
+              <div className={`grid gap-4 min-w-[720px] ${candidates.length === 1 ? 'grid-cols-2' : candidates.length === 2 ? 'grid-cols-3' : 'grid-cols-4'}`}>
                 {/* Metric Label Column */}
                 <div className="bg-white/60 rounded-3xl p-5 space-y-4 pt-36 text-xs font-bold text-gray-500 uppercase tracking-wider border border-gray-100">
-                  <div className="h-12 flex items-center border-b border-gray-100">Identity Trust</div>
-                  <div className="h-12 flex items-center border-b border-gray-100">Budget Range</div>
-                  <div className="h-12 flex items-center border-b border-gray-100">Move-in Date</div>
-                  <div className="h-12 flex items-center border-b border-gray-100">Profession</div>
-                  <div className="h-12 flex items-center border-b border-gray-100">Diet Preference</div>
-                  <div className="h-12 flex items-center border-b border-gray-100">Smoking Habit</div>
-                  <div className="h-12 flex items-center border-b border-gray-100">Sleep Schedule</div>
-                  <div className="h-16 flex items-center">Final Decision</div>
+                  <div className="h-12 flex items-center border-b border-gray-100">
+                    <ShieldCheck className="w-3.5 h-3.5 mr-2 text-emerald-600 shrink-0" />
+                    <span>Identity Trust</span>
+                  </div>
+                  <div className="h-12 flex items-center border-b border-gray-100">
+                    <IndianRupee className="w-3.5 h-3.5 mr-2 text-[#E5501A] shrink-0" />
+                    <span>Budget Range</span>
+                  </div>
+                  <div className="h-12 flex items-center border-b border-gray-100">
+                    <Calendar className="w-3.5 h-3.5 mr-2 text-slate-500 shrink-0" />
+                    <span>Move-in Date</span>
+                  </div>
+                  <div className="h-12 flex items-center border-b border-gray-100">
+                    <Briefcase className="w-3.5 h-3.5 mr-2 text-slate-500 shrink-0" />
+                    <span>Profession</span>
+                  </div>
+                  <div className="h-12 flex items-center border-b border-gray-100">
+                    <Utensils className="w-3.5 h-3.5 mr-2 text-slate-500 shrink-0" />
+                    <span>Diet Preference</span>
+                  </div>
+                  <div className="h-12 flex items-center border-b border-gray-100">
+                    <Cigarette className="w-3.5 h-3.5 mr-2 text-slate-500 shrink-0" />
+                    <span>Smoking Habit</span>
+                  </div>
+                  <div className="h-12 flex items-center border-b border-gray-100">
+                    <Moon className="w-3.5 h-3.5 mr-2 text-slate-500 shrink-0" />
+                    <span>Sleep Schedule</span>
+                  </div>
+                  <div className="h-16 flex items-center">
+                    <Sparkles className="w-3.5 h-3.5 mr-2 text-[#E5501A] shrink-0" />
+                    <span>Final Decision</span>
+                  </div>
                 </div>
 
                 {/* Candidate Columns (up to 3) */}
@@ -442,7 +555,12 @@ export default function ApplicantCompare() {
                     <div className="h-32 text-center flex flex-col items-center justify-center">
                       <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 mb-2 flex items-center justify-center shadow-2xs">
                         {c.avatar ? (
-                          <img src={c.avatar} alt={c.name} className="w-full h-full object-cover" />
+                          <img
+                            src={c.avatar}
+                            alt={c.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                          />
                         ) : (
                           <User className="w-8 h-8 text-gray-400" />
                         )}
@@ -494,17 +612,18 @@ export default function ApplicantCompare() {
 
                     {/* Actions */}
                     <div className="h-16 flex items-center gap-2 pt-2">
-                      <Link
-                        to="/chat"
-                        className="p-3 rounded-2xl border border-gray-200 text-gray-600 hover:text-[#E5501A] hover:border-[#E5501A]/30 hover:bg-[#FFF2EB]/40 transition-colors shadow-2xs"
+                      <button
+                        type="button"
+                        onClick={() => handleChatApplicant(c.applicantId)}
+                        className="p-3 rounded-2xl border border-gray-200 text-gray-600 hover:text-[#E5501A] hover:border-[#E5501A]/30 hover:bg-[#FFF2EB]/40 transition-colors shadow-2xs cursor-pointer"
                         title="Chat with applicant"
                       >
                         <MessageCircle className="w-4 h-4" />
-                      </Link>
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleSelectCandidate(c)}
-                        className="flex-1 py-3 px-4 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full text-xs font-semibold shadow-xs shadow-[#E5501A]/20 transition-all active:scale-[0.98]"
+                        className="flex-1 py-3 px-4 bg-[#E5501A] hover:bg-[#D0400B] text-white rounded-full text-xs font-semibold shadow-xs shadow-[#E5501A]/20 transition-all active:scale-[0.98] cursor-pointer"
                       >
                         Select Roommate
                       </button>

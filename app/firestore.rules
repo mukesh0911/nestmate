@@ -56,7 +56,29 @@ service cloud.firestore {
         && (!('verificationLevel' in request.resource.data) || request.resource.data.verificationLevel == 0 || request.resource.data.verificationLevel == 1)
         && (!('isAadhaarVerified' in request.resource.data) || request.resource.data.isAadhaarVerified == false)
         && (!('isWorkIdVerified' in request.resource.data) || request.resource.data.isWorkIdVerified == false)
-        && (!('isStudentIdVerified' in request.resource.data) || request.resource.data.isStudentIdVerified == false);
+        && (!('isStudentIdVerified' in request.resource.data) || request.resource.data.isStudentIdVerified == false)
+        && (!('connectsUsed' in request.resource.data) || request.resource.data.connectsUsed == 0);
+    }
+
+    function isPremiumUser() {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && myUserDoc().get('isPremium', false) == true;
+    }
+
+    // Free tier connection limit (FREE_CONNECT_LIMIT = 5):
+    // Non-premium users may send up to 5 connection requests.
+    // Server-enforced via the user's connectsUsed counter (strictly immutable downward by the user).
+    function connectionQuotaAvailable() {
+      return !exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        || myUserDoc().get('connectsUsed', 0) < 5;
+    }
+
+    // Users may never decrement their own connectsUsed counter to bypass quota
+    function connectsUsedUpdateSafe() {
+      return !('connectsUsed' in request.resource.data)
+        || !('connectsUsed' in resource.data)
+        || request.resource.data.connectsUsed >= resource.data.connectsUsed;
     }
 
     // Moderation status is immutable except by admins (prevents self-reinstatement).
@@ -124,6 +146,7 @@ service cloud.firestore {
         && trustFieldsUnchanged()
         && statusUnchanged()
         && onboardingFlipValid()
+        && connectsUsedUpdateSafe()
       );
       allow delete: if isOwner(userId) || isAdmin();
     }
@@ -260,7 +283,8 @@ service cloud.firestore {
         && request.resource.data.fromUserId == request.auth.uid
         && request.resource.data.toUserId != request.auth.uid
         && request.resource.data.status == 'pending'
-        && connectionListingAttributionValid();
+        && connectionListingAttributionValid()
+        && (isAdmin() || isPremiumUser() || connectionQuotaAvailable());
       allow update: if isAdmin() || (
         isAuthenticated()
         && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId)

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { Home, ArrowLeft, SearchX } from 'lucide-react';
 import StateEmpty from '@/components/StateEmpty';
@@ -5,6 +6,10 @@ import StateEmpty from '@/components/StateEmpty';
 export default function NotFound() {
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    document.title = 'Page Not Found | NestMate';
+  }, []);
 
   // If user appended /admin to any arbitrary or broken URL, immediately redirect to admin portal
   const p = location.pathname.toLowerCase();
@@ -22,10 +27,24 @@ export default function NotFound() {
         description="The page you are looking for does not exist or has been moved."
         action={
           <>
-            <button onClick={() => navigate(-1)} className="btn-outline flex items-center gap-2 text-sm">
+            <button
+              type="button"
+              onClick={() => {
+                if (window.history.length > 1) {
+                  navigate(-1);
+                } else {
+                  navigate('/');
+                }
+              }}
+              className="btn-outline flex items-center gap-2 text-sm cursor-pointer"
+            >
               <ArrowLeft className="w-4 h-4" /> Go Back
             </button>
-            <button onClick={() => navigate('/')} className="btn-fire flex items-center gap-2 text-sm">
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="btn-fire flex items-center gap-2 text-sm cursor-pointer"
+            >
               <Home className="w-4 h-4" /> Home
             </button>
           </>

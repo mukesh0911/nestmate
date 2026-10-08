@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { resolveEntityCoordinates } from '@/lib/locationResolver';
-import { ArrowLeft, Save, RefreshCw, Loader2, Linkedin, Instagram, MessageCircle, Shield, ShieldCheck, CheckCircle2, XCircle, AlertCircle, Upload, Clock, FileText } from 'lucide-react';
+import {
+  ArrowLeft, Save, RefreshCw, Loader2, Linkedin, Instagram,
+  MessageCircle, Shield, CheckCircle2, XCircle, Upload, Clock, FileText
+} from 'lucide-react';
 import { cities, localitiesByCity, professions } from '@/lib/staticData';
 import { collection, getDocs, query, where, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -15,6 +18,11 @@ export default function EditProfile() {
   const navigate = useNavigate();
   const { user, profile, refreshProfile } = useAuth();
   const { updateProfile } = useUserProfile();
+
+  // Document Title
+  useEffect(() => {
+    document.title = 'Edit Profile | NestMate';
+  }, []);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -184,9 +192,12 @@ export default function EditProfile() {
 
   const validate = () => {
     const errs: Record<string, string> = {};
-    if (!formData.name) errs.name = 'Name is required';
-    if (!formData.age || parseInt(formData.age) < 18) errs.age = 'Must be at least 18';
-    if (!formData.city) errs.city = 'City is required';
+    if (!formData.name.trim()) errs.name = 'Name is required';
+    const parsedAge = parseInt(formData.age, 10);
+    if (!formData.age || isNaN(parsedAge) || parsedAge < 18 || parsedAge > 100) {
+      errs.age = 'Age must be between 18 and 100';
+    }
+    if (!formData.city.trim()) errs.city = 'City is required';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -311,6 +322,7 @@ export default function EditProfile() {
                     alt={profile?.name || user?.displayName || 'User'}
                     referrerPolicy="no-referrer"
                     className="w-full h-full rounded-full object-cover"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                   />
                 ) : (
                   <div aria-hidden="true" className="w-full h-full rounded-full bg-[#FFF2EB] text-[#E5501A] flex items-center justify-center font-bold text-2xl">
@@ -416,8 +428,12 @@ export default function EditProfile() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Bio</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-gray-500">Bio</label>
+              <span className="text-[11px] text-gray-400 font-medium">{formData.bio.length}/500</span>
+            </div>
             <textarea
+              maxLength={500}
               value={formData.bio}
               onChange={e => setFormData({ ...formData, bio: e.target.value })}
               className="w-full px-4 py-3 rounded-2xl border border-gray-200 bg-white text-sm font-medium text-[#1A1A2E] focus:outline-none focus:border-[#E5501A] shadow-xs min-h-[100px] resize-none"
@@ -451,6 +467,9 @@ export default function EditProfile() {
                 disabled={!formData.city}
               >
                 <option value="">Select locality</option>
+                {formData.locality && !localitiesByCity[formData.city]?.includes(formData.locality) && (
+                  <option value={formData.locality}>{formData.locality}</option>
+                )}
                 {formData.city && localitiesByCity[formData.city]?.map(l => <option key={l} value={l}>{l}</option>)}
               </select>
             </div>

@@ -173,10 +173,35 @@ export default function AdminVerifications() {
     setCurrentPage(1);
   }, [search, typeFilter, statusFilter, sourceFilter]);
 
+  useEffect(() => {
+    document.title = 'Verifications Queue | NestMate Admin';
+  }, []);
+
   // Reset rotation when opening modal
   useEffect(() => {
     setRotation(0);
   }, [selected]);
+
+  // Escape key & body scroll lock for selected modal and lightbox
+  useEffect(() => {
+    if (!selected && !lightbox) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (lightbox) {
+          setLightbox(false);
+        } else if (selected) {
+          setSelected(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [selected, lightbox]);
 
   // ─── Action handlers ─────────────────────────────────────────────────────
 
@@ -462,6 +487,9 @@ export default function AdminVerifications() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
           onClick={() => { setSelected(null); setActionMode(null); setActionNote(''); }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="verification-review-title"
         >
           <div
             className="relative bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-scale-up"
@@ -474,13 +502,15 @@ export default function AdminVerifications() {
                   <ShieldCheck className="w-5 h-5 text-teal-600" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900 leading-none">Verification Review</h3>
+                  <h3 id="verification-review-title" className="font-bold text-gray-900 leading-none">Verification Review</h3>
                   <p className="text-xs text-gray-500 mt-1">Doc ID: {selected.id}</p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => { setSelected(null); setActionMode(null); }}
-                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 cursor-pointer"
+                aria-label="Close modal"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -589,6 +619,7 @@ export default function AdminVerifications() {
                         alt="Proof Document"
                         style={{ transform: `rotate(${rotation}deg)` }}
                         className="max-h-72 object-contain rounded-lg transition-transform duration-200 group-hover:scale-[1.02]"
+                        onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
                       />
                     </div>
                   )
@@ -778,12 +809,16 @@ export default function AdminVerifications() {
         <div
           className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 cursor-pointer"
           onClick={() => setLightbox(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Document full view"
         >
           <div className="absolute top-4 right-4 flex items-center gap-3 z-10" onClick={e => e.stopPropagation()}>
             {!isPdf(selected.documentUrl) && (
               <button
+                type="button"
                 onClick={() => setRotation(r => (r + 90) % 360)}
-                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <RotateCw className="w-4 h-4" /> Rotate
               </button>
@@ -792,13 +827,15 @@ export default function AdminVerifications() {
               href={selected.documentUrl}
               target="_blank"
               rel="noreferrer"
-              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <ExternalLink className="w-4 h-4" /> Open Tab
             </a>
             <button
-              className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+              type="button"
+              className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors cursor-pointer"
               onClick={() => setLightbox(false)}
+              aria-label="Close lightbox"
             >
               <X className="w-5 h-5" />
             </button>
@@ -817,6 +854,7 @@ export default function AdminVerifications() {
                 alt="Document full view"
                 style={{ transform: `rotate(${rotation}deg)` }}
                 className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl transition-transform duration-200"
+                onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
               />
             )}
           </div>

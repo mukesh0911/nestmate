@@ -43,6 +43,10 @@ export default function AdminDashboard() {
   }, [getMetrics]);
 
   useEffect(() => {
+    document.title = 'Admin Dashboard | NestMate';
+  }, []);
+
+  useEffect(() => {
     fetchMetrics();
   }, [fetchMetrics]);
 
@@ -60,7 +64,11 @@ export default function AdminDashboard() {
       <div className="bg-white rounded-2xl p-12 text-center border border-slate-200">
         <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
         <p className="text-base font-semibold text-slate-700">Failed to load platform metrics.</p>
-        <button onClick={() => fetchMetrics(true)} className="mt-4 px-4 py-2 bg-fire text-white rounded-xl text-sm font-semibold hover:bg-orange-600 transition-colors">
+        <button
+          type="button"
+          onClick={() => fetchMetrics(true)}
+          className="mt-4 px-4 py-2 bg-fire text-white rounded-xl text-sm font-semibold hover:bg-orange-600 transition-colors cursor-pointer"
+        >
           Try Again
         </button>
       </div>
@@ -120,9 +128,11 @@ export default function AdminDashboard() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={() => fetchMetrics(true)}
             disabled={refreshing}
-            className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-semibold transition-all disabled:opacity-50">
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
+          >
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             <span>Refresh Stats</span>
           </button>
@@ -325,7 +335,7 @@ export default function AdminDashboard() {
               )}
             </div>
             <p className="text-sm font-bold text-slate-800 group-hover:text-fire transition-colors">Listings Directory</p>
-            <p className="text-xs text-slate-400 mt-0.5">{metrics.totalListings} total listings across Bangalore</p>
+            <p className="text-xs text-slate-400 mt-0.5">{metrics.totalListings} total listings across all active cities</p>
           </Link>
 
           <Link to="/admin/users" className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 hover:border-blue-400 hover:shadow-md transition-all group">

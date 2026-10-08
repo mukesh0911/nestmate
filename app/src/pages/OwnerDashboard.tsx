@@ -43,10 +43,11 @@ interface PendingApplicant {
   profile: UserProfile;
 }
 
-// Sprint 6B: local initial-letter avatar fallback — removes third-party dicebear requests
+// Sprint 6B: local initial-letter avatar fallback — removes third-party dicebear requests with image onError fallback
 function UserAvatar({ src, name, className }: { src?: string; name?: string; className?: string }) {
-  if (src && !src.includes('dicebear')) {
-    return <img src={src} alt={name || 'User'} className={className} />;
+  const [imgError, setImgError] = useState(false);
+  if (src && !src.includes('dicebear') && !imgError) {
+    return <img src={src} alt={name || 'User'} className={className} onError={() => setImgError(true)} />;
   }
   return (
     <div aria-hidden="true" className={`${className} bg-fire/10 text-fire flex items-center justify-center font-bold`}>
@@ -111,6 +112,21 @@ export default function OwnerDashboard() {
     }
   }, [tabParam, highlightedRequestId]);
 
+  // Escape key and scroll lock for Delete Confirmation Modal
+  useEffect(() => {
+    if (!showDeleteConfirm) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowDeleteConfirm(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [showDeleteConfirm]);
+
   // Subscribe to owner verification status
   useEffect(() => {
     if (!user?.uid) return;
@@ -120,7 +136,11 @@ export default function OwnerDashboard() {
 
   // Load listings
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user?.uid) {
+      const timer = window.setTimeout(() => setIsLoading(false), 2000);
+      return () => window.clearTimeout(timer);
+    }
+    const safetyTimer = window.setTimeout(() => setIsLoading(false), 8000);
     getMyListings(user.uid)
       .then(async listings => {
         setAllListings(listings);
@@ -141,7 +161,11 @@ export default function OwnerDashboard() {
         }
       })
       .catch(err => console.error('Failed to load listings:', err))
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        window.clearTimeout(safetyTimer);
+        setIsLoading(false);
+      });
+    return () => window.clearTimeout(safetyTimer);
   }, [user?.uid]);
 
   // Real-time chat count
@@ -232,6 +256,16 @@ export default function OwnerDashboard() {
   const [seekerSort, setSeekerSort] = useState<'match' | 'budget_desc' | 'budget_asc'>('match');
   const [contactSeekerProfile, setContactSeekerProfile] = useState<UserProfile | null>(null);
   const [showSeekerFilters, setShowSeekerFilters] = useState(false);
+
+  // Escape key listener to close seeker filter panel
+  useEffect(() => {
+    if (!showSeekerFilters) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowSeekerFilters(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showSeekerFilters]);
 
   const defaultOwnerCity = myListing?.city || profile?.city || 'all';
 
@@ -1318,7 +1352,8 @@ export default function OwnerDashboard() {
                       <button
                         onClick={() => {
                           const ids = pendingApplicants.map(a => a.profile.uid || a.connection.fromUserId).filter(Boolean).slice(0, 3).join(',');
-                          navigate(ids ? `/applicants/compare?ids=${ids}` : '/applicants/compare');
+                          const lQuery = myListing?.id ? `&listingId=${myListing.id}` : '';
+                          navigate(ids ? `/applicants/compare?ids=${ids}${lQuery}` : '/applicants/compare');
                         }}
                         className="px-3.5 py-1.5 border border-[#E5501A]/30 text-[#E5501A] bg-[#FFF2EB] hover:bg-[#FFE5D6] rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
                       >
@@ -2195,7 +2230,8 @@ export default function OwnerDashboard() {
                   <button
                     onClick={() => {
                       const ids = pendingApplicants.map(a => a.profile.uid || a.connection.fromUserId).filter(Boolean).slice(0, 3).join(',');
-                      navigate(ids ? `/applicants/compare?ids=${ids}` : '/applicants/compare');
+                      const lQuery = myListing?.id ? `&listingId=${myListing.id}` : '';
+                      navigate(ids ? `/applicants/compare?ids=${ids}${lQuery}` : '/applicants/compare');
                     }}
                     className="p-2.5 rounded-xl border border-gray-100 bg-[#FBF9F6] hover:bg-white flex items-center gap-2 text-left transition-colors cursor-pointer"
                   >
@@ -2429,7 +2465,8 @@ export default function OwnerDashboard() {
                   <button
                     onClick={() => {
                       const ids = pendingApplicants.map(a => a.profile.uid || a.connection.fromUserId).filter(Boolean).slice(0, 3).join(',');
-                      navigate(ids ? `/applicants/compare?ids=${ids}` : '/applicants/compare');
+                      const lQuery = myListing?.id ? `&listingId=${myListing.id}` : '';
+                      navigate(ids ? `/applicants/compare?ids=${ids}${lQuery}` : '/applicants/compare');
                     }}
                     className="px-3.5 py-1.5 border border-[#E5501A]/30 text-[#E5501A] bg-[#FFF2EB] hover:bg-[#FFE5D6] rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
                   >
@@ -3101,7 +3138,10 @@ export default function OwnerDashboard() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteConfirm(false); }}
+          className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+        >
           <div className="bg-white rounded-3xl w-full max-w-sm p-7 shadow-2xl border border-gray-100">
             <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-red-500">
               <AlertTriangle className="w-6 h-6" />
@@ -3111,10 +3151,10 @@ export default function OwnerDashboard() {
               This action cannot be undone. All data associated with this listing will be permanently removed.
             </p>
             <div className="flex gap-2.5">
-              <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 px-4 py-3 rounded-full border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 transition-all text-xs">
+              <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 px-4 py-3 rounded-full border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 transition-all text-xs cursor-pointer">
                 Cancel
               </button>
-              <button onClick={handleDeleteListing} className="flex-1 px-4 py-3 rounded-full bg-red-600 text-white font-semibold hover:bg-red-700 transition-all text-xs shadow-sm">
+              <button onClick={handleDeleteListing} className="flex-1 px-4 py-3 rounded-full bg-red-600 text-white font-semibold hover:bg-red-700 transition-all text-xs shadow-xs cursor-pointer">
                 Delete
               </button>
             </div>

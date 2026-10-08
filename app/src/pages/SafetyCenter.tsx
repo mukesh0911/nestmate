@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { toast } from 'sonner';
 import {
-  ShieldAlert, Shield, AlertTriangle, Phone, Lock, CheckCircle2,
+  ShieldAlert, Shield, AlertTriangle, Phone,
   ArrowLeft, Flag, ExternalLink, UserX, Check, X
 } from 'lucide-react';
 
@@ -22,6 +22,25 @@ export default function SafetyCenter() {
 
   const [blockedUsers, setBlockedUsers] = useState<{ id: string; name: string }[]>([]);
   const [loadingBlocked, setLoadingBlocked] = useState(false);
+
+  useEffect(() => {
+    document.title = 'Safety Center | NestMate';
+  }, []);
+
+  // Escape key and body scroll lock for report modal
+  useEffect(() => {
+    if (!reportModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setReportModalOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [reportModalOpen]);
 
   const blockedIds: string[] = profile?.blockedUserIds || [];
 
@@ -102,16 +121,29 @@ export default function SafetyCenter() {
     <div className="min-h-screen bg-parchment pb-24">
       {/* Report Modal */}
       {reportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border border-border">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setReportModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-xs animate-fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="safety-report-modal-title"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border border-border"
+          >
             <div className="flex items-center justify-between pb-4 border-b border-border mb-4">
               <div className="flex items-center gap-2">
                 <Flag className="w-5 h-5 text-red-500" />
-                <h3 className="font-bold text-base text-slate-900">Report an Issue or User</h3>
+                <h3 id="safety-report-modal-title" className="font-bold text-base text-slate-900">Report an Issue or User</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setReportModalOpen(false)}
                 className="p-1 rounded-full text-slate-400 hover:text-slate-600 cursor-pointer"
+                aria-label="Close modal"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -149,14 +181,14 @@ export default function SafetyCenter() {
                 <button
                   type="button"
                   onClick={() => setReportModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingReport}
-                  className="flex-[2] py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-sm disabled:opacity-50"
+                  className="flex-[2] py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-sm disabled:opacity-50 cursor-pointer"
                 >
                   {submittingReport ? 'Submitting...' : 'Submit Report'}
                 </button>
@@ -170,17 +202,25 @@ export default function SafetyCenter() {
       <div className="bg-white border-b border-slate-100 py-4 px-4 sticky top-0 z-30 shadow-xs">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900"
+            type="button"
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate('/explore?tab=rooms');
+              }
+            }}
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
           </button>
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-red-500" />
-            <h1 className="text-sm font-bold text-slate-900">Safety Center (SAFE-01)</h1>
+            <h1 className="text-sm font-bold text-slate-900">Safety Center</h1>
           </div>
           <button
+            type="button"
             onClick={() => setReportModalOpen(true)}
             className="text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 border border-red-200 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
           >
@@ -227,7 +267,7 @@ export default function SafetyCenter() {
         <div className="card-nestmate p-6">
           <h2 className="text-base font-bold text-slate-900 mb-1 flex items-center gap-2">
             <Shield className="w-5 h-5 text-brand-orange" />
-            Meet-Safe Guidelines for Bangalore Visits
+            Meet-Safe Guidelines for Room Visits
           </h2>
           <p className="text-xs text-slate-500 mb-4">
             Follow these precautions before inspecting flats or meeting prospective roommates.
@@ -259,6 +299,7 @@ export default function SafetyCenter() {
               Structured Reporting & Protection
             </h2>
             <button
+              type="button"
               onClick={() => setReportModalOpen(true)}
               className="text-xs font-bold text-brand-orange hover:underline cursor-pointer"
             >
@@ -308,6 +349,7 @@ export default function SafetyCenter() {
                     <span className="text-[10px] text-slate-400 font-mono">ID: {bu.id.slice(0, 8)}•••</span>
                   </div>
                   <button
+                    type="button"
                     onClick={() => handleUnblock(bu.id, bu.name)}
                     className="text-xs font-semibold text-slate-600 hover:text-slate-900 border border-slate-200 px-3 py-1 rounded-lg cursor-pointer"
                   >
@@ -323,9 +365,10 @@ export default function SafetyCenter() {
         <div className="p-6 bg-slate-900 text-white rounded-3xl text-center">
           <h3 className="text-base font-bold mb-1">Encountered an issue or suspicious behavior?</h3>
           <p className="text-xs text-white/70 max-w-sm mx-auto mb-4">
-            Submit a structured report and our Bangalore trust operations team will review it immediately.
+            Submit a structured report and our trust &amp; safety operations team will review it immediately.
           </p>
           <button
+            type="button"
             onClick={() => setReportModalOpen(true)}
             className="btn-fire py-3 px-6 rounded-2xl font-bold text-xs shadow-md cursor-pointer"
           >

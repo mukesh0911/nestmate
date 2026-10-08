@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Heart, MessageCircle, ShieldCheck, Check,
   Star, Loader2, Home as HomeIcon, MapPin, X,
@@ -82,6 +82,7 @@ export default function MatchDetail() {
   const [listing, setListing] = useState<any | null>(null);
   const [ownerListings, setOwnerListings] = useState<any[]>([]);
   const [activeRoomImgIdx, setActiveRoomImgIdx] = useState(0);
+  const [showLightbox, setShowLightbox] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -98,7 +99,39 @@ export default function MatchDetail() {
   const [reportDescription, setReportDescription] = useState('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
-  // Reviews removed as requested
+  // Memoized active room photos
+  const roomPhotos = useMemo(() => {
+    return Array.isArray(listing?.images)
+      ? listing.images.filter((img: any): img is string => typeof img === 'string' && img.trim().length > 0)
+      : [];
+  }, [listing?.images]);
+
+  // Keyboard navigation & body scroll lock for lightbox
+  useEffect(() => {
+    if (!showLightbox) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowLightbox(false);
+      if (e.key === 'ArrowLeft') setActiveRoomImgIdx(p => (p === 0 ? (roomPhotos.length > 0 ? roomPhotos.length - 1 : 0) : p - 1));
+      if (e.key === 'ArrowRight') setActiveRoomImgIdx(p => (p < roomPhotos.length - 1 ? p + 1 : 0));
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showLightbox, roomPhotos.length]);
+
+  // Dynamic document title
+  useEffect(() => {
+    if (matchedUser?.profile?.name) {
+      document.title = `${matchedUser.profile.name} | NestMate`;
+    } else {
+      document.title = 'Flatmate Profile | NestMate';
+    }
+  }, [matchedUser?.profile?.name]);
 
   // Fetch match details
   useEffect(() => {
@@ -205,28 +238,58 @@ export default function MatchDetail() {
     }
   }, [id, user?.uid, myConnections]);
 
-  const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopyToast(true);
-    toast.success('Profile link copied to clipboard!');
-    setTimeout(() => setCopyToast(false), 2500);
+  const handleShare = async () => {
+    const shareData = {
+      title: `${matchedUser?.profile?.name || 'Flatmate Profile'} | NestMate`,
+      text: `Check out ${matchedUser?.profile?.name || 'this flatmate'}'s profile on NestMate!`,
+      url: window.location.href,
+    };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (_) {
+        // Ignored
+      }
+    } else {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopyToast(true);
+      toast.success('Profile link copied to clipboard!');
+      setTimeout(() => setCopyToast(false), 2500);
+    }
   };
 
   const handleBlock = async () => {
-    if (!user?.uid || !id) return;
-    if (!window.confirm(`Block ${matchedUser?.profile.name}? You won't see each other again.`)) return;
+    if (!user?.uid) {
+      useStore.getState().openAuthModal({
+        title: 'Sign in to Block User',
+        subtitle: 'Please sign in to manage and block user profiles.',
+        redirect: `/match/${id}`,
+      });
+      return;
+    }
+    if (!id) return;
+    if (!window.confirm(`Block ${matchedUser?.profile.name || 'this user'}? You won't see each other or their listings again.`)) return;
     try {
       await blockUser(user.uid, id);
       await refreshProfile();
-      toast.success('User blocked');
+      toast.success('User blocked successfully.');
       navigate('/explore?tab=roommates');
     } catch {
-      toast.error('Failed to block user');
+      toast.error('Failed to block user. Please try again.');
     }
   };
 
   const handleReport = async () => {
-    if (!user?.uid || !id || !reportReason) {
+    if (!user?.uid) {
+      setReportModalOpen(false);
+      useStore.getState().openAuthModal({
+        title: 'Sign in to Report',
+        subtitle: 'Please sign in to submit a trust and safety report.',
+        redirect: `/match/${id}`,
+      });
+      return;
+    }
+    if (!id || !reportReason) {
       toast.error('Please select a reason.');
       return;
     }
@@ -243,7 +306,7 @@ export default function MatchDetail() {
       setReportReason('');
       setReportDescription('');
     } catch {
-      toast.error('Failed to submit report.');
+      toast.error('Failed to submit report. Please try again.');
     } finally {
       setIsSubmittingReport(false);
     }
@@ -455,11 +518,6 @@ export default function MatchDetail() {
     }
   }
 
-  // Active room images for carousel (strictly real photos)
-  const roomPhotos = listing?.images && Array.isArray(listing.images)
-    ? listing.images.filter((img: any): img is string => typeof img === 'string' && img.trim().length > 0)
-    : [];
-
   const rentShare = listing?.partnerShare || listing?.rent || listing?.totalRent || 0;
 
   // Locality & City resolution (strictly dynamic real data, zero hardcoded city fallbacks)
@@ -512,19 +570,19 @@ export default function MatchDetail() {
               <span>Back</span>
             </button>
             <span className="text-gray-300 hidden sm:inline">/</span>
-            <span
-              onClick={() => navigate('/')}
+            <Link
+              to="/"
               className="text-gray-400 hover:text-gray-600 cursor-pointer transition-colors truncate hidden sm:inline font-medium"
             >
               Home
-            </span>
+            </Link>
             <span className="text-gray-300 hidden sm:inline">/</span>
-            <span
-              onClick={() => navigate(isOwner ? '/explore?tab=rooms' : '/explore?tab=roommates')}
+            <Link
+              to={isOwner ? '/explore?tab=rooms' : '/explore?tab=roommates'}
               className="text-gray-400 hover:text-gray-600 cursor-pointer transition-colors truncate hidden sm:inline font-medium"
             >
               {isOwner ? 'Rooms & Hosts' : 'Roommates'}
-            </span>
+            </Link>
             <span className="text-gray-300">/</span>
             <span className="font-extrabold text-[#1A1A2E] truncate">
               {p.name}
@@ -604,42 +662,55 @@ export default function MatchDetail() {
               <span>{activeLabel}</span>
             </div>
 
-            {/* Two Equal Orange Pill Action Buttons (Chat & Call) */}
-            <div className="flex items-center justify-center gap-3 w-full max-w-xs mb-3.5">
-              <button
-                type="button"
-                onClick={handleConnectOrChat}
-                disabled={connecting || connectState === 'pending_sent'}
-                className="flex-1 py-2.5 px-5 rounded-full font-bold text-xs sm:text-sm bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-85"
-              >
-                {connecting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <MessageCircle className="w-4 h-4" />
-                    <span>
-                      {connectState === 'pending_sent' ? 'Requested' :
-                        connectState === 'pending_received' ? 'Accept' :
-                          connectState === 'connected' ? 'Message' : (isOwner ? 'Chat with Host' : 'Chat')}
-                    </span>
-                  </>
-                )}
-              </button>
+            {/* Action Buttons: Edit Profile if own profile, else Chat & Call */}
+            {user?.uid === p.uid ? (
+              <div className="w-full max-w-xs mb-3.5">
+                <button
+                  type="button"
+                  onClick={() => navigate('/edit-profile')}
+                  className="w-full py-2.5 px-5 rounded-full font-bold text-xs sm:text-sm bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                >
+                  <User className="w-4 h-4" />
+                  <span>Edit My Profile</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-3 w-full max-w-xs mb-3.5">
+                <button
+                  type="button"
+                  onClick={handleConnectOrChat}
+                  disabled={connecting || connectState === 'pending_sent'}
+                  className="flex-1 py-2.5 px-5 rounded-full font-bold text-xs sm:text-sm bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-85"
+                >
+                  {connecting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <MessageCircle className="w-4 h-4" />
+                      <span>
+                        {connectState === 'pending_sent' ? 'Requested' :
+                          connectState === 'pending_received' ? 'Accept' :
+                            connectState === 'connected' ? 'Message' : (isOwner ? 'Chat with Host' : 'Chat')}
+                      </span>
+                    </>
+                  )}
+                </button>
 
-              <button
-                type="button"
-                onClick={handleCallUser}
-                className="flex-1 py-2.5 px-5 rounded-full font-bold text-xs sm:text-sm bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
-              >
-                <Phone className="w-4 h-4" />
-                <span>{isOwner ? 'Call Host' : 'Call'}</span>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={handleCallUser}
+                  className="flex-1 py-2.5 px-5 rounded-full font-bold text-xs sm:text-sm bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                >
+                  <Phone className="w-4 h-4" />
+                  <span>{isOwner ? 'Call Host' : 'Call'}</span>
+                </button>
+              </div>
+            )}
 
             {/* Centered Location with Pin */}
             <div className="flex items-center justify-center gap-1 text-xs sm:text-sm font-medium text-gray-500">
               <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
-              <span>{userLocationText || 'Chennai, Tamil Nadu, India'}</span>
+              <span>{userLocationText || userCity || 'Location not specified'}</span>
             </div>
           </div>
 
@@ -776,7 +847,7 @@ export default function MatchDetail() {
                           </h3>
                           <p className="text-xs text-gray-500 flex items-center gap-1 mb-3 line-clamp-1">
                             <MapPin className="w-3.5 h-3.5 text-[#E5501A] shrink-0" />
-                            <span>{item.locality ? `${item.locality}, ${item.city}` : item.city || 'Bangalore'}</span>
+                            <span>{item.locality ? `${item.locality}, ${item.city}` : item.city || 'Location not specified'}</span>
                           </p>
                         </div>
 
@@ -830,14 +901,14 @@ export default function MatchDetail() {
                   <span className="text-sm font-bold text-[#1A1A2E]">
                     {listing?.deposit
                       ? `₹ ${listing.deposit.toLocaleString('en-IN')}`
-                      : '2 Months Rent'}
+                      : (listing ? 'Contact Host' : 'Not specified')}
                   </span>
                 </div>
 
                 <div>
                   <span className="text-xs text-gray-400 font-medium block mb-1">Property Type</span>
                   <span className="text-sm font-bold text-[#1A1A2E]">
-                    {listing?.flatType || listing?.propertyType || 'Apartment'}
+                    {listing?.flatType || listing?.propertyType || (isOwner ? 'Apartment' : 'Not specified')}
                   </span>
                 </div>
 
@@ -851,7 +922,7 @@ export default function MatchDetail() {
                 <div>
                   <span className="text-xs text-gray-400 font-medium block mb-1">Furnishing</span>
                   <span className="text-sm font-bold text-[#1A1A2E]">
-                    {listing?.furnishing || 'Furnished'}
+                    {listing?.furnishing || (isOwner ? 'Semi-Furnished' : 'Not specified')}
                   </span>
                 </div>
 
@@ -901,7 +972,7 @@ export default function MatchDetail() {
                 <div>
                   <span className="text-xs text-gray-400 font-medium block mb-1">Looking For</span>
                   <span className="text-sm font-bold text-[#1A1A2E]">
-                    {listing ? (listing.propertyType || 'Roommate') : 'Any'}
+                    {listing ? ((listing as any).propertyType || 'Roommate') : 'Any'}
                   </span>
                 </div>
 
@@ -940,11 +1011,12 @@ export default function MatchDetail() {
                   )}
                 </div>
 
-                <div className="relative rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 aspect-[16/10] max-h-[380px] flex items-center justify-center">
+                <div className="relative rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 aspect-[16/10] max-h-[380px] flex items-center justify-center group">
                   <img
                     src={roomPhotos[activeRoomImgIdx] || roomPhotos[0]}
                     alt="Space"
-                    className="w-full h-full object-cover select-none"
+                    onClick={() => setShowLightbox(true)}
+                    className="w-full h-full object-cover select-none cursor-pointer hover:scale-[1.02] transition-transform duration-300"
                   />
 
                   {roomPhotos.length > 1 && (
@@ -973,11 +1045,11 @@ export default function MatchDetail() {
                       </button>
 
                       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-black/40 px-2.5 py-1 rounded-full">
-                        {roomPhotos.map((_, i) => (
+                        {roomPhotos.map((_: string, i: number) => (
                           <button
                             key={i}
                             onClick={() => setActiveRoomImgIdx(i)}
-                            className={`rounded-full transition-all ${
+                            className={`rounded-full transition-all cursor-pointer ${
                               i === activeRoomImgIdx ? 'w-3.5 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/60'
                             }`}
                             aria-label={`Slide ${i + 1}`}
@@ -1008,12 +1080,12 @@ export default function MatchDetail() {
                 isPhoneVerified ? 'bg-emerald-50/70 border-emerald-200 text-emerald-800' : 'bg-[#FAF8F5] border-gray-150 text-gray-500'
               }`}>
                 <CheckCircle2 className={`w-4 h-4 shrink-0 ${isPhoneVerified ? 'text-emerald-600' : 'text-gray-400'}`} />
-                <span>Phone Verified</span>
+                <span>Phone {isPhoneVerified ? 'Verified' : 'Pending'}</span>
               </div>
 
               <div className="p-3 rounded-2xl border bg-[#FAF8F5] border-gray-150 text-gray-700 flex items-center gap-2.5 text-xs font-bold">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{isOwner ? 'Verified Host' : 'Active Member'}</span>
+                <span>{isOwner ? (isIdentityVerified ? 'Verified Host' : 'Host Member') : 'Active Member'}</span>
               </div>
 
               <div className="p-3 rounded-2xl border bg-[#FAF8F5] border-gray-150 text-gray-700 flex items-center gap-2.5 text-xs font-bold">
@@ -1217,7 +1289,7 @@ export default function MatchDetail() {
             <div className="flex items-center justify-between">
               <h2 className="text-base sm:text-lg font-bold text-[#1A1A2E]">Neighborhood &amp; Transit</h2>
               <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${userLocality}, ${userCity}`)}`}
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([userLocality, userCity].filter(Boolean).join(', ') || 'India')}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs font-bold text-[#E5501A] hover:underline flex items-center gap-1 cursor-pointer"
@@ -1228,35 +1300,59 @@ export default function MatchDetail() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <div className="p-3 rounded-2xl bg-[#F5F8F6] border border-gray-150 flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                  <Train className="w-4 h-4" />
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Metro Station near ${userLocality} ${userCity}`.trim())}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-3 rounded-2xl bg-[#F5F8F6] hover:bg-[#ECF2ED] border border-gray-150 flex items-center justify-between transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <Train className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">Metro Connectivity</span>
+                    <span className="text-xs font-bold text-[#1A1A2E] group-hover:text-[#E5501A] transition-colors">Find Stations</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-gray-400 block">Metro Connectivity</span>
-                  <span className="text-xs font-bold text-[#1A1A2E]">Close to Station</span>
-                </div>
-              </div>
+                <ExternalLink className="w-3 h-3 text-gray-400 group-hover:text-[#E5501A]" />
+              </a>
 
-              <div className="p-3 rounded-2xl bg-[#F5F8F6] border border-gray-150 flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                  <Bus className="w-4 h-4" />
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Bus Stop near ${userLocality} ${userCity}`.trim())}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-3 rounded-2xl bg-[#F5F8F6] hover:bg-[#ECF2ED] border border-gray-150 flex items-center justify-between transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <Bus className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">Public Transport</span>
+                    <span className="text-xs font-bold text-[#1A1A2E] group-hover:text-[#E5501A] transition-colors">Find Bus Stops</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-gray-400 block">Public Transport</span>
-                  <span className="text-xs font-bold text-[#1A1A2E]">Frequent Busses</span>
-                </div>
-              </div>
+                <ExternalLink className="w-3 h-3 text-gray-400 group-hover:text-[#E5501A]" />
+              </a>
 
-              <div className="p-3 rounded-2xl bg-[#F5F8F6] border border-gray-150 flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                  <ShoppingBag className="w-4 h-4" />
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Supermarket near ${userLocality} ${userCity}`.trim())}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-3 rounded-2xl bg-[#F5F8F6] hover:bg-[#ECF2ED] border border-gray-150 flex items-center justify-between transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                    <ShoppingBag className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block">Local Market</span>
+                    <span className="text-xs font-bold text-[#1A1A2E] group-hover:text-[#E5501A] transition-colors">Find Markets</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-gray-400 block">Local Market</span>
-                  <span className="text-xs font-bold text-[#1A1A2E]">Groceries Nearby</span>
-                </div>
-              </div>
+                <ExternalLink className="w-3 h-3 text-gray-400 group-hover:text-[#E5501A]" />
+              </a>
             </div>
           </div>
 
@@ -1265,13 +1361,32 @@ export default function MatchDetail() {
           {/* 13. Safety & Report Host / User */}
           <div className="flex items-center justify-between py-1 text-xs text-gray-500">
             <span>{isOwner ? 'Incorrect listing details or suspicious host?' : 'Not looking good or fake?'}</span>
-            <button
-              type="button"
-              onClick={() => setReportModalOpen(true)}
-              className="px-4 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:text-amber-600 hover:border-amber-200 text-xs font-semibold cursor-pointer transition-colors"
-            >
-              {isOwner ? 'Report Host / Space' : 'Report User'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleBlock}
+                className="px-3.5 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:text-rose-600 hover:border-rose-200 text-xs font-semibold cursor-pointer transition-colors"
+              >
+                Block
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!user?.uid) {
+                    useStore.getState().openAuthModal({
+                      title: 'Sign in to Report',
+                      subtitle: 'Please sign in to submit a trust and safety report.',
+                      redirect: `/match/${id}`,
+                    });
+                    return;
+                  }
+                  setReportModalOpen(true);
+                }}
+                className="px-4 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:text-amber-600 hover:border-amber-200 text-xs font-semibold cursor-pointer transition-colors"
+              >
+                {isOwner ? 'Report Host / Space' : 'Report User'}
+              </button>
+            </div>
           </div>
 
         </div>
@@ -1280,34 +1395,47 @@ export default function MatchDetail() {
 
       {/* ── Mobile Floating Action Bar (NestMate Orange Pills) ── */}
       <div className="fixed bottom-0 left-0 right-0 px-4 py-3 bg-white/95 backdrop-blur-xl border-t border-gray-200/80 z-40 lg:hidden flex items-center justify-center gap-3 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <button
-          type="button"
-          onClick={handleConnectOrChat}
-          disabled={connecting || connectState === 'pending_sent'}
-          className="flex-1 max-w-[200px] h-11 px-5 rounded-full font-bold text-xs sm:text-sm bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-85"
-        >
-          {connecting ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <>
-              <MessageCircle className="w-4 h-4" />
-              <span>
-                {connectState === 'pending_sent' ? 'Requested' :
-                  connectState === 'pending_received' ? 'Accept' :
-                    connectState === 'connected' ? 'Message' : (isOwner ? 'Chat with Host' : 'Chat')}
-              </span>
-            </>
-          )}
-        </button>
+        {user?.uid === p.uid ? (
+          <button
+            type="button"
+            onClick={() => navigate('/edit-profile')}
+            className="w-full max-w-[280px] h-11 px-5 rounded-full font-bold text-xs sm:text-sm bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+          >
+            <User className="w-4 h-4" />
+            <span>Edit My Profile</span>
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={handleConnectOrChat}
+              disabled={connecting || connectState === 'pending_sent'}
+              className="flex-1 max-w-[200px] h-11 px-5 rounded-full font-bold text-xs sm:text-sm bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-85"
+            >
+              {connecting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <MessageCircle className="w-4 h-4" />
+                  <span>
+                    {connectState === 'pending_sent' ? 'Requested' :
+                      connectState === 'pending_received' ? 'Accept' :
+                        connectState === 'connected' ? 'Message' : (isOwner ? 'Chat with Host' : 'Chat')}
+                  </span>
+                </>
+              )}
+            </button>
 
-        <button
-          type="button"
-          onClick={handleCallUser}
-          className="flex-1 max-w-[200px] h-11 px-5 rounded-full font-bold text-xs sm:text-sm bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
-        >
-          <Phone className="w-4 h-4" />
-          <span>{isOwner ? 'Call Host' : 'Call'}</span>
-        </button>
+            <button
+              type="button"
+              onClick={handleCallUser}
+              className="flex-1 max-w-[200px] h-11 px-5 rounded-full font-bold text-xs sm:text-sm bg-[#E5501A] hover:bg-[#D0400B] text-white shadow-md shadow-[#E5501A]/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+            >
+              <Phone className="w-4 h-4" />
+              <span>{isOwner ? 'Call Host' : 'Call'}</span>
+            </button>
+          </>
+        )}
       </div>
 
       {/* ── Contact Phone Modal ───────────────────────────────────────── */}
@@ -1361,6 +1489,81 @@ export default function MatchDetail() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Fullscreen Interactive Lightbox Modal ────────────────────── */}
+      {showLightbox && roomPhotos.length > 0 && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/95 flex flex-col backdrop-blur-md"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Photo gallery"
+          onClick={e => {
+            if (e.target === e.currentTarget) setShowLightbox(false);
+          }}
+        >
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+            <span className="text-white/80 text-xs font-bold tracking-wider">
+              {activeRoomImgIdx + 1} OF {roomPhotos.length} PHOTOS
+            </span>
+            <button
+              onClick={() => setShowLightbox(false)}
+              aria-label="Close gallery"
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/15 text-white transition-colors cursor-pointer"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div
+            className="flex-1 flex items-center justify-center relative px-6 sm:px-12 py-4"
+            onClick={e => {
+              if (e.target === e.currentTarget) setShowLightbox(false);
+            }}
+          >
+            <img
+              src={roomPhotos[activeRoomImgIdx]}
+              alt={`Space photo ${activeRoomImgIdx + 1}`}
+              className="max-w-full max-h-[75vh] object-contain rounded-2xl shadow-2xl transition-all duration-300"
+            />
+            {roomPhotos.length > 1 && (
+              <>
+                <button
+                  onClick={() => setActiveRoomImgIdx(p => (p === 0 ? roomPhotos.length - 1 : p - 1))}
+                  aria-label="Previous photo"
+                  className="absolute left-4 w-11 h-11 flex items-center justify-center bg-white/15 hover:bg-white/25 text-white rounded-full transition-colors cursor-pointer backdrop-blur-md border border-white/20"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={() => setActiveRoomImgIdx(p => (p === roomPhotos.length - 1 ? 0 : p + 1))}
+                  aria-label="Next photo"
+                  className="absolute right-4 w-11 h-11 flex items-center justify-center bg-white/15 hover:bg-white/25 text-white rounded-full transition-colors cursor-pointer backdrop-blur-md border border-white/20"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+              </>
+            )}
+          </div>
+
+          {roomPhotos.length > 1 && (
+            <div className="py-4 px-6 flex justify-center gap-2.5 overflow-x-auto border-t border-white/10 bg-black/40">
+              {roomPhotos.map((src: string, i: number) => (
+                <button
+                  key={i}
+                  onClick={() => setActiveRoomImgIdx(i)}
+                  aria-label={`View photo ${i + 1}`}
+                  className={`shrink-0 w-16 h-12 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
+                    i === activeRoomImgIdx
+                      ? 'border-[#E5501A] scale-105 shadow-md shadow-[#E5501A]/30'
+                      : 'border-white/20 opacity-50 hover:opacity-80'
+                  }`}
+                >
+                  <img src={src} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
     </div>
   );

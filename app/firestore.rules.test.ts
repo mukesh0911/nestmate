@@ -217,6 +217,78 @@ d('Firestore security rules (emulator)', () => {
         );
     });
 
+    // ── Server-Side Free Connection Quota (FREE_CONNECT_LIMIT = 5) ──
+    it('non-premium seeker CAN create connections 1 to 5 when quota is available', async () => {
+        const USER_FIVE = 'seeker-limit-5';
+        await seedDisabled(async (db) => {
+            await setDoc(doc(db, 'users', USER_FIVE), {
+                name: 'Five Connections Seeker', role: 'seeker', status: 'active',
+                onboardingComplete: true, isPremium: false, connectsUsed: 0,
+            });
+        });
+        const userDb = fsOf(env.authenticatedContext(USER_FIVE));
+        for (let i = 1; i <= 5; i++) {
+            await assertSucceeds(
+                addDoc(collection(userDb, 'connections'), {
+                    fromUserId: USER_FIVE, toUserId: `owner-${i}`, status: 'pending', createdAt: serverTimestamp(),
+                })
+            );
+            // Simulate counter update on user doc
+            await seedDisabled(async (db) => {
+                await updateDoc(doc(db, 'users', USER_FIVE), { connectsUsed: i });
+            });
+        }
+    });
+
+    it('attempting 6th connection via direct Firestore addDoc is REJECTED with PERMISSION_DENIED', async () => {
+        const USER_EXHAUSTED = 'seeker-exhausted';
+        await seedDisabled(async (db) => {
+            await setDoc(doc(db, 'users', USER_EXHAUSTED), {
+                name: 'Exhausted Seeker', role: 'seeker', status: 'active',
+                onboardingComplete: true, isPremium: false, connectsUsed: 5,
+            });
+        });
+        const userDb = fsOf(env.authenticatedContext(USER_EXHAUSTED));
+        // Direct Firestore bypass attempt: Calling addDoc on connections
+        await assertFails(
+            addDoc(collection(userDb, 'connections'), {
+                fromUserId: USER_EXHAUSTED, toUserId: OWNER, status: 'pending', createdAt: serverTimestamp(),
+            })
+        );
+    });
+
+    it('PREMIUM seeker CAN create connections beyond 5 without quota restriction', async () => {
+        const USER_PREMIUM = 'seeker-pro-user';
+        await seedDisabled(async (db) => {
+            await setDoc(doc(db, 'users', USER_PREMIUM), {
+                name: 'Pro Seeker', role: 'seeker', status: 'active',
+                onboardingComplete: true, isPremium: true, connectsUsed: 10,
+            });
+        });
+        const userDb = fsOf(env.authenticatedContext(USER_PREMIUM));
+        await assertSucceeds(
+            addDoc(collection(userDb, 'connections'), {
+                fromUserId: USER_PREMIUM, toUserId: OWNER, status: 'pending', createdAt: serverTimestamp(),
+            })
+        );
+    });
+
+    it('seeker CANNOT decrement connectsUsed on user document to reset quota', async () => {
+        const USER_TAMPER = 'seeker-tamperer';
+        await seedDisabled(async (db) => {
+            await setDoc(doc(db, 'users', USER_TAMPER), {
+                name: 'Tamper Seeker', role: 'seeker', status: 'active',
+                onboardingComplete: true, isPremium: false, connectsUsed: 5,
+            });
+        });
+        const userDb = fsOf(env.authenticatedContext(USER_TAMPER));
+        await assertFails(
+            updateDoc(doc(userDb, 'users', USER_TAMPER), {
+                connectsUsed: 0,
+            })
+        );
+    });
+
     // ── Trust fields ───────────────────────────────────────────────
     it('NORMAL USER CANNOT grant themselves isVerified', async () => {
         await assertFails(

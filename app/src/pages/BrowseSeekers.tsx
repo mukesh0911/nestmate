@@ -102,7 +102,7 @@ export default function BrowseSeekers({
         try {
           const lsnap = await getDocs(query(collection(db, 'listings'), where('status', '==', 'active')));
           lsnap.docs.forEach(d => {
-            const data = { id: d.id, ...d.data() };
+            const data: any = { id: d.id, ...d.data() };
             if (data.ownerId && !listingByOwnerId.has(data.ownerId)) {
               listingByOwnerId.set(data.ownerId, data);
             }
@@ -268,6 +268,7 @@ export default function BrowseSeekers({
         action={
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <button
+              type="button"
               onClick={() => {
                 if (!user) {
                   openAuthModal({ title: 'Join NestMate', redirect: '/profile' });
@@ -281,6 +282,7 @@ export default function BrowseSeekers({
             </button>
             {activeCity && (
               <button
+                type="button"
                 onClick={() => {
                   useStore.getState().updateFilters({ city: '' });
                 }}

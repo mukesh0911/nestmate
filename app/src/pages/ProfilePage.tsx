@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useStore } from '@/store/useStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -12,8 +12,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   Crown, Shield, Star, Settings, Bell, Lock, HelpCircle, LogOut, SwitchCamera,
-  ChevronRight, TrendingUp, MessageSquare, MessageCircle, Heart, Eye, CheckCircle2, Linkedin, Instagram,
-  FileText, ShieldCheck, Users, Sliders, Building2, Sparkles, Brain, Share2
+  ChevronRight, TrendingUp, MessageSquare, MessageCircle, CheckCircle2, Linkedin, Instagram,
+  ShieldCheck, Users, Sliders, Building2, Sparkles, Brain, Share2
 } from 'lucide-react';
 import TrustBadge from '@/components/TrustBadge';
 import ProfileCompleteness from '@/components/ProfileCompleteness';
@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, profile, logout, refreshProfile } = useAuth();
   const { currentRole, setCurrentRole } = useStore();
   const { setRole } = useUserProfile();
@@ -36,6 +37,26 @@ export default function ProfilePage() {
   const [connectsCount, setConnectsCount] = useState<number>(0);
   const [ownerListings, setOwnerListings] = useState<any[]>([]);
   const [acceptedConnections, setAcceptedConnections] = useState<{ connection: any; profile: any }[]>([]);
+  const trustVerificationRef = useRef<HTMLDivElement>(null);
+
+  // Dynamic Document Title
+  useEffect(() => {
+    if (profile?.name) {
+      document.title = `${profile.name} — Profile | NestMate`;
+    } else {
+      document.title = 'My Profile | NestMate';
+    }
+  }, [profile?.name]);
+
+  // Handle openVerification from onboarding or navigation state
+  useEffect(() => {
+    if (location.state?.openVerification) {
+      setTimeout(() => {
+        trustVerificationRef.current?.scrollIntoView({ behavior: 'smooth' });
+        toast.info('Complete verification to boost your trust score & response rate');
+      }, 200);
+    }
+  }, [location.state]);
 
   // Derive the effective role from Firebase profile or Zustand store
   const effectiveRole = profile?.role || currentRole || 'seeker';
@@ -162,7 +183,7 @@ export default function ProfilePage() {
       // onSnapshot sees the new role and doesn't bounce back to the old dashboard.
       await refreshProfile(user.uid);
     }
-    navigate(newRole === 'seeker' ? '/dashboard' : '/owner-dashboard');
+    navigate(newRole === 'seeker' ? '/explore?tab=rooms' : '/owner-dashboard');
   };
 
   return (
@@ -191,6 +212,7 @@ export default function ProfilePage() {
                         alt={profile?.name || user?.displayName || 'Profile photo'}
                         referrerPolicy="no-referrer"
                         className="w-full h-full rounded-full object-cover"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                       />
                     ) : (
                       <div className="w-full h-full rounded-full bg-[#FFF2EB] flex items-center justify-center text-2xl font-bold text-[#E5501A]">
@@ -426,7 +448,7 @@ export default function ProfilePage() {
         <div className="flex-1 min-w-0 space-y-5">
           {/* Trust & Verification Banner */}
           {!profile?.isVerified ? (
-            <div className="bg-gradient-to-br from-[#1A1A2E] via-[#24243E] to-[#1A1A2E] rounded-3xl p-6 relative overflow-hidden text-white shadow-xs border border-slate-700/50">
+            <div ref={trustVerificationRef} className="bg-gradient-to-br from-[#1A1A2E] via-[#24243E] to-[#1A1A2E] rounded-3xl p-6 relative overflow-hidden text-white shadow-xs border border-slate-700/50">
               <div className="absolute top-0 right-0 w-36 h-36 bg-[#E5501A]/20 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
               <div className="relative">
                 <span className="bg-[#FFF2EB]/15 text-[#FF7A45] text-[10px] font-bold px-3 py-1 rounded-full mb-3 inline-flex items-center gap-1.5 border border-[#E5501A]/30">
@@ -446,7 +468,7 @@ export default function ProfilePage() {
               </div>
             </div>
           ) : (
-            <div className="bg-gradient-to-r from-emerald-50/80 via-white to-white rounded-3xl p-5 border border-emerald-200/80 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div ref={trustVerificationRef} className="bg-gradient-to-r from-emerald-50/80 via-white to-white rounded-3xl p-5 border border-emerald-200/80 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-start gap-3.5">
                 <div className="w-10 h-10 rounded-2xl bg-emerald-100/80 text-emerald-700 flex items-center justify-center shrink-0 shadow-2xs">
                   <ShieldCheck className="w-5 h-5" />
@@ -492,7 +514,12 @@ export default function ProfilePage() {
                   return (
                     <div key={conn.connection.id} className="p-3 bg-[#FBF9F6] rounded-2xl border border-gray-100 flex items-center gap-3 hover:bg-[#FFF2EB]/20 transition-colors">
                       {p.avatar ? (
-                        <img src={p.avatar} alt={p.name} className="w-10 h-10 rounded-full border border-gray-200 object-cover" />
+                        <img
+                          src={p.avatar}
+                          alt={p.name}
+                          className="w-10 h-10 rounded-full border border-gray-200 object-cover"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                        />
                       ) : (
                         <div className="w-10 h-10 rounded-full border border-gray-200 bg-[#FFF2EB] flex items-center justify-center text-sm font-bold text-[#E5501A]">{(p.name || 'U').charAt(0).toUpperCase()}</div>
                       )}
@@ -602,6 +629,7 @@ export default function ProfilePage() {
                             src={review.reviewerAvatar}
                             alt={review.reviewerName}
                             className="w-8 h-8 rounded-full border border-gray-200 object-cover"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                           />
                         ) : (
                           <div className="w-8 h-8 rounded-full bg-[#FFF2EB] border border-gray-200 flex items-center justify-center text-xs font-bold text-[#E5501A]">

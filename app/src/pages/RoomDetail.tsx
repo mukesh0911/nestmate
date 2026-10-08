@@ -20,7 +20,7 @@ import { useStore } from '@/store/useStore';
 import { getRoomMatchReasons, getActiveStatus, calculateRoomCompatibility } from '@/lib/matching';
 import type { Listing } from '@/hooks/useListings';
 import type { UserProfile } from '@/hooks/useAuth';
-import { getAvailabilityState } from '@/lib/listingFreshness';
+import { getAvailabilityState, isDiscoverable } from '@/lib/listingFreshness';
 import { formatLocationString, getDynamicPreferences, getRoomHighlights } from '@/lib/dynamicTraits';
 import StateLoading from '@/components/StateLoading';
 import StateEmpty from '@/components/StateEmpty';
@@ -144,17 +144,30 @@ export default function RoomDetail() {
     return () => unsub();
   }, [user?.uid, room?.ownerId, subscribeToMyConnections]);
 
-  // Keyboard navigation for lightbox
+  // Memoized sanitized photos list
+  const photos = React.useMemo(() => {
+    return Array.isArray(room?.images)
+      ? room.images.filter((img): img is string => typeof img === 'string' && img.trim().length > 0)
+      : [];
+  }, [room?.images]);
+
+  // Keyboard navigation & body scroll lock for lightbox
   useEffect(() => {
     if (!showLightbox) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setShowLightbox(false);
-      if (e.key === 'ArrowLeft') setLightboxIdx(p => (p === 0 ? p : p - 1));
-      if (e.key === 'ArrowRight') setLightboxIdx(p => (p < (room?.images?.length || 1) - 1 ? p + 1 : 0));
+      if (e.key === 'ArrowLeft') setLightboxIdx(p => (p === 0 ? (photos.length > 0 ? photos.length - 1 : 0) : p - 1));
+      if (e.key === 'ArrowRight') setLightboxIdx(p => (p < photos.length - 1 ? p + 1 : 0));
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showLightbox, room?.images]);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showLightbox, photos.length]);
 
   // Load active listing + owner profile in a single fetch (no duplicate owner read)
   useEffect(() => {
@@ -176,6 +189,15 @@ export default function RoomDetail() {
       setIsLoading(false);
     });
   }, [id, getListingById, recordView]);
+
+  // Dynamic document title
+  useEffect(() => {
+    if (room?.title) {
+      document.title = `${room.title} | NestMate`;
+    } else {
+      document.title = 'Room Details | NestMate';
+    }
+  }, [room?.title]);
 
   // Load similar listings (deferred, lightweight query — no N+1 owner reads)
   useEffect(() => {
@@ -314,7 +336,12 @@ export default function RoomDetail() {
     if (!user?.uid || !room) return;
     setIsSubmittingReport(true);
     try {
-      await reportUser(user.uid, room.ownerId, `${reportReason}: ${reportDescription}`.trim());
+      await reportUser({
+        reporterId: user.uid,
+        targetId: room.ownerId,
+        reason: reportReason,
+        description: reportDescription.trim(),
+      });
       toast.success('Thank you. Our safety & trust team will inspect this listing.');
       setReportModalOpen(false);
       setReportReason('inaccurate_info');
@@ -399,10 +426,6 @@ export default function RoomDetail() {
   }
 
   /* ── 100% Dynamic Real Data Computation ─────────────────────────── */
-  const photos = Array.isArray(room.images)
-    ? room.images.filter((img): img is string => typeof img === 'string' && img.trim().length > 0)
-    : [];
-
   const roomMatchBreakdown = profile ? getRoomMatchReasons(profile, room) : null;
   const compatibility = roomMatchBreakdown && typeof roomMatchBreakdown.score === 'number' && roomMatchBreakdown.score > 0
     ? roomMatchBreakdown.score
@@ -1343,6 +1366,9 @@ export default function RoomDetail() {
           role="dialog"
           aria-modal="true"
           aria-label="Photo gallery"
+          onClick={e => {
+            if (e.target === e.currentTarget) setShowLightbox(false);
+          }}
         >
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
             <span className="text-white/80 text-xs font-bold tracking-wider">
@@ -1357,7 +1383,12 @@ export default function RoomDetail() {
             </button>
           </div>
 
-          <div className="flex-1 flex items-center justify-center relative px-6 sm:px-12 py-4">
+          <div
+            className="flex-1 flex items-center justify-center relative px-6 sm:px-12 py-4"
+            onClick={e => {
+              if (e.target === e.currentTarget) setShowLightbox(false);
+            }}
+          >
             <img
               src={photos[lightboxIdx]}
               alt={`Photo ${lightboxIdx + 1}`}

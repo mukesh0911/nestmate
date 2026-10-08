@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotifications, type Notification } from '@/hooks/useNotifications';
-import { Bell, MessageCircle, UserPlus, Home, FileText, Shield, Settings, CheckCheck, Trash2 } from 'lucide-react';
+import { Bell, MessageCircle, UserPlus, Home, FileText, Shield, Settings, CheckCheck, Trash2, Filter } from 'lucide-react';
 import PageShell from '@/components/PageShell';
 import StateEmpty from '@/components/StateEmpty';
+import { toast } from 'sonner';
 
 const iconMap: Record<string, { icon: any; color: string }> = {
   match: { icon: Bell, color: 'bg-[#FFF2EB] text-[#E5501A]' },
@@ -16,48 +17,101 @@ const iconMap: Record<string, { icon: any; color: string }> = {
   system: { icon: Settings, color: 'bg-gray-100 text-gray-700' },
 };
 
+const toDateSafe = (val: any): Date | null => {
+  if (!val) return null;
+  if (typeof val.toDate === 'function') return val.toDate();
+  if (val instanceof Date) return val;
+  if (typeof val === 'string' || typeof val === 'number') {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+};
+
+const isToday = (d: Date | null) => {
+  if (!d) return false;
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+};
+
 export default function NotificationsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { subscribeToNotifications, markAsRead, markAllRead, deleteNotification, requestPermission } = useNotifications();
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [filterTab, setFilterTab] = useState<'all' | 'unread'>('all');
   const [permissionStatus, setPermissionStatus] = useState<string>(
     () => ('Notification' in window ? Notification.permission : 'default')
   );
 
+  const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
+
+  // Dynamic SEO title
+  useEffect(() => {
+    document.title = unreadCount > 0 ? `(${unreadCount}) Notifications | NestMate` : 'Notifications | NestMate';
+  }, [unreadCount]);
+
   const handleEnablePush = async () => {
     const granted = await requestPermission();
     setPermissionStatus(granted ? 'granted' : 'denied');
+    if (granted) {
+      toast.success('Push notifications enabled!');
+    } else {
+      toast.info('Notification permission was not granted.');
+    }
   };
 
   useEffect(() => {
     if (!user?.uid) return;
     const unsub = subscribeToNotifications(user.uid, setNotifications);
     return () => unsub();
-  }, [user?.uid]);
+  }, [user?.uid, subscribeToNotifications]);
 
   const handleMarkAllRead = async () => {
     if (!user?.uid) return;
     await markAllRead(user.uid);
+    toast.success('All notifications marked as read');
   };
 
   const handleDelete = async (id: string) => {
     await deleteNotification(id);
+    toast.success('Notification removed');
   };
 
   const handleClick = async (notif: Notification) => {
     if (!notif.read) await markAsRead(notif.id);
-    if (notif.actionUrl) navigate(notif.actionUrl);
+    if (notif.actionUrl) {
+      navigate(notif.actionUrl);
+    } else {
+      switch (notif.type) {
+        case 'message':
+          navigate('/chat');
+          break;
+        case 'match':
+        case 'connect':
+          navigate('/explore?tab=roommates');
+          break;
+        case 'room':
+          navigate('/explore?tab=rooms');
+          break;
+        case 'verification':
+          navigate('/profile');
+          break;
+        default:
+          break;
+      }
+    }
   };
 
-  const today = new Date().toLocaleDateString();
+  const visibleNotifs = useMemo(() => {
+    if (filterTab === 'unread') {
+      return notifications.filter(n => !n.read);
+    }
+    return notifications;
+  }, [notifications, filterTab]);
 
-  const todayNotifs = notifications.filter(
-    n => n.createdAt?.toDate?.()?.toLocaleDateString() === today
-  );
-  const olderNotifs = notifications.filter(
-    n => n.createdAt?.toDate?.()?.toLocaleDateString() !== today
-  );
+  const todayNotifs = visibleNotifs.filter(n => isToday(toDateSafe(n.createdAt)));
+  const olderNotifs = visibleNotifs.filter(n => !isToday(toDateSafe(n.createdAt)));
 
   return (
     <PageShell
@@ -65,7 +119,7 @@ export default function NotificationsPage() {
       title="Notifications"
       subtitle="Stay updated on high compatibility matches, inquiries, and verified messages."
       actions={
-        notifications.some(n => !n.read) ? (
+        unreadCount > 0 ? (
           <button
             onClick={handleMarkAllRead}
             className="text-xs text-[#E5501A] hover:text-[#D0400B] font-semibold flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#FFF2EB] border border-[#E5501A]/20 transition-all shadow-2xs cursor-pointer"
@@ -95,12 +149,66 @@ export default function NotificationsPage() {
         </div>
       )}
 
-      {notifications.length === 0 ? (
-        <div className="py-12">
+      {/* Filter Tabs when notifications exist */}
+      {notifications.length > 0 && (
+        <div className="flex items-center gap-2 mb-6">
+          <button
+            onClick={() => setFilterTab('all')}
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              filterTab === 'all'
+                ? 'bg-[#1A1A2E] text-white shadow-2xs'
+                : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            All ({notifications.length})
+          </button>
+          <button
+            onClick={() => setFilterTab('unread')}
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+              filterTab === 'unread'
+                ? 'bg-[#E5501A] text-white shadow-2xs'
+                : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <span>Unread</span>
+            {unreadCount > 0 && (
+              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                filterTab === 'unread' ? 'bg-white text-[#E5501A]' : 'bg-[#FFF2EB] text-[#E5501A]'
+              }`}>
+                {unreadCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {visibleNotifs.length === 0 ? (
+        <div className="py-8">
           <StateEmpty
             icon={Bell}
-            title="All caught up!"
-            description="You have no new notifications right now."
+            title={filterTab === 'unread' ? 'No unread notifications' : 'All caught up!'}
+            description={
+              filterTab === 'unread'
+                ? 'You have read all your notifications. Switch to "All" to view your history.'
+                : 'You have no notifications right now. Explore available rooms or connect with verified flatmates.'
+            }
+            action={
+              filterTab === 'unread' ? (
+                <button
+                  onClick={() => setFilterTab('all')}
+                  className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-[#1A1A2E] text-xs font-semibold rounded-full transition-all cursor-pointer"
+                >
+                  View All Notifications
+                </button>
+              ) : (
+                <button
+                  onClick={() => navigate('/explore?tab=rooms')}
+                  className="px-5 py-2.5 bg-[#E5501A] hover:bg-[#D0400B] text-white text-xs font-semibold rounded-full transition-all shadow-xs shadow-[#E5501A]/20 cursor-pointer"
+                >
+                  Browse Listings & Roommates →
+                </button>
+              )
+            }
             className="bg-white rounded-3xl max-w-xl mx-auto border border-gray-100 p-8 shadow-xs"
           />
         </div>
@@ -113,6 +221,7 @@ export default function NotificationsPage() {
                 {todayNotifs.map(notif => {
                   const config = iconMap[notif.type] || iconMap.system;
                   const Icon = config.icon;
+                  const dateObj = toDateSafe(notif.createdAt);
                   return (
                     <div
                       key={notif.id}
@@ -129,12 +238,12 @@ export default function NotificationsPage() {
                           <p className="font-serif font-medium text-sm text-[#1A1A2E] mb-0.5">{notif.title}</p>
                           <p className="text-xs text-gray-600 leading-relaxed font-sans">{notif.description}</p>
                           <p className="text-[10px] text-gray-400 font-medium mt-1.5">
-                            {notif.createdAt?.toDate?.()?.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) || ''}
+                            {dateObj ? dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ''}
                           </p>
                         </div>
                       </button>
                       <div className="flex items-center gap-1.5 shrink-0 pt-1">
-                        {!notif.read && <span className="w-2.5 h-2.5 bg-[#E5501A] rounded-full" aria-label="Unread" />}
+                        {!notif.read && <span className="w-2.5 h-2.5 bg-[#E5501A] rounded-full" aria-label="Unread" title="Unread" />}
                         <button
                           onClick={() => handleDelete(notif.id)}
                           className="p-2 text-gray-300 hover:text-red-500 transition-colors rounded-full hover:bg-red-50 cursor-pointer"
@@ -157,6 +266,7 @@ export default function NotificationsPage() {
                 {olderNotifs.map(notif => {
                   const config = iconMap[notif.type] || iconMap.system;
                   const Icon = config.icon;
+                  const dateObj = toDateSafe(notif.createdAt);
                   return (
                     <div
                       key={notif.id}
@@ -173,12 +283,12 @@ export default function NotificationsPage() {
                           <p className="font-serif font-medium text-sm text-[#1A1A2E] mb-0.5">{notif.title}</p>
                           <p className="text-xs text-gray-600 leading-relaxed font-sans">{notif.description}</p>
                           <p className="text-[10px] text-gray-400 font-medium mt-1.5">
-                            {notif.createdAt?.toDate?.()?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) || ''}
+                            {dateObj ? dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
                           </p>
                         </div>
                       </button>
                       <div className="flex items-center gap-1.5 shrink-0 pt-1">
-                        {!notif.read && <span className="w-2.5 h-2.5 bg-[#E5501A] rounded-full" aria-label="Unread" />}
+                        {!notif.read && <span className="w-2.5 h-2.5 bg-[#E5501A] rounded-full" aria-label="Unread" title="Unread" />}
                         <button
                           onClick={() => handleDelete(notif.id)}
                           className="p-2 text-gray-300 hover:text-red-500 transition-colors rounded-full hover:bg-red-50 cursor-pointer"

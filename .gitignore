@@ -27,3 +27,7 @@ roomate/
 
 # Asset originals
 **/_originals/
+
+# Playwright Test Outputs
+playwright-report/
+test-results/

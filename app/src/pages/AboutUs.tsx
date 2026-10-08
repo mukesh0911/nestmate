@@ -1,8 +1,15 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Heart, Target, ChevronRight } from 'lucide-react';
+import { Users, Heart, Target } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function AboutUs() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    document.title = 'About Us | NestMate';
+  }, []);
 
   return (
     <div className="min-h-screen bg-parchment page-transition">
@@ -64,8 +71,12 @@ export default function AboutUs() {
 
         {/* CTA */}
         <div className="text-center">
-          <button onClick={() => navigate('/login')} className="btn-fire">
-            Join Our Community
+          <button
+            type="button"
+            onClick={() => navigate(user ? '/explore?tab=rooms' : '/login')}
+            className="btn-fire cursor-pointer"
+          >
+            {user ? 'Explore Roommates & Rooms' : 'Join Our Community'}
           </button>
         </div>
       </div>

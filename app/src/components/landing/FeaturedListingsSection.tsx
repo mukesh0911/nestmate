@@ -222,7 +222,7 @@ export default function FeaturedListingsSection() {
 
                   {/* Tags */}
                   <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100 text-[10px] text-slate-500">
-                    {item.tags.map((tag, tIdx) => (
+                    {item.tags.map((tag: string, tIdx: number) => (
                       <span key={tIdx} className="flex items-center gap-1">
                         <span>{tag}</span>
                         {tIdx < item.tags.length - 1 && (
@@ -379,7 +379,7 @@ export default function FeaturedListingsSection() {
 
                     {/* Metadata Tags */}
                     <div className="flex flex-wrap items-center gap-1.5 pt-3 border-t border-border/40 text-[11px] text-slate-500">
-                      {item.tags.map((tag, tIdx) => (
+                      {item.tags.map((tag: string, tIdx: number) => (
                         <span key={tIdx} className="flex items-center">
                           {tag}
                           {tIdx < item.tags.length - 1 && (

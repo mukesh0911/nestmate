@@ -1,8 +1,12 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { X, Phone, MessageCircle, ShieldCheck, Clock, Copy, Check } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { X, Phone, MessageCircle, ShieldCheck, Clock, Copy, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import FlatmateAvatar from './FlatmateAvatar';
+import { useAuth } from '@/hooks/useAuth';
+import { useChat } from '@/hooks/useChat';
+import { useStore } from '@/store/useStore';
 import type { UserProfile } from '@/hooks/useAuth';
 import { formatWhatsAppDeepLink, getConnectedUserWhatsApp } from '@/hooks/useConnections';
 
@@ -13,8 +17,22 @@ interface ContactModalProps {
 }
 
 export default function ContactModal({ isOpen, onClose, profile }: ContactModalProps) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { getOrCreateChatRoom } = useChat();
   const [copied, setCopied] = React.useState(false);
   const [resolvedWhatsApp, setResolvedWhatsApp] = React.useState<string | null>(null);
+  const [isStartingChat, setIsStartingChat] = React.useState(false);
+
+  // Close on Escape key
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -51,19 +69,51 @@ export default function ContactModal({ isOpen, onClose, profile }: ContactModalP
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleMessageChat = async () => {
+    if (!user?.uid) {
+      onClose();
+      useStore.getState().openAuthModal({
+        title: 'Sign in to Chat',
+        subtitle: 'Start a direct chat with this verified host.',
+        redirect: `/chat`,
+      });
+      return;
+    }
+    if (!profile.uid || isStartingChat) return;
+    setIsStartingChat(true);
+    try {
+      const roomId = await getOrCreateChatRoom(user.uid, profile.uid);
+      onClose();
+      navigate(`/chat/${roomId}`);
+    } catch (err) {
+      console.error('Failed to start chat:', err);
+      toast.error('Could not start chat. Please try again.');
+    } finally {
+      setIsStartingChat(false);
+    }
+  };
+
   const displayLocation = profile.locality && profile.city
     ? `${profile.locality}, ${profile.city}`
     : profile.locality || profile.city || 'Location not specified';
 
   return createPortal(
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+      onClick={e => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div
         className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-gray-100 relative"
         onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="contact-modal-title"
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          className="absolute top-4 right-4 p-2 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
           aria-label="Close"
         >
           <X className="w-5 h-5" />
@@ -81,7 +131,7 @@ export default function ContactModal({ isOpen, onClose, profile }: ContactModalP
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <h3 className="font-bold text-lg text-[#1A1A2E] truncate">{profile.name}</h3>
+              <h3 id="contact-modal-title" className="font-bold text-lg text-[#1A1A2E] truncate">{profile.name}</h3>
               {profile.isVerified && (
                 <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
               )}
@@ -162,12 +212,15 @@ export default function ContactModal({ isOpen, onClose, profile }: ContactModalP
             </div>
           ) : (
             <button
-              onClick={() => {
-                onClose();
-                window.location.href = `/chat/${profile.uid}`;
-              }}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#1A1A2E] hover:bg-[#2A2A44] text-white font-semibold text-xs transition-colors cursor-pointer shadow-xs"
+              onClick={handleMessageChat}
+              disabled={isStartingChat}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#1A1A2E] hover:bg-[#2A2A44] text-white font-semibold text-xs transition-colors cursor-pointer shadow-xs disabled:opacity-70"
             >
+              {isStartingChat ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <MessageCircle className="w-4 h-4 text-emerald-400" />
+              )}
               <span>Message on NestMate Chat</span>
             </button>
           )}

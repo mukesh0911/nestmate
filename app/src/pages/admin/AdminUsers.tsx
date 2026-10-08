@@ -43,8 +43,33 @@ export default function AdminUsers() {
   };
 
   useEffect(() => {
+    document.title = 'User Registry | NestMate Admin';
+  }, []);
+
+  useEffect(() => {
     fetchUsers();
   }, [getAllUsers]);
+
+  // Escape key & body scroll lock for selectedUser drawer or confirmModal
+  useEffect(() => {
+    if (!selectedUser && !confirmModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (confirmModal) {
+          setConfirmModal(null);
+        } else if (selectedUser) {
+          setSelectedUser(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [selectedUser, confirmModal]);
 
   const filtered = useMemo(() => {
     let result = users;
@@ -247,7 +272,12 @@ export default function AdminUsers() {
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0 overflow-hidden">
                           {u.avatar ? (
-                            <img src={u.avatar} className="w-full h-full object-cover" alt="" />
+                            <img
+                              src={u.avatar}
+                              className="w-full h-full object-cover"
+                              alt=""
+                              onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                            />
                           ) : (
                             u.name?.charAt(0) || '?'
                           )}
@@ -359,7 +389,12 @@ export default function AdminUsers() {
               <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
                 <div className="w-14 h-14 rounded-full bg-slate-200 flex items-center justify-center text-xl font-bold text-slate-600 shrink-0 overflow-hidden shadow-inner">
                   {selectedUser.avatar ? (
-                    <img src={selectedUser.avatar} className="w-full h-full object-cover" alt="" />
+                    <img
+                      src={selectedUser.avatar}
+                      className="w-full h-full object-cover"
+                      alt=""
+                      onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                    />
                   ) : (
                     selectedUser.name?.charAt(0) || '?'
                   )}
@@ -490,10 +525,15 @@ export default function AdminUsers() {
 
       {/* Action Confirmation Modal */}
       {confirmModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-modal-title"
+        >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setConfirmModal(null)} />
           <div className="relative bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 border border-slate-200">
-            <h3 className="text-base font-bold text-slate-900 mb-2 capitalize">
+            <h3 id="confirm-modal-title" className="text-base font-bold text-slate-900 mb-2 capitalize">
               Confirm {confirmModal.action} User
             </h3>
             <p className="text-xs text-slate-600 leading-relaxed mb-6">
